@@ -91,7 +91,7 @@ const paymentSchema = new mongoose.Schema(
 );
 
 // Indexes
-paymentSchema.index({ paymentId: 1 }, { unique: true });
+// Note: paymentId index is created automatically by unique: true in schema
 paymentSchema.index({ task: 1 });
 paymentSchema.index({ client: 1 });
 paymentSchema.index({ freelancer: 1 });

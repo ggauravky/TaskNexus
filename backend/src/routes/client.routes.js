@@ -2,16 +2,19 @@ const express = require("express");
 const router = express.Router();
 const clientController = require("../controllers/clientController");
 const { authenticate } = require("../middleware/auth");
-const { checkRole } = require("../middleware/roleCheck");
+const { requireClient } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
 const { body, param, query } = require("express-validator");
 
 // All routes require authentication and client role
 router.use(authenticate);
-router.use(checkRole(["client"]));
+router.use(requireClient);
 
 // Dashboard
 router.get("/dashboard", clientController.getDashboard);
+
+// Tasks
+router.get("/tasks", clientController.getTasks);
 
 // Submissions
 router.get("/submissions", clientController.getSubmissions);

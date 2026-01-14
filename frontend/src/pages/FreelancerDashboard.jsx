@@ -1,28 +1,86 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Briefcase, DollarSign, Star, TrendingUp } from 'lucide-react';
+import {
+  LogOut, Briefcase, DollarSign, Star, TrendingUp, Clock,
+  CheckCircle, RefreshCw, Eye, Target
+} from 'lucide-react';
+import api from '../services/api';
+import toast from 'react-hot-toast';
+import Loading from '../components/common/Loading';
+import EmptyState from '../components/common/EmptyState';
+import StatCard from '../components/common/StatCard';
+import StatusBadge from '../components/common/StatusBadge';
 
 /**
- * Freelancer Dashboard
+ * Enhanced Freelancer Dashboard with API Integration
  */
 const FreelancerDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({
+    activeTasks: 0,
+    completedTasks: 0,
+    totalEarnings: 0,
+    pendingEarnings: 0,
+    performanceScore: 0,
+    rating: 0,
+    onTimeDeliveryRate: 0
+  });
+  const [myTasks, setMyTasks] = useState([]);
+  const [availableTasks, setAvailableTasks] = useState([]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [dashboardRes, myTasksRes, availableRes] = await Promise.all([
+        api.get('/freelancer/dashboard'),
+        api.get('/freelancer/my-tasks?limit=5'),
+        api.get('/freelancer/available-tasks?limit=5')
+      ]);
+
+      if (dashboardRes.data.success) {
+        setStats(dashboardRes.data.data);
+      }
+
+      if (myTasksRes.data.success) {
+        setMyTasks(myTasksRes.data.data.tasks || []);
+      }
+
+      if (availableRes.data.success) {
+        setAvailableTasks(availableRes.data.data.tasks || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
+    toast.success('Dashboard refreshed!');
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
-  
-  // Mock data
-  const stats = {
-    activeTasks: 2,
-    completedTasks: user?.freelancerProfile?.completedTasks || 0,
-    earnings: 1250.00,
-    performanceScore: user?.freelancerProfile?.performanceScore || 50,
-    rating: user?.freelancerProfile?.rating || 0
-  };
-  
+
+  if (loading) {
+    return <Loading />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -51,7 +109,7 @@ const FreelancerDashboard = () => {
           </div>
         </div>
       </header>
-      
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
@@ -63,7 +121,7 @@ const FreelancerDashboard = () => {
             Here's your performance overview and assigned tasks
           </p>
         </div>
-        
+
         {/* Performance Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <StatCard
@@ -97,7 +155,7 @@ const FreelancerDashboard = () => {
             color="bg-orange-50"
           />
         </div>
-        
+
         {/* Skills Section */}
         <div className="card mb-8">
           <h3 className="text-xl font-bold mb-4">Your Skills</h3>
@@ -113,7 +171,7 @@ const FreelancerDashboard = () => {
             )}
           </div>
         </div>
-        
+
         {/* Assigned Tasks */}
         <div className="card">
           <h3 className="text-xl font-bold mb-4">Assigned Tasks</h3>
@@ -124,23 +182,6 @@ const FreelancerDashboard = () => {
           </div>
         </div>
       </main>
-    </div>
-  );
-};
-
-/**
- * Stat Card Component
- */
-const StatCard = ({ title, value, icon, color }) => {
-  return (
-    <div className="card">
-      <div className="flex flex-col">
-        <div className={`p-3 rounded-lg ${color} w-fit mb-3`}>
-          {icon}
-        </div>
-        <p className="text-sm text-gray-600 mb-1">{title}</p>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-      </div>
     </div>
   );
 };

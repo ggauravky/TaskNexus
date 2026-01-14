@@ -87,9 +87,20 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true, user };
         } catch (error) {
-            const message = error.response?.data?.error?.message || 'Registration failed';
-            toast.error(message);
-            return { success: false, error: message };
+            console.error('Registration error:', error.response?.data);
+            const errorData = error.response?.data?.error;
+
+            // Show detailed validation errors if available
+            if (errorData?.details && Array.isArray(errorData.details)) {
+                errorData.details.forEach(err => {
+                    toast.error(`${err.field}: ${err.message}`);
+                });
+            } else {
+                const message = errorData?.message || 'Registration failed';
+                toast.error(message);
+            }
+
+            return { success: false, error: errorData?.message || 'Registration failed', details: errorData?.details };
         }
     };
 

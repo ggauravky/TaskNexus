@@ -15,51 +15,95 @@ exports.getDashboard = async (req, res, next) => {
   try {
     const clientId = req.user._id;
 
-    // Get task statistics
-    const taskStats = await Task.aggregate([
-      { $match: { clientId } },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-          totalSpent: { $sum: "$budget" },
-        },
-      },
-    ]);
+    // Get all tasks for statistics
+    const allTasks = await Task.find({ clientId });
 
-    // Get recent tasks
-    const recentTasks = await Task.find({ clientId })
-      .populate("freelancerId", "name rating")
-      .sort({ createdAt: -1 })
-      .limit(5);
+    // Calculate statistics
+    const totalTasks = allTasks.length;
+    const activeTasks = allTasks.filter((t) =>
+      ["open", "assigned", "in_progress"].includes(t.status)
+    ).length;
+    const completedTasks = allTasks.filter(
+      (t) => t.status === "completed"
+    ).length;
+    const pendingReview = allTasks.filter(
+      (t) => t.status === "submitted"
+    ).length;
 
-    // Get pending submissions
-    const pendingSubmissions = await Submission.find({
-      clientId,
-      status: "pending",
-    })
-      .populate("taskId", "title")
-      .populate("freelancerId", "name email")
-      .sort({ createdAt: -1 })
-      .limit(5);
+    // Calculate total spent from completed/paid tasks
+    const totalSpent = allTasks
+      .filter((t) => ["completed", "paid"].includes(t.status))
+      .reduce((sum, task) => sum + (task.budget || 0), 0);
 
-    // Calculate total spending
-    const totalSpending = await Payment.aggregate([
-      { $match: { clientId, status: "completed" } },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ]);
+    // Calculate average completion time (in days)
+    const completedTasksWithDates = allTasks.filter(
+      (t) => t.status === "completed" && t.completedAt && t.createdAt
+    );
+    const avgCompletionTime =
+      completedTasksWithDates.length > 0
+        ? completedTasksWithDates.reduce((sum, task) => {
+            const days = Math.ceil(
+              (task.completedAt - task.createdAt) / (1000 * 60 * 60 * 24)
+            );
+            return sum + days;
+          }, 0) / completedTasksWithDates.length
+        : 0;
 
     res.status(200).json({
       success: true,
       data: {
-        taskStats,
-        recentTasks,
-        pendingSubmissions,
-        totalSpending: totalSpending[0]?.total || 0,
+        totalTasks,
+        activeTasks,
+        completedTasks,
+        pendingReview,
+        totalSpent,
+        avgCompletionTime: Math.round(avgCompletionTime),
       },
     });
   } catch (error) {
     logger.error("Error fetching client dashboard:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get client tasks
+ * @route   GET /api/client/tasks
+ * @access  Private (Client)
+ */
+exports.getTasks = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10, status, sort = "-createdAt" } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const query = { clientId: req.user._id };
+    if (status) {
+      query.status = status;
+    }
+
+    const tasks = await Task.find(query)
+      .populate(
+        "freelancerId",
+        "profile.firstName profile.lastName email freelancerProfile.rating"
+      )
+      .sort(sort)
+      .limit(parseInt(limit))
+      .skip(skip);
+
+    const total = await Task.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: tasks,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    logger.error("Error fetching client tasks:", error);
     next(error);
   }
 };

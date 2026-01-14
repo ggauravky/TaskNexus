@@ -181,7 +181,7 @@ const taskSchema = new mongoose.Schema(
 );
 
 // Indexes
-taskSchema.index({ taskId: 1 }, { unique: true });
+// Note: taskId index is created automatically by unique: true in schema
 taskSchema.index({ client: 1, status: 1 });
 taskSchema.index({ freelancer: 1, status: 1 });
 taskSchema.index({ status: 1 });

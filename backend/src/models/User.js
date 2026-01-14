@@ -84,7 +84,7 @@ const userSchema = new mongoose.Schema(
       },
       rating: {
         type: Number,
-        min: BUSINESS_RULES.MIN_RATING,
+        min: 0, // 0 means no ratings yet, 1-5 for actual ratings
         max: BUSINESS_RULES.MAX_RATING,
         default: 0,
       },
@@ -182,7 +182,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes for performance
-userSchema.index({ email: 1 }, { unique: true });
+// Note: email index is created automatically by unique: true in schema
 userSchema.index({ role: 1 });
 userSchema.index({ status: 1 });
 userSchema.index({ "freelancerProfile.performanceScore": -1 });

@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 const freelancerController = require("../controllers/freelancerController");
 const { authenticate } = require("../middleware/auth");
-const { checkRole } = require("../middleware/roleCheck");
+const { requireFreelancer } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
 const { body, param } = require("express-validator");
 
 // All routes require authentication and freelancer role
 router.use(authenticate);
-router.use(checkRole(["freelancer"]));
+router.use(requireFreelancer);
 
 // Dashboard
 router.get("/dashboard", freelancerController.getDashboard);

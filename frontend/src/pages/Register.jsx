@@ -48,8 +48,15 @@ const Register = () => {
     const validate = () => {
         const newErrors = {};
 
+        // Password validation
         if (formData.password.length < 8) {
             newErrors.password = 'Password must be at least 8 characters';
+        } else if (!/(?=.*[a-z])/.test(formData.password)) {
+            newErrors.password = 'Password must contain at least one lowercase letter';
+        } else if (!/(?=.*[A-Z])/.test(formData.password)) {
+            newErrors.password = 'Password must contain at least one uppercase letter';
+        } else if (!/(?=.*\d)/.test(formData.password)) {
+            newErrors.password = 'Password must contain at least one number';
         }
 
         if (formData.password !== formData.confirmPassword) {
@@ -114,8 +121,8 @@ const Register = () => {
                                 type="button"
                                 onClick={() => setFormData({ ...formData, role: USER_ROLES.CLIENT })}
                                 className={`p-4 border-2 rounded-lg text-sm font-medium transition ${formData.role === USER_ROLES.CLIENT
-                                        ? 'border-primary-600 bg-primary-50 text-primary-600'
-                                        : 'border-gray-300 hover:border-gray-400'
+                                    ? 'border-primary-600 bg-primary-50 text-primary-600'
+                                    : 'border-gray-300 hover:border-gray-400'
                                     }`}
                             >
                                 Submit Tasks (Client)
@@ -124,8 +131,8 @@ const Register = () => {
                                 type="button"
                                 onClick={() => setFormData({ ...formData, role: USER_ROLES.FREELANCER })}
                                 className={`p-4 border-2 rounded-lg text-sm font-medium transition ${formData.role === USER_ROLES.FREELANCER
-                                        ? 'border-primary-600 bg-primary-50 text-primary-600'
-                                        : 'border-gray-300 hover:border-gray-400'
+                                    ? 'border-primary-600 bg-primary-50 text-primary-600'
+                                    : 'border-gray-300 hover:border-gray-400'
                                     }`}
                             >
                                 Work on Tasks (Freelancer)
@@ -184,6 +191,9 @@ const Register = () => {
                                 value={formData.password}
                                 onChange={handleChange}
                             />
+                            <p className="mt-1 text-xs text-gray-500">
+                                Must contain: 8+ characters, uppercase, lowercase, and number
+                            </p>
                             {errors.password && (
                                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
                             )}

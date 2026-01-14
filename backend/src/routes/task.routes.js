@@ -2,11 +2,13 @@ const express = require("express");
 const router = express.Router();
 const taskController = require("../controllers/taskController");
 const { authenticate } = require("../middleware/auth");
-const { checkRole } = require("../middleware/roleCheck");
+const {
+  requireRole,
+  requireClient,
+  requireFreelancer,
+} = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
 const { body, query, param } = require("express-validator");
-const { checkRole } = require("../middleware/roleCheck");
-
 
 // Validation rules
 const createTaskValidation = [
@@ -78,7 +80,7 @@ router.get("/", taskController.getTasks);
 // Create new task (Client only)
 router.post(
   "/",
-  checkRole(["client"]),
+  requireClient,
   createTaskValidation,
   validate,
   taskController.createTask
@@ -95,7 +97,7 @@ router.get(
 // Update task (Client only)
 router.put(
   "/:id",
-  checkRole(["client"]),
+  requireClient,
   param("id").isMongoId().withMessage("Invalid task ID"),
   validate,
   taskController.updateTask
@@ -104,7 +106,7 @@ router.put(
 // Delete/Cancel task (Client or Admin)
 router.delete(
   "/:id",
-  checkRole(["client", "admin"]),
+  requireRole("client", "admin"),
   param("id").isMongoId().withMessage("Invalid task ID"),
   validate,
   taskController.deleteTask
@@ -113,7 +115,7 @@ router.delete(
 // Submit task work (Freelancer only)
 router.post(
   "/:id/submit",
-  checkRole(["freelancer"]),
+  requireFreelancer,
   param("id").isMongoId().withMessage("Invalid task ID"),
   submitTaskValidation,
   validate,
