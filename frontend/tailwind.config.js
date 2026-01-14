@@ -4,6 +4,11 @@ export default {
   theme: {
     extend: {
       colors: {
+        border: "hsl(214.3 31.8% 91.4%)",
+        input: "hsl(214.3 31.8% 91.4%)",
+        ring: "hsl(221.2 83.2% 53.3%)",
+        background: "hsl(0 0% 100%)",
+        foreground: "hsl(222.2 84% 4.9%)",
         primary: {
           50: "#eff6ff",
           100: "#dbeafe",
@@ -15,6 +20,8 @@ export default {
           700: "#1d4ed8",
           800: "#1e40af",
           900: "#1e3a8a",
+          DEFAULT: "#2563eb",
+          foreground: "#ffffff",
         },
         secondary: {
           50: "#f8fafc",
@@ -27,10 +34,51 @@ export default {
           700: "#334155",
           800: "#1e293b",
           900: "#0f172a",
+          DEFAULT: "#64748b",
+          foreground: "#ffffff",
+        },
+        destructive: {
+          DEFAULT: "hsl(0 84.2% 60.2%)",
+          foreground: "hsl(0 0% 98%)",
+        },
+        muted: {
+          DEFAULT: "hsl(210 40% 96.1%)",
+          foreground: "hsl(215.4 16.3% 46.9%)",
+        },
+        accent: {
+          DEFAULT: "hsl(210 40% 96.1%)",
+          foreground: "hsl(222.2 47.4% 11.2%)",
+        },
+        popover: {
+          DEFAULT: "hsl(0 0% 100%)",
+          foreground: "hsl(222.2 84% 4.9%)",
+        },
+        card: {
+          DEFAULT: "hsl(0 0% 100%)",
+          foreground: "hsl(222.2 84% 4.9%)",
         },
       },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+      },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        "slide-in": {
+          "0%": { transform: "translateY(-10px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.2s ease-in-out",
+        "slide-in": "slide-in 0.3s ease-out",
       },
     },
   },

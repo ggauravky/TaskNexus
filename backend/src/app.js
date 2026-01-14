@@ -10,6 +10,11 @@ const logger = require("./utils/logger");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
+const taskRoutes = require("./routes/task.routes");
+const clientRoutes = require("./routes/client.routes");
+const freelancerRoutes = require("./routes/freelancer.routes");
+const adminRoutes = require("./routes/admin.routes");
+const notificationRoutes = require("./routes/notification.routes");
 
 // Create Express app
 const app = express();
@@ -54,12 +59,11 @@ app.get("/health", (req, res) => {
 
 // API routes
 app.use("/api/auth", authRoutes);
-
-// Note: Additional routes will be added here
-// app.use('/api/client', clientRoutes);
-// app.use('/api/freelancer', freelancerRoutes);
-// app.use('/api/admin', adminRoutes);
-// app.use('/api/notifications', notificationRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use("/api/client", clientRoutes);
+app.use("/api/freelancer", freelancerRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // 404 handler
 app.use(notFound);
