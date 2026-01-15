@@ -17,29 +17,32 @@ exports.createTask = async (req, res, next) => {
       category,
       budget,
       deadline,
-      requirements,
-      attachments,
+      skillsRequired,
+      experienceLevel,
     } = req.body;
 
-    // Validate budget
-    if (budget < 10 || budget > 100000) {
-      return res.status(400).json({
-        success: false,
-        message: "Budget must be between $10 and $100,000",
-      });
-    }
+    // Generate unique task ID
+    const taskId = `TASK-${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
 
-    // Create task
+    // Map category to valid task type (convert underscores to dashes)
+    const taskType = category.replace(/_/g, "-");
+
+    // Create task with correct structure
     const task = await Task.create({
-      clientId: req.user._id,
-      title,
-      description,
-      category,
-      budget,
-      deadline,
-      requirements: requirements || [],
-      attachments: attachments || [],
-      status: "pending_review",
+      taskId,
+      client: req.user._id,
+      taskDetails: {
+        title,
+        type: taskType, // Convert web_development to web-development
+        description,
+        budget,
+        deadline,
+      },
+      skillsRequired: skillsRequired || [],
+      experienceLevel: experienceLevel || "intermediate",
+      status: "submitted", // Valid initial status
     });
 
     // Log activity
@@ -55,7 +58,7 @@ exports.createTask = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: "Task created successfully and is pending review",
+      message: "Task created successfully",
       data: task,
     });
   } catch (error) {
