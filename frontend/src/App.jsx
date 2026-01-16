@@ -8,10 +8,15 @@ import { USER_ROLES } from './utils/constants';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AdminLogin from './pages/AdminLogin';
 import ClientDashboard from './pages/ClientDashboard';
 import FreelancerDashboard from './pages/FreelancerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminTasks from './pages/AdminTasks';
+import AdminUsers from './pages/AdminUsers';
+import AdminAnalytics from './pages/AdminAnalytics';
 import NotFound from './pages/NotFound';
+import TestPage from './pages/TestPage';
 
 /**
  * Main App Component
@@ -69,6 +74,14 @@ function AppRoutes() {
             <Route path="/register" element={
                 isAuthenticated ? <Navigate to={getDashboardRoute(user?.role)} /> : <Register />
             } />
+            <Route path="/admin/login" element={
+                isAuthenticated && user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <AdminLogin />
+            } />
+
+            {/* Test Route - for debugging */}
+            <Route path="/test" element={<TestPage />} />
+            <Route path="/client/test" element={<ClientDashboard />} />
+            <Route path="/freelancer/test" element={<FreelancerDashboard />} />
 
             {/* Client Routes */}
             <Route path="/client/dashboard" element={
@@ -88,6 +101,21 @@ function AppRoutes() {
             <Route path="/admin/dashboard" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
                     <AdminDashboard />
+                </ProtectedRoute>
+            } />
+            <Route path="/admin/tasks" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                    <AdminTasks />
+                </ProtectedRoute>
+            } />
+            <Route path="/admin/users" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                    <AdminUsers />
+                </ProtectedRoute>
+            } />
+            <Route path="/admin/analytics" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                    <AdminAnalytics />
                 </ProtectedRoute>
             } />
 

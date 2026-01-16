@@ -18,14 +18,18 @@ import TaskDetailsModal from '../components/client/TaskDetailsModal';
  * Enhanced Client Dashboard with API Integration
  */
 const ClientDashboard = () => {
+  console.log('[ClientDashboard] Component rendering');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  console.log('[ClientDashboard] User:', user);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [viewAllTasks, setViewAllTasks] = useState(false);
   const [stats, setStats] = useState({
     totalTasks: 0,
     activeTasks: 0,
@@ -35,12 +39,16 @@ const ClientDashboard = () => {
     avgCompletionTime: 0
   });
   const [recentTasks, setRecentTasks] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
+  const [totalTasksCount, setTotalTasksCount] = useState(0);
 
   useEffect(() => {
+    console.log('[ClientDashboard] useEffect triggered');
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
+    console.log('[ClientDashboard] fetchDashboardData started');
     try {
       setLoading(true);
       const [dashboardRes, tasksRes] = await Promise.all([
@@ -54,10 +62,29 @@ const ClientDashboard = () => {
 
       if (tasksRes.data.success) {
         setRecentTasks(tasksRes.data.data || []);
+        setTotalTasksCount(tasksRes.data.pagination?.total || 0);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      toast.error('Failed to load dashboard data');
+      setError(error.message || 'Failed to load dashboard data');
+      toast.error('Failed to load dashboard data. Please try refreshing.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllTasks = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/client/tasks?limit=100&sort=-createdAt');
+
+      if (response.data.success) {
+        setAllTasks(response.data.data || []);
+        setViewAllTasks(true);
+      }
+    } catch (error) {
+      console.error('Error fetching all tasks:', error);
+      toast.error('Failed to load all tasks');
     } finally {
       setLoading(false);
     }
@@ -84,8 +111,14 @@ const ClientDashboard = () => {
     setShowDetailsModal(true);
   };
 
-  const handleViewAllTasks = () => {
-    toast.info('Navigating to all tasks...');
+  const handleViewAllTasks = async () => {
+    if (viewAllTasks) {
+      // Toggle back to recent tasks
+      setViewAllTasks(false);
+    } else {
+      // Fetch and show all tasks
+      await fetchAllTasks();
+    }
   };
 
   const handleLogout = async () => {
@@ -94,9 +127,27 @@ const ClientDashboard = () => {
   };
 
   if (loading) {
-    return <Loading />;
+    console.log('[ClientDashboard] Rendering loading state');
+    return <Loading fullScreen={true} text="Loading dashboard..." />;
   }
 
+  if (error && !stats.totalTasks) {
+    console.log('[ClientDashboard] Rendering error state:', error);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Dashboard</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button onClick={handleRefresh} className="btn-primary">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('[ClientDashboard] Rendering main dashboard');
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -178,7 +229,7 @@ const ClientDashboard = () => {
             className="btn btn-secondary flex items-center text-lg shadow-md hover:shadow-lg transition-shadow"
           >
             <List className="w-5 h-5 mr-2" />
-            View All Tasks
+            {viewAllTasks ? 'Show Recent Tasks' : 'View All Tasks'}
           </button>
         </div>
 
@@ -229,18 +280,20 @@ const ClientDashboard = () => {
         {/* Recent Tasks */}
         <div className="bg-white rounded-lg shadow-md">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Tasks</h3>
-            {recentTasks.length > 0 && (
+            <h3 className="text-lg font-semibold text-gray-900">
+              {viewAllTasks ? `All Tasks (${allTasks.length})` : `Recent Tasks (${recentTasks.length})`}
+            </h3>
+            {(recentTasks.length > 0 || viewAllTasks) && (
               <button
                 onClick={handleViewAllTasks}
-                className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center"
               >
-                View All →
+                {viewAllTasks ? '← Show Recent' : 'View All →'}
               </button>
             )}
           </div>
           <div className="p-6">
-            {recentTasks.length === 0 ? (
+            {(viewAllTasks ? allTasks : recentTasks).length === 0 ? (
               <EmptyState
                 icon={FileText}
                 title="No tasks yet"
@@ -254,7 +307,7 @@ const ClientDashboard = () => {
               />
             ) : (
               <div className="space-y-4">
-                {recentTasks.map((task) => (
+                {(viewAllTasks ? allTasks : recentTasks).map((task) => (
                   <TaskCard
                     key={task._id}
                     task={task}

@@ -125,6 +125,14 @@ const LandingPage = () => {
                 <div className="container mx-auto px-6 text-center">
                     <p>&copy; 2026 TaskNexus. All rights reserved.</p>
                     <p className="mt-2 text-sm">Built with production-grade architecture</p>
+                    <div className="mt-4 pt-4 border-t border-gray-800">
+                        <Link
+                            to="/admin/login"
+                            className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                        >
+                            Admin Portal
+                        </Link>
+                    </div>
                 </div>
             </footer>
         </div>

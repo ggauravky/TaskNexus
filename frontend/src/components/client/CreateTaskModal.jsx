@@ -49,8 +49,19 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated }) => {
             toast.error('Title must be at least 5 characters long');
             return;
         }
-        if (!formData.description.trim() || formData.description.length < 20) {
+
+        // Clean and validate description
+        const cleanDescription = formData.description.trim();
+        if (!cleanDescription) {
+            toast.error('Description is required');
+            return;
+        }
+        if (cleanDescription.length < 20) {
             toast.error('Description must be at least 20 characters long');
+            return;
+        }
+        if (cleanDescription.length > 5000) {
+            toast.error('Description must not exceed 5000 characters');
             return;
         }
         if (!formData.category) {
@@ -71,7 +82,7 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated }) => {
 
             const taskData = {
                 title: formData.title.trim(),
-                description: formData.description.trim(),
+                description: formData.description.trim().replace(/\s+/g, ' '), // Normalize whitespace
                 category: formData.category,
                 budget: parseFloat(formData.budget),
                 deadline: formData.deadline,
@@ -90,51 +101,34 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated }) => {
             }
         } catch (error) {
             console.error('Error creating task:', error);
-            console.error('Error response:', error.response);
-            console.error('Error response data:', error.response?.data);
 
             let errorMsg = 'Failed to create task';
 
-            if (error.response) {
-                // Server responded with error
+            if (error.response?.data) {
                 const responseData = error.response.data;
-                console.log('Response data structure:', responseData);
-                console.log('Error object:', responseData?.error);
-                console.log('Error type:', typeof responseData?.error);
 
-                // Log full error details
-                if (responseData?.error) {
-                    console.log('Full error details:', JSON.stringify(responseData.error, null, 2));
+                // Handle validation errors with details array
+                if (responseData.error?.details && Array.isArray(responseData.error.details)) {
+                    const validationErrors = responseData.error.details
+                        .map(err => `${err.field}: ${err.message}`)
+                        .join('\n');
+                    errorMsg = validationErrors || responseData.error.message || 'Validation failed';
                 }
-
-                // Handle different error response formats
-                if (responseData?.error) {
-                    // Backend returns {success: false, error: {...}}
-                    if (typeof responseData.error === 'string') {
-                        errorMsg = responseData.error;
-                    } else if (responseData.error.message) {
-                        errorMsg = responseData.error.message;
-                    } else if (responseData.error.msg) {
-                        errorMsg = responseData.error.msg;
-                    } else {
-                        errorMsg = JSON.stringify(responseData.error);
-                    }
-                } else if (responseData?.message) {
+                // Handle simple error message
+                else if (responseData.error?.message) {
+                    errorMsg = responseData.error.message;
+                }
+                // Handle string error
+                else if (typeof responseData.error === 'string') {
+                    errorMsg = responseData.error;
+                }
+                // Handle message field
+                else if (responseData.message) {
                     errorMsg = responseData.message;
-                } else if (responseData?.errors && Array.isArray(responseData.errors)) {
-                    // Validation errors from express-validator
-                    const errors = responseData.errors;
-                    errorMsg = errors.map(e => e.msg || e.message).join(', ');
-                } else if (typeof responseData === 'string') {
-                    errorMsg = responseData;
-                } else {
-                    errorMsg = `Server error: ${error.response.status} - ${error.response.statusText}`;
                 }
             } else if (error.request) {
-                // Request made but no response
                 errorMsg = 'No response from server. Please check your connection.';
             } else {
-                // Something else happened
                 errorMsg = error.message || 'An unexpected error occurred';
             }
 

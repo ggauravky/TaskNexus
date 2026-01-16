@@ -7,11 +7,14 @@ import { USER_ROLES } from '../../utils/constants';
  * Restricts access based on authentication and role
  */
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
+    console.log('[ProtectedRoute] Rendering', { allowedRoles });
     const { isAuthenticated, user, loading } = useAuth();
     const location = useLocation();
+    console.log('[ProtectedRoute] Auth state:', { isAuthenticated, user, loading });
 
     // Show loading state
     if (loading) {
+        console.log('[ProtectedRoute] Showing loading state');
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">

@@ -13,7 +13,11 @@
 
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
-    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
 }
 
@@ -212,5 +216,13 @@
   /* Transition utilities */
   .transition-all-300 {
     @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Admin Login Background Pattern */
+  .bg-grid-pattern {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
 }

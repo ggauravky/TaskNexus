@@ -13,11 +13,69 @@ router.use(requireClient);
 // Dashboard
 router.get("/dashboard", clientController.getDashboard);
 
+// Analytics
+router.get("/analytics", clientController.getAnalytics);
+
+// Profile
+router.get("/profile", clientController.getProfile);
+router.put(
+  "/profile",
+  [
+    body("firstName").optional().trim().notEmpty(),
+    body("lastName").optional().trim().notEmpty(),
+    body("phone").optional().trim(),
+    body("avatar").optional().trim().isURL(),
+  ],
+  validate,
+  clientController.updateProfile,
+);
+
 // Tasks
-router.get("/tasks", clientController.getTasks);
+router.get(
+  "/tasks",
+  [
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1, max: 100 }),
+    query("status").optional().trim(),
+    query("type").optional().trim(),
+    query("search").optional().trim(),
+    query("sortBy").optional().trim(),
+    query("sortOrder").optional().isIn(["asc", "desc"]),
+    query("startDate").optional().isISO8601(),
+    query("endDate").optional().isISO8601(),
+  ],
+  validate,
+  clientController.getTasks,
+);
+
+router.get(
+  "/tasks/:id",
+  [param("id").isMongoId().withMessage("Invalid task ID")],
+  validate,
+  clientController.getTaskDetails,
+);
 
 // Submissions
-router.get("/submissions", clientController.getSubmissions);
+router.get(
+  "/submissions",
+  [
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1, max: 100 }),
+    query("status").optional().trim(),
+    query("taskId").optional().isMongoId(),
+    query("sortBy").optional().trim(),
+    query("sortOrder").optional().isIn(["asc", "desc"]),
+  ],
+  validate,
+  clientController.getSubmissions,
+);
+
+router.get(
+  "/submissions/:id",
+  [param("id").isMongoId().withMessage("Invalid submission ID")],
+  validate,
+  clientController.getSubmissionDetails,
+);
 
 // Review submission
 router.post(
@@ -25,13 +83,13 @@ router.post(
   [
     param("id").isMongoId().withMessage("Invalid submission ID"),
     body("action")
-      .isIn(["approve", "reject", "request_revision"])
+      .isIn(["approve", "request_revision"])
       .withMessage("Invalid action"),
     body("feedback").optional().trim(),
     body("revisionRequested").optional().trim(),
   ],
   validate,
-  clientController.reviewSubmission
+  clientController.reviewSubmission,
 );
 
 // Rate freelancer
@@ -42,13 +100,33 @@ router.post(
     body("rating")
       .isInt({ min: 1, max: 5 })
       .withMessage("Rating must be between 1 and 5"),
-    body("comment").optional().trim(),
+    body("feedback").optional().trim(),
   ],
   validate,
-  clientController.rateFreelancer
+  clientController.rateFreelancer,
 );
 
-// Payment history
-router.get("/payments", clientController.getPayments);
+// Payments
+router.get(
+  "/payments",
+  [
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1, max: 100 }),
+    query("status").optional().trim(),
+    query("startDate").optional().isISO8601(),
+    query("endDate").optional().isISO8601(),
+    query("sortBy").optional().trim(),
+    query("sortOrder").optional().isIn(["asc", "desc"]),
+  ],
+  validate,
+  clientController.getPayments,
+);
+
+router.get(
+  "/payments/:id",
+  [param("id").isMongoId().withMessage("Invalid payment ID")],
+  validate,
+  clientController.getPaymentDetails,
+);
 
 module.exports = router;

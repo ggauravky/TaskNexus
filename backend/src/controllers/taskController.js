@@ -21,6 +21,24 @@ exports.createTask = async (req, res, next) => {
       experienceLevel,
     } = req.body;
 
+    // Validate required fields
+    if (!title || !description || !category || !budget || !deadline) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Missing required fields",
+          details: [
+            { field: "title", message: "Title is required" },
+            { field: "description", message: "Description is required" },
+            { field: "category", message: "Category is required" },
+            { field: "budget", message: "Budget is required" },
+            { field: "deadline", message: "Deadline is required" },
+          ].filter((err) => !eval(err.field.toLowerCase())),
+        },
+      });
+    }
+
     // Generate unique task ID
     const taskId = `TASK-${Date.now()}-${Math.random()
       .toString(36)
@@ -34,24 +52,25 @@ exports.createTask = async (req, res, next) => {
       taskId,
       client: req.user._id,
       taskDetails: {
-        title,
+        title: title.trim(),
         type: taskType, // Convert web_development to web-development
-        description,
-        budget,
-        deadline,
+        description: description.trim(),
+        budget: parseFloat(budget),
+        deadline: new Date(deadline),
       },
-      skillsRequired: skillsRequired || [],
+      skillsRequired: Array.isArray(skillsRequired) ? skillsRequired : [],
       experienceLevel: experienceLevel || "intermediate",
       status: "submitted", // Valid initial status
     });
 
     // Log activity
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: "task_created",
-      resourceType: "Task",
+      resource: "task",
       resourceId: task._id,
-      metadata: { title, category, budget },
+      changes: { title, category, budget },
+      ipAddress: req.ip,
     });
 
     logger.info(`Task created: ${task._id} by client: ${req.user._id}`);
@@ -238,11 +257,12 @@ exports.updateTask = async (req, res, next) => {
     await task.save();
 
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: "task_updated",
-      resourceType: "Task",
+      resource: "task",
       resourceId: task._id,
-      metadata: updates,
+      changes: updates,
+      ipAddress: req.ip,
     });
 
     logger.info(`Task updated: ${task._id}`);
@@ -297,10 +317,11 @@ exports.deleteTask = async (req, res, next) => {
     await task.save();
 
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: "task_cancelled",
-      resourceType: "Task",
+      resource: "task",
       resourceId: task._id,
+      ipAddress: req.ip,
     });
 
     logger.info(`Task cancelled: ${task._id}`);
@@ -376,11 +397,12 @@ exports.submitTask = async (req, res, next) => {
     });
 
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: "task_submitted",
-      resourceType: "Task",
+      resource: "task",
       resourceId: task._id,
-      metadata: { submissionId: submission._id },
+      changes: { submissionId: submission._id },
+      ipAddress: req.ip,
     });
 
     logger.info(`Task submitted: ${task._id} by freelancer: ${req.user._id}`);

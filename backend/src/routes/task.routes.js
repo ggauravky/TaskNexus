@@ -23,7 +23,11 @@ const createTaskValidation = [
     .notEmpty()
     .withMessage("Description is required")
     .isLength({ min: 20, max: 5000 })
-    .withMessage("Description must be between 20 and 5000 characters"),
+    .withMessage("Description must be between 20 and 5000 characters")
+    .customSanitizer((value) => {
+      // Remove any potential error stack traces or excessive whitespace
+      return value.trim().replace(/\s+/g, " ");
+    }),
   body("category")
     .trim()
     .notEmpty()
@@ -83,7 +87,7 @@ router.post(
   requireClient,
   createTaskValidation,
   validate,
-  taskController.createTask
+  taskController.createTask,
 );
 
 // Get specific task
@@ -91,7 +95,7 @@ router.get(
   "/:id",
   param("id").isMongoId().withMessage("Invalid task ID"),
   validate,
-  taskController.getTaskById
+  taskController.getTaskById,
 );
 
 // Update task (Client only)
@@ -100,7 +104,7 @@ router.put(
   requireClient,
   param("id").isMongoId().withMessage("Invalid task ID"),
   validate,
-  taskController.updateTask
+  taskController.updateTask,
 );
 
 // Delete/Cancel task (Client or Admin)
@@ -109,7 +113,7 @@ router.delete(
   requireRole("client", "admin"),
   param("id").isMongoId().withMessage("Invalid task ID"),
   validate,
-  taskController.deleteTask
+  taskController.deleteTask,
 );
 
 // Submit task work (Freelancer only)
@@ -119,7 +123,7 @@ router.post(
   param("id").isMongoId().withMessage("Invalid task ID"),
   submitTaskValidation,
   validate,
-  taskController.submitTask
+  taskController.submitTask,
 );
 
 module.exports = router;

@@ -33,8 +33,11 @@ const TASK_STATUS = {
 const TASK_TYPES = {
   VIDEO_EDITING: "video-editing",
   WEB_DEVELOPMENT: "web-development",
+  MOBILE_DEVELOPMENT: "mobile-development",
   DESIGN: "design",
   WRITING: "writing",
+  MARKETING: "marketing",
+  DATA_ENTRY: "data-entry",
   OTHER: "other",
 };
 

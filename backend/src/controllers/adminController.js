@@ -34,8 +34,8 @@ exports.getDashboard = async (req, res, next) => {
 
     // Recent activities
     const recentTasks = await Task.find()
-      .populate("clientId", "name email")
-      .populate("freelancerId", "name email")
+      .populate("client", "email profile")
+      .populate("freelancer", "email profile")
       .sort({ createdAt: -1 })
       .limit(10);
 
@@ -177,11 +177,12 @@ exports.updateUserStatus = async (req, res, next) => {
     });
 
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: "user_status_updated",
-      resourceType: "User",
+      resource: "user",
       resourceId: user._id,
-      metadata: { oldStatus: user.status, newStatus: status },
+      changes: { oldStatus: user.accountStatus.status, newStatus: status },
+      ipAddress: req.ip,
     });
 
     logger.info(`User status updated: ${user._id} to ${status}`);
@@ -262,11 +263,12 @@ exports.reviewTask = async (req, res, next) => {
     }
 
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: `task_${action}`,
-      resourceType: "Task",
+      resource: "task",
       resourceId: task._id,
-      metadata: { reason },
+      changes: { reason },
+      ipAddress: req.ip,
     });
 
     res.status(200).json({
@@ -325,11 +327,12 @@ exports.assignTask = async (req, res, next) => {
     const result = await assignTaskToFreelancer(task._id, freelancerId);
 
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: "task_assigned_manually",
-      resourceType: "Task",
+      resource: "task",
       resourceId: task._id,
-      metadata: { freelancerId },
+      changes: { freelancerId },
+      ipAddress: req.ip,
     });
 
     logger.info(`Task manually assigned: ${task._id} to ${freelancerId}`);
@@ -483,11 +486,12 @@ exports.resolveDispute = async (req, res, next) => {
     // This is a placeholder for the dispute resolution logic
 
     await AuditLog.create({
-      userId: req.user._id,
+      user: req.user._id,
       action: "dispute_resolved",
-      resourceType: "Dispute",
+      resource: "task",
       resourceId: req.params.id,
-      metadata: { resolution, refundClient, payFreelancer, notes },
+      changes: { resolution, refundClient, payFreelancer, notes },
+      ipAddress: req.ip,
     });
 
     logger.info(`Dispute resolved: ${req.params.id}`);
