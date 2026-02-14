@@ -1,12 +1,12 @@
-const Task = require("../models/Task");
-const User = require("../models/User");
-const Payment = require("../models/Payment");
-const AuditLog = require("../models/AuditLog");
-const Submission = require("../models/Submission");
-const Review = require("../models/Review");
+const taskData = require("../data/taskData");
+const userData = require("../data/userData");
+const paymentData = require("../data/paymentData");
+const auditLogData = require("../data/auditLogData");
+const submissionData = require("../data/submissionData");
+const reviewData = require("../data/reviewData");
 const logger = require("../utils/logger");
-const { sendNotification } = require("../services/notificationService");
-const { assignTaskToFreelancer } = require("../services/assignmentService");
+const NotificationService = require("../services/notificationService");
+const AssignmentService = require("../services/assignmentService");
 
 /**
  * @desc    Get admin dashboard overview
@@ -15,47 +15,20 @@ const { assignTaskToFreelancer } = require("../services/assignmentService");
  */
 exports.getDashboard = async (req, res, next) => {
   try {
-    // Get overall statistics
-    const totalUsers = await User.countDocuments();
-    const totalClients = await User.countDocuments({ role: "client" });
-    const totalFreelancers = await User.countDocuments({ role: "freelancer" });
-    const totalTasks = await Task.countDocuments();
+    const users = await userData.findUsers({});
+    const tasks = await taskData.findTasks({});
+    const payments = await paymentData.findPayments({});
 
-    // Task statistics by status
-    const tasksByStatus = await Task.aggregate([
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-          totalValue: { $sum: "$budget" },
-        },
-      },
-    ]);
+    const totalUsers = users.length;
+    const totalClients = users.filter((u) => u.role === "client").length;
+    const totalFreelancers = users.filter((u) => u.role === "freelancer").length;
+    const totalTasks = tasks.length;
 
-    // Recent activities
-    const recentTasks = await Task.find()
-      .populate("client", "email profile")
-      .populate("freelancer", "email profile")
-      .sort({ createdAt: -1 })
-      .limit(10);
+    const recentTasks = tasks.slice(0, 10);
 
-    // Payment statistics
-    const paymentStats = await Payment.aggregate([
-      {
-        $group: {
-          _id: "$status",
-          total: { $sum: "$amount" },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    // Platform revenue (10% commission)
-    const completedPayments = await Payment.aggregate([
-      { $match: { status: "completed" } },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ]);
-    const platformRevenue = (completedPayments[0]?.total || 0) * 0.1;
+    const platformRevenue = payments
+        .filter((p) => p.status === "released")
+        .reduce((sum, p) => sum + (p.amounts?.platformFee || 0), 0);
 
     res.status(200).json({
       success: true,
@@ -67,9 +40,7 @@ exports.getDashboard = async (req, res, next) => {
         },
         tasks: {
           total: totalTasks,
-          byStatus: tasksByStatus,
         },
-        payments: paymentStats,
         platformRevenue,
         recentTasks,
       },
@@ -87,45 +58,28 @@ exports.getDashboard = async (req, res, next) => {
  */
 exports.getUsers = async (req, res, next) => {
   try {
-    const { role, status, page = 1, limit = 20, search } = req.query;
+    const { role, status, search } = req.query;
 
-    const query = {};
+    const filters = {};
 
     if (role) {
-      query.role = role;
+      filters.role = role;
     }
 
     if (status) {
-      query.status = status;
+      filters.status = status;
     }
-
+    
+    // Search is not implemented in the new data layer yet
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { companyName: { $regex: search, $options: "i" } },
-      ];
+        console.warn("Search functionality is not implemented yet");
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const users = await User.find(query)
-      .select("-password -refreshTokens")
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip);
-
-    const total = await User.countDocuments(query);
+    const users = await userData.findUsers(filters);
 
     res.status(200).json({
       success: true,
       data: users,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
     });
   } catch (error) {
     logger.error("Error fetching users:", error);
@@ -149,7 +103,7 @@ exports.updateUserStatus = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(req.params.id);
+    const user = await userData.findUserById(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -165,32 +119,32 @@ exports.updateUserStatus = async (req, res, next) => {
       });
     }
 
-    user.status = status;
-    await user.save();
+    const updatedUser = await userData.updateUser(req.params.id, { status });
 
-    // Notify user
-    await sendNotification({
-      userId: user._id,
+    await NotificationService.create({
+      recipient_id: user.id,
       type: "account_status_changed",
-      title: "Account Status Changed",
-      message: `Your account status has been changed to: ${status}`,
+      content: {
+        title: "Account Status Changed",
+        message: `Your account status has been changed to: ${status}`,
+      },
     });
 
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "user_status_updated",
       resource: "user",
-      resourceId: user._id,
-      changes: { oldStatus: user.accountStatus.status, newStatus: status },
-      ipAddress: req.ip,
+      resource_id: user.id,
+      changes: { oldStatus: user.status, newStatus: status },
+      ip_address: req.ip,
     });
 
-    logger.info(`User status updated: ${user._id} to ${status}`);
+    logger.info(`User status updated: ${user.id} to ${status}`);
 
     res.status(200).json({
       success: true,
       message: "User status updated successfully",
-      data: user,
+      data: updatedUser,
     });
   } catch (error) {
     logger.error("Error updating user status:", error);
@@ -214,7 +168,7 @@ exports.reviewTask = async (req, res, next) => {
       });
     }
 
-    const task = await Task.findById(req.params.id);
+    const task = await taskData.findTaskById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
@@ -223,7 +177,7 @@ exports.reviewTask = async (req, res, next) => {
       });
     }
 
-    if (task.status !== "pending_review") {
+    if (task.status !== "submitted") {
       return res.status(400).json({
         success: false,
         message: "Task is not pending review",
@@ -231,51 +185,57 @@ exports.reviewTask = async (req, res, next) => {
     }
 
     if (action === "approve") {
-      task.status = "available";
-      task.approvedAt = new Date();
-      await task.save();
+      const updatedTask = await taskService.transitionTo(task.id, "under_review");
 
-      // Notify client
-      await sendNotification({
-        userId: task.clientId,
+      await NotificationService.create({
+        recipient_id: task.client_id,
         type: "task_approved",
-        title: "Task Approved",
-        message: `Your task "${task.title}" has been approved and is now available`,
-        metadata: { taskId: task._id },
+        content: {
+            title: "Task Approved",
+            message: `Your task "${task.task_details.title}" has been approved and is now available`,
+        },
+        related_task_id: task.id,
       });
 
-      logger.info(`Task approved: ${task._id}`);
+      logger.info(`Task approved: ${task.id}`);
+      res.status(200).json({
+        success: true,
+        message: `Task approved successfully`,
+        data: updatedTask,
+      });
     } else {
-      task.status = "rejected";
-      task.rejectedReason = reason || "Task does not meet platform guidelines";
-      await task.save();
+        const updatedTask = await taskData.updateTask(task.id, {
+            status: "rejected",
+            cancellation_reason: reason || "Task does not meet platform guidelines",
+        });
 
-      // Notify client
-      await sendNotification({
-        userId: task.clientId,
+      await NotificationService.create({
+        recipient_id: task.client_id,
         type: "task_rejected",
-        title: "Task Rejected",
-        message: `Your task "${task.title}" has been rejected. Reason: ${reason}`,
-        metadata: { taskId: task._id },
+        content: {
+            title: "Task Rejected",
+            message: `Your task "${task.task_details.title}" has been rejected. Reason: ${reason}`,
+        },
+        related_task_id: task.id,
       });
 
-      logger.info(`Task rejected: ${task._id}`);
+      logger.info(`Task rejected: ${task.id}`);
+        res.status(200).json({
+            success: true,
+            message: `Task rejected successfully`,
+            data: updatedTask,
+        });
     }
 
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: `task_${action}`,
       resource: "task",
-      resourceId: task._id,
+      resource_id: task.id,
       changes: { reason },
-      ipAddress: req.ip,
+      ip_address: req.ip,
     });
 
-    res.status(200).json({
-      success: true,
-      message: `Task ${action}d successfully`,
-      data: task,
-    });
   } catch (error) {
     logger.error("Error reviewing task:", error);
     next(error);
@@ -291,7 +251,7 @@ exports.assignTask = async (req, res, next) => {
   try {
     const { freelancerId } = req.body;
 
-    const task = await Task.findById(req.params.id);
+    const task = await taskData.findTaskById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
@@ -300,14 +260,14 @@ exports.assignTask = async (req, res, next) => {
       });
     }
 
-    if (task.status !== "available") {
+    if (task.status !== "under_review") {
       return res.status(400).json({
         success: false,
         message: "Task is not available for assignment",
       });
     }
 
-    const freelancer = await User.findById(freelancerId);
+    const freelancer = await userData.findUserById(freelancerId);
 
     if (!freelancer || freelancer.role !== "freelancer") {
       return res.status(404).json({
@@ -323,19 +283,18 @@ exports.assignTask = async (req, res, next) => {
       });
     }
 
-    // Assign task
-    const result = await assignTaskToFreelancer(task._id, freelancerId);
+    const result = await AssignmentService.assignTask(task, freelancerId, req.user.id);
 
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "task_assigned_manually",
       resource: "task",
-      resourceId: task._id,
+      resource_id: task.id,
       changes: { freelancerId },
-      ipAddress: req.ip,
+      ip_address: req.ip,
     });
 
-    logger.info(`Task manually assigned: ${task._id} to ${freelancerId}`);
+    logger.info(`Task manually assigned: ${task.id} to ${freelancerId}`);
 
     res.status(200).json({
       success: true,
@@ -355,37 +314,23 @@ exports.assignTask = async (req, res, next) => {
  */
 exports.getAuditLogs = async (req, res, next) => {
   try {
-    const { action, userId, page = 1, limit = 50 } = req.query;
+    const { action, userId } = req.query;
 
-    const query = {};
+    const filters = {};
 
     if (action) {
-      query.action = action;
+      filters.action = action;
     }
 
     if (userId) {
-      query.userId = userId;
+      filters.user_id = userId;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const logs = await AuditLog.find(query)
-      .populate("userId", "name email role")
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip);
-
-    const total = await AuditLog.countDocuments(query);
+    const logs = await auditLogData.findAuditLogs(filters);
 
     res.status(200).json({
       success: true,
       data: logs,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
     });
   } catch (error) {
     logger.error("Error fetching audit logs:", error);
@@ -400,71 +345,28 @@ exports.getAuditLogs = async (req, res, next) => {
  */
 exports.getStatistics = async (req, res, next) => {
   try {
-    const { startDate, endDate } = req.query;
+    const tasks = await taskData.findTasks({});
+    const users = await userData.findUsers({});
+    const payments = await paymentData.findPayments({});
 
-    const dateFilter = {};
-    if (startDate) {
-      dateFilter.$gte = new Date(startDate);
-    }
-    if (endDate) {
-      dateFilter.$lte = new Date(endDate);
-    }
-
-    const matchStage =
-      Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {};
-
-    // Task statistics
-    const taskStats = await Task.aggregate([
-      ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
-          count: { $sum: 1 },
-          totalValue: { $sum: "$budget" },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
-
-    // User registration stats
-    const userStats = await User.aggregate([
-      ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
-      {
-        $group: {
-          _id: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            role: "$role",
-          },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { "_id.date": 1 } },
-    ]);
-
-    // Revenue statistics
-    const revenueStats = await Payment.aggregate([
-      { $match: { status: "completed", ...matchStage } },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
-          totalRevenue: { $sum: "$amount" },
-          platformRevenue: { $sum: { $multiply: ["$amount", 0.1] } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    const taskCount = tasks.length;
+    const userCount = users.length;
+    const totalRevenue = payments
+        .filter((p) => p.status === "released")
+        .reduce((sum, p) => sum + (p.amounts?.platformFee || 0), 0);
 
     res.status(200).json({
       success: true,
       data: {
-        tasks: taskStats,
-        users: userStats,
-        revenue: revenueStats,
+        tasks: {
+            count: taskCount,
+        },
+        users: {
+            count: userCount,
+        },
+        revenue: {
+            total: totalRevenue,
+        },
       },
     });
   } catch (error) {
@@ -485,13 +387,13 @@ exports.resolveDispute = async (req, res, next) => {
     // Implementation would depend on having a Dispute model
     // This is a placeholder for the dispute resolution logic
 
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "dispute_resolved",
       resource: "task",
-      resourceId: req.params.id,
+      resource_id: req.params.id,
       changes: { resolution, refundClient, payFreelancer, notes },
-      ipAddress: req.ip,
+      ip_address: req.ip,
     });
 
     logger.info(`Dispute resolved: ${req.params.id}`);

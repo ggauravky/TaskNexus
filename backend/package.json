@@ -19,6 +19,7 @@
     "author": "TaskNexus Team",
     "license": "MIT",
     "dependencies": {
+        "@supabase/supabase-js": "^2.95.3",
         "bcrypt": "^5.1.1",
         "cookie-parser": "^1.4.6",
         "cors": "^2.8.5",

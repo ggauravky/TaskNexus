@@ -1,5 +1,5 @@
-const User = require("../models/User");
-const AuditLog = require("../models/AuditLog");
+const userData = require("../data/userData");
+const auditLogData = require("../data/auditLogData");
 const { generateTokens, verifyRefreshToken } = require("../config/jwt");
 const { sanitizeUser } = require("../utils/helpers");
 const logger = require("../utils/logger");
@@ -15,7 +15,7 @@ const register = async (req, res, next) => {
     const { email, password, role, profile } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await userData.findUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -27,7 +27,7 @@ const register = async (req, res, next) => {
     }
 
     // Create user
-    const user = await User.create({
+    const user = await userData.createUser({
       email,
       password,
       role,
@@ -35,20 +35,19 @@ const register = async (req, res, next) => {
     });
 
     // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user._id, user.role);
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
     // Save refresh token
-    user.refreshToken = refreshToken;
-    await user.save();
+    await userData.updateUser(user.id, { refresh_token: refreshToken });
 
     // Log audit
-    await AuditLog.log({
-      user: user._id,
+    await auditLogData.log({
+      user_id: user.id,
       action: "USER_REGISTERED",
       resource: "user",
-      resourceId: user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
+      resource_id: user.id,
+      ip_address: req.ip,
+      user_agent: req.headers["user-agent"],
     });
 
     logger.info(`New user registered: ${email} with role: ${role}`);
@@ -83,8 +82,8 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Find user with password field
-    const user = await User.findOne({ email }).select("+password");
+    // Find user
+    const user = await userData.findUserByEmail(email);
 
     if (!user) {
       return res.status(401).json({
@@ -97,7 +96,7 @@ const login = async (req, res, next) => {
     }
 
     // Check password
-    const isPasswordValid = await user.comparePassword(password);
+    const isPasswordValid = await userData.comparePassword(password, user.password);
 
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -121,21 +120,22 @@ const login = async (req, res, next) => {
     }
 
     // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user._id, user.role);
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
-    // Save refresh token
-    user.refreshToken = refreshToken;
-    user.lastLogin = new Date();
-    await user.save();
+    // Save refresh token and last login
+    await userData.updateUser(user.id, { 
+        refresh_token: refreshToken,
+        last_login: new Date(),
+    });
 
     // Log audit
-    await AuditLog.log({
-      user: user._id,
+    await auditLogData.log({
+      user_id: user.id,
       action: "USER_LOGIN",
       resource: "user",
-      resourceId: user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
+      resource_id: user.id,
+      ip_address: req.ip,
+      user_agent: req.headers["user-agent"],
     });
 
     logger.info(`User logged in: ${email}`);
@@ -195,9 +195,9 @@ const refreshToken = async (req, res, next) => {
     }
 
     // Find user and verify stored refresh token
-    const user = await User.findById(decoded.userId).select("+refreshToken");
+    const user = await userData.findUserById(decoded.userId);
 
-    if (!user || user.refreshToken !== token) {
+    if (!user || user.refresh_token !== token) {
       return res.status(401).json({
         success: false,
         error: {
@@ -209,13 +209,12 @@ const refreshToken = async (req, res, next) => {
 
     // Generate new tokens (refresh token rotation)
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(
-      user._id,
+      user.id,
       user.role
     );
 
     // Save new refresh token
-    user.refreshToken = newRefreshToken;
-    await user.save();
+    await userData.updateUser(user.id, { refresh_token: newRefreshToken });
 
     // Set new refresh token in cookie
     res.cookie("refreshToken", newRefreshToken, {
@@ -245,16 +244,16 @@ const refreshToken = async (req, res, next) => {
 const logout = async (req, res, next) => {
   try {
     // Clear refresh token from database
-    await User.findByIdAndUpdate(req.userId, { refreshToken: null });
+    await userData.updateUser(req.userId, { refresh_token: null });
 
     // Log audit
-    await AuditLog.log({
-      user: req.userId,
+    await auditLogData.log({
+      user_id: req.userId,
       action: "USER_LOGOUT",
       resource: "user",
-      resourceId: req.userId,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
+      resource_id: req.userId,
+      ip_address: req.ip,
+      user_agent: req.headers["user-agent"],
     });
 
     // Clear cookie
@@ -276,7 +275,7 @@ const logout = async (req, res, next) => {
  */
 const getCurrentUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.userId);
+    const user = await userData.findUserById(req.userId);
 
     res.status(200).json({
       success: true,

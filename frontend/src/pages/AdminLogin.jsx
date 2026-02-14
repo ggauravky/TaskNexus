@@ -54,22 +54,24 @@ const AdminLogin = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0b1021] via-[#0f172a] to-[#1b1f38] py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden text-white">
             {/* Background Pattern */}
-            <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+            <div className="absolute inset-0 hero-grid opacity-20"></div>
+            <div className="absolute -left-10 top-0 h-80 w-80 bg-primary-500 blur-3xl opacity-25"></div>
+            <div className="absolute right-[-60px] bottom-10 h-96 w-96 bg-accent-500 blur-3xl opacity-25"></div>
 
             <div className="max-w-md w-full space-y-8 relative z-10">
                 {/* Header Section */}
                 <div className="text-center">
                     <div className="flex justify-center mb-4">
-                        <div className="bg-blue-600 p-4 rounded-2xl shadow-lg shadow-blue-500/50">
+                        <div className="bg-primary-600 p-4 rounded-2xl shadow-lg shadow-blue-500/50">
                             <Shield className="w-12 h-12 text-white" />
                         </div>
                     </div>
-                    <h2 className="text-4xl font-bold text-white mb-2">
+                    <h2 className="text-4xl font-bold text-white mb-2 font-display">
                         Admin Portal
                     </h2>
-                    <p className="text-blue-200 text-sm">
+                    <p className="text-blue-100 text-sm">
                         TaskNexus Administration System
                     </p>
                 </div>
@@ -91,7 +93,7 @@ const AdminLogin = () => {
                 </div>
 
                 {/* Login Form */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
+                <div className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/15">
                     <form className="space-y-6" onSubmit={handleSubmit}>
                         {/* Email Field */}
                         <div>

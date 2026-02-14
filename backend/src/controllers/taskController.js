@@ -1,8 +1,8 @@
-const Task = require("../models/Task");
-const Submission = require("../models/Submission");
-const AuditLog = require("../models/AuditLog");
+const taskData = require("../data/taskData");
+const submissionData = require("../data/submissionData");
+const auditLogData = require("../data/auditLogData");
 const logger = require("../utils/logger");
-const { sendNotification } = require("../services/notificationService");
+const NotificationService = require("../services/notificationService");
 
 /**
  * @desc    Create a new task (Client only)
@@ -17,63 +17,31 @@ exports.createTask = async (req, res, next) => {
       category,
       budget,
       deadline,
-      skillsRequired,
-      experienceLevel,
     } = req.body;
 
-    // Validate required fields
-    if (!title || !description || !category || !budget || !deadline) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Missing required fields",
-          details: [
-            { field: "title", message: "Title is required" },
-            { field: "description", message: "Description is required" },
-            { field: "category", message: "Category is required" },
-            { field: "budget", message: "Budget is required" },
-            { field: "deadline", message: "Deadline is required" },
-          ].filter((err) => !eval(err.field.toLowerCase())),
-        },
-      });
-    }
-
-    // Generate unique task ID
-    const taskId = `TASK-${Date.now()}-${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
-
-    // Map category to valid task type (convert underscores to dashes)
     const taskType = category.replace(/_/g, "-");
 
-    // Create task with correct structure
-    const task = await Task.create({
-      taskId,
-      client: req.user._id,
-      taskDetails: {
+    const task = await taskData.createTask({
+      client_id: req.user.id,
+      task_details: {
         title: title.trim(),
-        type: taskType, // Convert web_development to web-development
+        type: taskType,
         description: description.trim(),
         budget: parseFloat(budget),
         deadline: new Date(deadline),
       },
-      skillsRequired: Array.isArray(skillsRequired) ? skillsRequired : [],
-      experienceLevel: experienceLevel || "intermediate",
-      status: "submitted", // Valid initial status
     });
 
-    // Log activity
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "task_created",
       resource: "task",
-      resourceId: task._id,
+      resource_id: task.id,
       changes: { title, category, budget },
-      ipAddress: req.ip,
+      ip_address: req.ip,
     });
 
-    logger.info(`Task created: ${task._id} by client: ${req.user._id}`);
+    logger.info(`Task created: ${task.id} by client: ${req.user.id}`);
 
     res.status(201).json({
       success: true,
@@ -93,60 +61,36 @@ exports.createTask = async (req, res, next) => {
  */
 exports.getTasks = async (req, res, next) => {
   try {
-    const {
-      status,
-      category,
-      page = 1,
-      limit = 10,
-      sortBy = "createdAt",
-      order = "desc",
-    } = req.query;
+    const { status, category } = req.query;
 
-    const query = {};
+    const filters = {};
 
     // Role-based filtering
     if (req.user.role === "client") {
-      query.clientId = req.user._id;
+      filters.client_id = req.user.id;
     } else if (req.user.role === "freelancer") {
-      // Freelancers see available or their assigned tasks
       if (!status || status === "available") {
-        query.status = "available";
-        query.freelancerId = null;
+        filters.status = "available";
+        filters.freelancer_id = null;
       } else {
-        query.freelancerId = req.user._id;
+        filters.freelancer_id = req.user.id;
       }
     }
     // Admin sees all tasks (no filter)
 
     // Additional filters
     if (status && req.user.role !== "freelancer") {
-      query.status = status;
+      filters.status = status;
     }
     if (category) {
-      query.category = category;
+      filters["task_details->>type"] = category;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const sortOrder = order === "desc" ? -1 : 1;
-
-    const tasks = await Task.find(query)
-      .populate("clientId", "name email companyName")
-      .populate("freelancerId", "name email rating")
-      .sort({ [sortBy]: sortOrder })
-      .limit(parseInt(limit))
-      .skip(skip);
-
-    const total = await Task.countDocuments(query);
+    const tasks = await taskData.findTasks(filters);
 
     res.status(200).json({
       success: true,
       data: tasks,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
     });
   } catch (error) {
     logger.error("Error fetching tasks:", error);
@@ -161,9 +105,7 @@ exports.getTasks = async (req, res, next) => {
  */
 exports.getTaskById = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id)
-      .populate("clientId", "name email companyName phone")
-      .populate("freelancerId", "name email rating completedTasks");
+    const task = await taskData.findTaskById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
@@ -175,7 +117,7 @@ exports.getTaskById = async (req, res, next) => {
     // Authorization check
     if (
       req.user.role === "client" &&
-      task.clientId._id.toString() !== req.user._id.toString()
+      task.client_id !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
@@ -185,8 +127,8 @@ exports.getTaskById = async (req, res, next) => {
 
     if (
       req.user.role === "freelancer" &&
-      task.freelancerId &&
-      task.freelancerId._id.toString() !== req.user._id.toString()
+      task.freelancer_id &&
+      task.freelancer_id !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
@@ -211,7 +153,7 @@ exports.getTaskById = async (req, res, next) => {
  */
 exports.updateTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await taskData.findTaskById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
@@ -221,7 +163,7 @@ exports.updateTask = async (req, res, next) => {
     }
 
     // Only task owner can update
-    if (task.clientId.toString() !== req.user._id.toString()) {
+    if (task.client_id !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to update this task",
@@ -229,7 +171,7 @@ exports.updateTask = async (req, res, next) => {
     }
 
     // Can only update if not yet assigned
-    if (task.status !== "pending_review" && task.status !== "available") {
+    if (task.status !== "submitted" && task.status !== "under_review") {
       return res.status(400).json({
         success: false,
         message: "Cannot update task that is already assigned or in progress",
@@ -242,35 +184,33 @@ exports.updateTask = async (req, res, next) => {
       "category",
       "budget",
       "deadline",
-      "requirements",
-      "attachments",
     ];
     const updates = {};
+    const taskDetailsUpdate = { ...task.task_details };
 
     allowedUpdates.forEach((field) => {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        taskDetailsUpdate[field] = req.body[field];
       }
     });
 
-    Object.assign(task, updates);
-    await task.save();
+    const updatedTask = await taskData.updateTask(req.params.id, { task_details: taskDetailsUpdate });
 
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "task_updated",
       resource: "task",
-      resourceId: task._id,
+      resource_id: task.id,
       changes: updates,
-      ipAddress: req.ip,
+      ip_address: req.ip,
     });
 
-    logger.info(`Task updated: ${task._id}`);
+    logger.info(`Task updated: ${task.id}`);
 
     res.status(200).json({
       success: true,
       message: "Task updated successfully",
-      data: task,
+      data: updatedTask,
     });
   } catch (error) {
     logger.error("Error updating task:", error);
@@ -285,7 +225,7 @@ exports.updateTask = async (req, res, next) => {
  */
 exports.deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await taskData.findTaskById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
@@ -297,7 +237,7 @@ exports.deleteTask = async (req, res, next) => {
     // Authorization
     if (
       req.user.role === "client" &&
-      task.clientId.toString() !== req.user._id.toString()
+      task.client_id !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
@@ -306,25 +246,24 @@ exports.deleteTask = async (req, res, next) => {
     }
 
     // Cannot delete if in progress or completed
-    if (["in_progress", "submitted", "completed"].includes(task.status)) {
+    if (["in_progress", "submitted_work", "completed"].includes(task.status)) {
       return res.status(400).json({
         success: false,
         message: "Cannot delete task that is in progress or completed",
       });
     }
 
-    task.status = "cancelled";
-    await task.save();
+    await taskService.transitionTo(task.id, 'cancelled');
 
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "task_cancelled",
       resource: "task",
-      resourceId: task._id,
-      ipAddress: req.ip,
+      resource_id: task.id,
+      ip_address: req.ip,
     });
 
-    logger.info(`Task cancelled: ${task._id}`);
+    logger.info(`Task cancelled: ${task.id}`);
 
     res.status(200).json({
       success: true,
@@ -345,7 +284,7 @@ exports.submitTask = async (req, res, next) => {
   try {
     const { deliverables, comments } = req.body;
 
-    const task = await Task.findById(req.params.id);
+    const task = await taskData.findTaskById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
@@ -356,8 +295,8 @@ exports.submitTask = async (req, res, next) => {
 
     // Verify assigned freelancer
     if (
-      !task.freelancerId ||
-      task.freelancerId.toString() !== req.user._id.toString()
+      !task.freelancer_id ||
+      task.freelancer_id !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
@@ -373,44 +312,45 @@ exports.submitTask = async (req, res, next) => {
     }
 
     // Create submission
-    const submission = await Submission.create({
-      taskId: task._id,
-      freelancerId: req.user._id,
-      clientId: task.clientId,
-      deliverables: deliverables || [],
-      comments: comments || "",
-      status: "pending",
+    const submission = await submissionData.createSubmission({
+      task_id: task.id,
+      freelancer_id: req.user.id,
+      content: {
+          deliverables: deliverables || [],
+          notes: comments || "",
+      },
+      submission_type: 'initial', // TODO: handle revisions
     });
 
     // Update task status
-    task.status = "submitted";
-    task.submittedAt = new Date();
-    await task.save();
+    const updatedTask = await taskService.transitionTo(task.id, "submitted_work");
 
     // Notify client
-    await sendNotification({
-      userId: task.clientId,
+    await NotificationService.create({
+      recipient_id: task.client_id,
       type: "task_submitted",
-      title: "Task Submitted",
-      message: `Freelancer has submitted work for task: ${task.title}`,
-      metadata: { taskId: task._id, submissionId: submission._id },
+      content: {
+        title: "Task Submitted",
+        message: `Freelancer has submitted work for task: ${task.task_details.title}`,
+      },
+      related_task_id: task.id,
     });
 
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "task_submitted",
       resource: "task",
-      resourceId: task._id,
-      changes: { submissionId: submission._id },
-      ipAddress: req.ip,
+      resource_id: task.id,
+      changes: { submissionId: submission.id },
+      ip_address: req.ip,
     });
 
-    logger.info(`Task submitted: ${task._id} by freelancer: ${req.user._id}`);
+    logger.info(`Task submitted: ${task.id} by freelancer: ${req.user.id}`);
 
     res.status(201).json({
       success: true,
       message: "Work submitted successfully",
-      data: { task, submission },
+      data: { task: updatedTask, submission },
     });
   } catch (error) {
     logger.error("Error submitting task:", error);
@@ -425,32 +365,21 @@ exports.submitTask = async (req, res, next) => {
  */
 exports.getTaskStats = async (req, res, next) => {
   try {
-    const query = {};
+    const filters = {};
 
     if (req.user.role === "client") {
-      query.clientId = req.user._id;
+      filters.client_id = req.user.id;
     } else if (req.user.role === "freelancer") {
-      query.freelancerId = req.user._id;
+      filters.freelancer_id = req.user.id;
     }
 
-    const stats = await Task.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-          totalBudget: { $sum: "$budget" },
-        },
-      },
-    ]);
-
-    const total = await Task.countDocuments(query);
+    const tasks = await taskData.findTasks(filters);
+    const total = tasks.length;
 
     res.status(200).json({
       success: true,
       data: {
         total,
-        byStatus: stats,
       },
     });
   } catch (error) {

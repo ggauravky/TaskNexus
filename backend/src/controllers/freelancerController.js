@@ -1,8 +1,8 @@
-const Task = require("../models/Task");
-const Submission = require("../models/Submission");
-const Payment = require("../models/Payment");
-const Review = require("../models/Review");
-const AuditLog = require("../models/AuditLog");
+const taskData = require("../data/taskData");
+const submissionData = require("../data/submissionData");
+const paymentData = require("../data/paymentData");
+const reviewData = require("../data/reviewData");
+const auditLogData = require("../data/auditLogData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 
@@ -13,12 +13,12 @@ const NotificationService = require("../services/notificationService");
  */
 exports.getDashboard = async (req, res, next) => {
   try {
-    const freelancerId = req.user._id;
+    const freelancerId = req.user.id;
 
-    // Get all tasks for this freelancer
-    const allTasks = await Task.find({ freelancer: freelancerId }).lean();
+    const allTasks = await taskData.findTasks({ freelancer_id: freelancerId });
+    const payments = await paymentData.findPayments({ freelancer_id: freelancerId });
+    const reviews = await reviewData.findReviews({ reviewee_id: freelancerId });
 
-    // Calculate task statistics
     const activeTasks = allTasks.filter((t) =>
       ["assigned", "in_progress", "submitted_work"].includes(t.status),
     ).length;
@@ -27,83 +27,23 @@ exports.getDashboard = async (req, res, next) => {
       (t) => t.status === "completed",
     ).length;
 
-    const pendingTasks = allTasks.filter((t) =>
-      ["submitted_work", "qa_review"].includes(t.status),
-    ).length;
-
-    // Calculate earnings
-    const completedPayments = await Payment.find({
-      freelancer: freelancerId,
-      status: "released",
-    }).lean();
-
-    const totalEarnings = completedPayments.reduce(
-      (sum, p) => sum + (p.amount || 0),
-      0,
-    );
-
-    const pendingPayments = await Payment.find({
-      freelancer: freelancerId,
-      status: { $in: ["pending", "escrowed"] },
-    }).lean();
-
-    const pendingEarnings = pendingPayments.reduce(
-      (sum, p) => sum + (p.amount || 0),
-      0,
-    );
-
-    // Get recent reviews and calculate average rating
-    const reviews = await Review.find({
-      task: { $in: allTasks.map((t) => t._id) },
-      freelancer: freelancerId,
-    }).lean();
-
+    const totalEarnings = payments
+      .filter((p) => p.status === "released")
+      .reduce((sum, p) => sum + (p.amounts?.freelancerPayout || 0), 0);
+      
     const avgRating =
-      reviews.length > 0
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-        : 0;
-
-    // Calculate on-time delivery rate
-    const completedWithDeadline = allTasks.filter(
-      (t) =>
-        t.status === "completed" &&
-        t.workflow?.completedAt &&
-        t.taskDetails?.deadline,
-    );
-
-    const onTimeDeliveries = completedWithDeadline.filter(
-      (t) =>
-        new Date(t.workflow.completedAt) <= new Date(t.taskDetails.deadline),
-    ).length;
-
-    const onTimeRate =
-      completedWithDeadline.length > 0
-        ? Math.round((onTimeDeliveries / completedWithDeadline.length) * 100)
-        : 0;
-
-    // Get task breakdown by status
-    const taskBreakdown = allTasks.reduce((acc, task) => {
-      const status = task.status || "unknown";
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {});
+        reviews.length > 0
+            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            : 0;
 
     res.status(200).json({
       success: true,
       data: {
         activeTasks,
         completedTasks,
-        pendingTasks,
-        totalEarnings: Math.round(totalEarnings * 100) / 100,
-        pendingEarnings: Math.round(pendingEarnings * 100) / 100,
-        rating: Math.round(avgRating * 10) / 10,
+        totalEarnings,
+        rating: avgRating,
         totalReviews: reviews.length,
-        onTimeDeliveryRate: onTimeRate,
-        performanceScore: Math.min(
-          100,
-          Math.round((avgRating / 5) * 50 + onTimeRate * 0.5),
-        ),
-        taskBreakdown,
         totalTasks: allTasks.length,
       },
     });
@@ -120,53 +60,26 @@ exports.getDashboard = async (req, res, next) => {
  */
 exports.getAvailableTasks = async (req, res, next) => {
   try {
-    const { category, minBudget, maxBudget, page = 1, limit = 10 } = req.query;
+    const { category, minBudget, maxBudget } = req.query;
 
-    const query = {
-      status: { $in: ["submitted", "under_review"] },
-      freelancer: null,
+    const filters = {
+      status: "under_review",
+      freelancer_id: null,
     };
 
     if (category) {
-      query["taskDetails.type"] = category;
+      filters["task_details->>type"] = category;
     }
 
     if (minBudget || maxBudget) {
-      query["taskDetails.budget"] = {};
-      if (minBudget) query["taskDetails.budget"].$gte = parseFloat(minBudget);
-      if (maxBudget) query["taskDetails.budget"].$lte = parseFloat(maxBudget);
+        console.warn("Budget filter is not implemented yet");
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const tasks = await Task.find(query)
-      .populate("client", "profile.firstName profile.lastName email")
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip)
-      .lean();
-
-    // Flatten taskDetails for frontend
-    const formattedTasks = tasks.map((task) => ({
-      ...task,
-      title: task.taskDetails?.title,
-      description: task.taskDetails?.description,
-      budget: task.taskDetails?.budget,
-      deadline: task.taskDetails?.deadline,
-      type: task.taskDetails?.type,
-    }));
-
-    const total = await Task.countDocuments(query);
+    const tasks = await taskData.findTasks(filters);
 
     res.status(200).json({
       success: true,
-      data: { tasks: formattedTasks },
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      data: { tasks },
     });
   } catch (error) {
     logger.error("Error fetching available tasks:", error);
@@ -281,48 +194,19 @@ exports.acceptTask = async (req, res, next) => {
  */
 exports.getMyTasks = async (req, res, next) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status } = req.query;
 
-    const query = { freelancer: req.user._id };
+    const filters = { freelancer_id: req.user.id };
 
     if (status) {
-      if (status.includes(",")) {
-        query.status = { $in: status.split(",") };
-      } else {
-        query.status = status;
-      }
+        filters.status = status;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const tasks = await Task.find(query)
-      .populate("client", "profile.firstName profile.lastName email")
-      .sort({ "taskDetails.deadline": 1 })
-      .limit(parseInt(limit))
-      .skip(skip)
-      .lean();
-
-    // Flatten taskDetails for frontend
-    const formattedTasks = tasks.map((task) => ({
-      ...task,
-      title: task.taskDetails?.title,
-      description: task.taskDetails?.description,
-      budget: task.taskDetails?.budget,
-      deadline: task.taskDetails?.deadline,
-      type: task.taskDetails?.type,
-    }));
-
-    const total = await Task.countDocuments(query);
+    const tasks = await taskData.findTasks(filters);
 
     res.status(200).json({
       success: true,
-      data: { tasks: formattedTasks },
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      data: { tasks },
     });
   } catch (error) {
     logger.error("Error fetching freelancer tasks:", error);
@@ -339,7 +223,7 @@ exports.updateSubmission = async (req, res, next) => {
   try {
     const { deliverables, comments } = req.body;
 
-    const submission = await Submission.findById(req.params.id);
+    const submission = await submissionData.findSubmissionById(req.params.id);
 
     if (!submission) {
       return res.status(404).json({
@@ -348,60 +232,57 @@ exports.updateSubmission = async (req, res, next) => {
       });
     }
 
-    // Verify ownership
-    if (submission.freelancer.toString() !== req.user._id.toString()) {
+    if (submission.freelancer_id !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to update this submission",
       });
     }
 
-    if (submission.clientReview?.status !== "revision_requested") {
+    if (submission.client_review?.status !== "revision_requested") {
       return res.status(400).json({
         success: false,
         message: "This submission cannot be updated - no revision requested",
       });
     }
 
-    // Update submission
-    submission.deliverables = deliverables || submission.deliverables;
-    submission.freelancerComments = comments || submission.freelancerComments;
-    submission.clientReview.status = "pending";
-    submission.submittedAt = new Date();
-    await submission.save();
-
-    // Update task status
-    await Task.findByIdAndUpdate(submission.task, {
-      status: "submitted_work",
+    const content = submission.content;
+    content.deliverables = deliverables || content.deliverables;
+    content.notes = comments || content.notes;
+    
+    const clientReview = submission.client_review;
+    clientReview.status = "pending";
+    
+    const updatedSubmission = await submissionData.updateSubmission(req.params.id, {
+        content,
+        client_review: clientReview,
     });
 
-    const task = await Task.findById(submission.task);
+    await taskService.transitionTo(submission.task_id, "submitted_work");
+    
+    const task = await taskData.findTaskById(submission.task_id);
 
-    // Try to notify client (don't fail if notification fails)
     try {
       await NotificationService.create({
-        recipient: task.client,
+        recipient_id: task.client_id,
         type: "submission_updated",
         content: {
           title: "Submission Updated",
           message:
             "Freelancer has updated the submission with your requested revisions",
-          actionUrl: `/client/tasks/${task._id}`,
-          actionLabel: "View Submission",
         },
-        relatedTask: submission.task,
-        priority: "high",
+        related_task_id: submission.task_id,
       });
     } catch (notifError) {
       logger.error("Failed to send notification:", notifError);
     }
 
-    logger.info(`Submission updated: ${submission._id}`);
+    logger.info(`Submission updated: ${submission.id}`);
 
     res.status(200).json({
       success: true,
       message: "Submission updated successfully",
-      data: submission,
+      data: updatedSubmission,
     });
   } catch (error) {
     logger.error("Error updating submission:", error);
@@ -416,49 +297,24 @@ exports.updateSubmission = async (req, res, next) => {
  */
 exports.getEarnings = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const payments = await paymentData.findPayments({ freelancer_id: req.user.id });
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const summary = payments.reduce((acc, p) => {
+        const status = p.status;
+        if (!acc[status]) {
+            acc[status] = { total: 0, count: 0 };
+        }
+        acc[status].total += p.amounts.freelancerPayout;
+        acc[status].count += 1;
+        return acc;
+    }, {});
 
-    const payments = await Payment.find({ freelancer: req.user._id })
-      .populate("task", "taskDetails.title")
-      .populate("client", "profile.firstName profile.lastName")
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip)
-      .lean();
-
-    // Flatten task title
-    const formattedPayments = payments.map((p) => ({
-      ...p,
-      taskTitle: p.task?.taskDetails?.title || "Untitled Task",
-    }));
-
-    const total = await Payment.countDocuments({ freelancer: req.user._id });
-
-    // Calculate totals
-    const earnings = await Payment.aggregate([
-      { $match: { freelancer: req.user._id } },
-      {
-        $group: {
-          _id: "$status",
-          total: { $sum: "$amount" },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
 
     res.status(200).json({
       success: true,
       data: {
-        payments: formattedPayments,
-        summary: earnings,
-      },
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
+        payments,
+        summary,
       },
     });
   } catch (error) {
@@ -474,39 +330,11 @@ exports.getEarnings = async (req, res, next) => {
  */
 exports.getReviews = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const reviews = await Review.find({
-      freelancer: req.user._id,
-    })
-      .populate("client", "profile.firstName profile.lastName")
-      .populate("task", "taskDetails.title")
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip)
-      .lean();
-
-    // Flatten task title
-    const formattedReviews = reviews.map((r) => ({
-      ...r,
-      taskTitle: r.task?.taskDetails?.title || "Untitled Task",
-    }));
-
-    const total = await Review.countDocuments({
-      freelancer: req.user._id,
-    });
+    const reviews = await reviewData.findReviews({ reviewee_id: req.user.id });
 
     res.status(200).json({
       success: true,
-      data: formattedReviews,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      data: reviews,
     });
   } catch (error) {
     logger.error("Error fetching reviews:", error);

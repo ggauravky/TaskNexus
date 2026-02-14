@@ -1,11 +1,21 @@
-const User = require("../models/User");
-const Task = require("../models/Task");
+const userData = require("../data/userData");
+const taskData = require("../data/taskData");
 const {
   ASSIGNMENT_WEIGHTS,
   USER_ROLES,
   TASK_TYPES,
 } = require("../config/constants");
 const logger = require("../utils/logger");
+
+const canAcceptTask = (freelancer) => {
+    if (freelancer.role !== USER_ROLES.FREELANCER) {
+        return false;
+    }
+    return (
+        freelancer.freelancer_profile.currentActiveTasks <
+        freelancer.freelancer_profile.maxActiveTasks
+    );
+};
 
 /**
  * Smart Task Assignment Service
@@ -16,7 +26,7 @@ class AssignmentService {
    * Calculate assignment score for a freelancer
    */
   static calculateAssignmentScore(freelancer, taskType, taskPriority) {
-    const profile = freelancer.freelancerProfile;
+    const profile = freelancer.freelancer_profile;
 
     // Performance Score (0-100)
     const performanceScore = profile.performanceScore || 50;
@@ -25,7 +35,7 @@ class AssignmentService {
     const skillMatch = profile.skills.includes(taskType) ? 100 : 0;
 
     // Availability (0-100)
-    const availabilityScore = freelancer.canAcceptTask() ? 100 : 0;
+    const availabilityScore = canAcceptTask(freelancer) ? 100 : 0;
 
     // Completion Rate (0-100)
     const completionRate = profile.metrics.onTimeCompletionRate || 50;
@@ -45,15 +55,18 @@ class AssignmentService {
    */
   static async findBestFreelancer(task) {
     try {
-      const taskType = task.taskDetails.type;
+      const taskType = task.task_details.type;
       const priority = task.priority;
 
-      // Get all available freelancers with matching skills
-      const freelancers = await User.findAvailableFreelancers(taskType, [
-        taskType,
-      ]);
+      const freelancers = await userData.findUsers({
+        role: USER_ROLES.FREELANCER,
+        status: "active",
+        "freelancer_profile->skills": [taskType],
+      });
+      
+      const availableFreelancers = freelancers.filter(f => canAcceptTask(f));
 
-      if (freelancers.length === 0) {
+      if (availableFreelancers.length === 0) {
         logger.warn(
           `No available freelancers found for task type: ${taskType}`
         );
@@ -61,7 +74,7 @@ class AssignmentService {
       }
 
       // Score each freelancer
-      const scoredFreelancers = freelancers.map((freelancer) => ({
+      const scoredFreelancers = availableFreelancers.map((freelancer) => ({
         freelancer,
         score: this.calculateAssignmentScore(freelancer, taskType, priority),
       }));
@@ -71,9 +84,9 @@ class AssignmentService {
 
       // Log top candidates
       logger.info(
-        `Top 3 candidates for task ${task.taskId}:`,
+        `Top 3 candidates for task ${task.task_id}:`,
         scoredFreelancers.slice(0, 3).map((sf) => ({
-          name: sf.freelancer.fullName,
+          name: sf.freelancer.profile.firstName + ' ' + sf.freelancer.profile.lastName,
           score: sf.score,
         }))
       );
@@ -91,31 +104,30 @@ class AssignmentService {
    */
   static async assignTask(task, freelancerId, assignedBy) {
     try {
-      const freelancer = await User.findById(freelancerId);
+      const freelancer = await userData.findUserById(freelancerId);
 
       if (!freelancer || freelancer.role !== USER_ROLES.FREELANCER) {
         throw new Error("Invalid freelancer");
       }
 
-      if (!freelancer.canAcceptTask()) {
+      if (!canAcceptTask(freelancer)) {
         throw new Error("Freelancer cannot accept more tasks");
       }
 
       // Update task
-      task.freelancer = freelancerId;
-      task.assignedBy = assignedBy;
-      task.transitionTo("assigned");
-      await task.save();
+      const updatedTask = await taskService.transitionTo(task.id, "assigned");
+      await taskData.updateTask(task.id, { freelancer_id: freelancerId, assigned_by_id: assignedBy });
 
       // Update freelancer's active task count
-      freelancer.freelancerProfile.currentActiveTasks += 1;
-      await freelancer.save();
+      const freelancerProfile = freelancer.freelancer_profile;
+      freelancerProfile.currentActiveTasks += 1;
+      await userData.updateUser(freelancerId, { freelancer_profile: freelancerProfile });
 
       logger.info(
-        `Task ${task.taskId} assigned to freelancer ${freelancer.fullName}`
+        `Task ${task.task_id} assigned to freelancer ${freelancer.profile.firstName} ${freelancer.profile.lastName}`
       );
 
-      return { task, freelancer };
+      return { task: updatedTask, freelancer };
     } catch (error) {
       logger.error("Error in assignTask:", error);
       throw error;
@@ -133,7 +145,7 @@ class AssignmentService {
         throw new Error("No available freelancer found");
       }
 
-      return await this.assignTask(task, bestFreelancer._id, assignedBy);
+      return await this.assignTask(task, bestFreelancer.id, assignedBy);
     } catch (error) {
       logger.error("Error in autoAssignTask:", error);
       throw error;
@@ -145,27 +157,28 @@ class AssignmentService {
    */
   static async reassignTask(task, newFreelancerId, assignedBy, reason) {
     try {
-      const oldFreelancerId = task.freelancer;
+      const oldFreelancerId = task.freelancer_id;
 
       // Decrease old freelancer's active task count
       if (oldFreelancerId) {
-        await User.findByIdAndUpdate(oldFreelancerId, {
-          $inc: { "freelancerProfile.currentActiveTasks": -1 },
-        });
+        const oldFreelancer = await userData.findUserById(oldFreelancerId);
+        const freelancerProfile = oldFreelancer.freelancer_profile;
+        freelancerProfile.currentActiveTasks -= 1;
+        await userData.updateUser(oldFreelancerId, { freelancer_profile: freelancerProfile });
       }
 
       // Assign to new freelancer
       const result = await this.assignTask(task, newFreelancerId, assignedBy);
 
       // Update metrics
-      task.metrics.reassignmentCount += 1;
-      if (reason) {
-        task.adminNotes = `Reassignment ${task.metrics.reassignmentCount}: ${reason}`;
-      }
-      await task.save();
+      const metrics = task.metrics;
+      metrics.reassignmentCount += 1;
+      const adminNotes = `Reassignment ${metrics.reassignmentCount}: ${reason}`;
+      await taskData.updateTask(task.id, { metrics, admin_notes: adminNotes });
+
 
       logger.info(
-        `Task ${task.taskId} reassigned from ${oldFreelancerId} to ${newFreelancerId}`
+        `Task ${task.task_id} reassigned from ${oldFreelancerId} to ${newFreelancerId}`
       );
 
       return result;
@@ -180,21 +193,25 @@ class AssignmentService {
    */
   static async getRecommendations(task, limit = 5) {
     try {
-      const taskType = task.taskDetails.type;
-      const freelancers = await User.findAvailableFreelancers(taskType, [
-        taskType,
-      ]);
+      const taskType = task.task_details.type;
+      const freelancers = await userData.findUsers({
+        role: USER_ROLES.FREELANCER,
+        status: "active",
+        "freelancer_profile->skills": [taskType],
+      });
+      
+      const availableFreelancers = freelancers.filter(f => canAcceptTask(f));
 
-      const scoredFreelancers = freelancers.map((freelancer) => ({
+      const scoredFreelancers = availableFreelancers.map((freelancer) => ({
         freelancer: {
-          _id: freelancer._id,
-          name: freelancer.fullName,
+          id: freelancer.id,
+          name: freelancer.profile.firstName + ' ' + freelancer.profile.lastName,
           email: freelancer.email,
-          skills: freelancer.freelancerProfile.skills,
-          performanceScore: freelancer.freelancerProfile.performanceScore,
-          completedTasks: freelancer.freelancerProfile.completedTasks,
-          rating: freelancer.freelancerProfile.rating,
-          currentActiveTasks: freelancer.freelancerProfile.currentActiveTasks,
+          skills: freelancer.freelancer_profile.skills,
+          performanceScore: freelancer.freelancer_profile.performanceScore,
+          completedTasks: freelancer.freelancer_profile.completedTasks,
+          rating: freelancer.freelancer_profile.rating,
+          currentActiveTasks: freelancer.freelancer_profile.currentActiveTasks,
         },
         assignmentScore: this.calculateAssignmentScore(
           freelancer,

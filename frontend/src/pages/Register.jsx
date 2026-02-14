@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Sparkles, ShieldCheck, Briefcase, Laptop } from 'lucide-react';
 import { USER_ROLES } from '../utils/constants';
 
 /**
- * Register Page
+ * Register Page with premium visual treatment
  */
 const Register = () => {
     const navigate = useNavigate();
@@ -48,15 +48,14 @@ const Register = () => {
     const validate = () => {
         const newErrors = {};
 
-        // Password validation
         if (formData.password.length < 8) {
             newErrors.password = 'Password must be at least 8 characters';
         } else if (!/(?=.*[a-z])/.test(formData.password)) {
-            newErrors.password = 'Password must contain at least one lowercase letter';
+            newErrors.password = 'Include a lowercase letter';
         } else if (!/(?=.*[A-Z])/.test(formData.password)) {
-            newErrors.password = 'Password must contain at least one uppercase letter';
+            newErrors.password = 'Include an uppercase letter';
         } else if (!/(?=.*\d)/.test(formData.password)) {
-            newErrors.password = 'Password must contain at least one number';
+            newErrors.password = 'Include a number';
         }
 
         if (formData.password !== formData.confirmPassword) {
@@ -80,7 +79,6 @@ const Register = () => {
         const result = await register(registrationData);
 
         if (result.success) {
-            // Navigate based on role
             const roleRoutes = {
                 [USER_ROLES.CLIENT]: '/client/dashboard',
                 [USER_ROLES.FREELANCER]: '/freelancer/dashboard',
@@ -93,153 +91,180 @@ const Register = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8">
-                <div>
-                    <Link to="/" className="flex justify-center">
-                        <h1 className="text-3xl font-bold text-primary-600">TaskNexus</h1>
+        <div className="min-h-screen bg-gradient-to-br from-[#0b1021] via-[#0f172a] to-[#1b1f38] text-white relative overflow-hidden">
+            <div className="absolute inset-0 opacity-30 hero-grid" />
+            <div className="absolute -top-20 right-10 h-80 w-80 bg-primary-500 blur-3xl opacity-30" />
+            <div className="absolute bottom-0 left-0 h-96 w-96 bg-accent-500 blur-3xl opacity-25" />
+
+            <div className="relative max-w-6xl mx-auto px-6 py-16 grid lg:grid-cols-2 gap-10 items-start">
+                <div className="space-y-6">
+                    <Link to="/" className="inline-flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center shadow-glass">
+                            <Sparkles className="w-6 h-6 text-primary-100" />
+                        </div>
+                        <div>
+                            <p className="text-xl font-semibold">TaskNexus</p>
+                            <p className="text-sm text-gray-300">Managed task delivery</p>
+                        </div>
                     </Link>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                        Create your account
-                    </h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
-                        Or{' '}
-                        <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
-                            sign in to existing account
-                        </Link>
+
+                    <h1 className="text-4xl font-bold leading-tight font-display">
+                        Create your TaskNexus workspace
+                    </h1>
+                    <p className="text-gray-200 max-w-xl">
+                        Pick your lane—submit tasks as a client or deliver work as a freelancer—and get a dashboard purpose-built for your flow.
                     </p>
+
+                    <div className="flex items-center gap-3 text-sm text-gray-200">
+                        <ShieldCheck className="w-5 h-5" />
+                        SOC2-ready security • QA baked in • Live status
+                    </div>
                 </div>
 
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    {/* Role Selection */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            I want to
-                        </label>
-                        <div className="grid grid-cols-2 gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setFormData({ ...formData, role: USER_ROLES.CLIENT })}
-                                className={`p-4 border-2 rounded-lg text-sm font-medium transition ${formData.role === USER_ROLES.CLIENT
-                                    ? 'border-primary-600 bg-primary-50 text-primary-600'
-                                    : 'border-gray-300 hover:border-gray-400'
-                                    }`}
-                            >
-                                Submit Tasks (Client)
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setFormData({ ...formData, role: USER_ROLES.FREELANCER })}
-                                className={`p-4 border-2 rounded-lg text-sm font-medium transition ${formData.role === USER_ROLES.FREELANCER
-                                    ? 'border-primary-600 bg-primary-50 text-primary-600'
-                                    : 'border-gray-300 hover:border-gray-400'
-                                    }`}
-                            >
-                                Work on Tasks (Freelancer)
-                            </button>
+                <div className="card glass border-white/15 shadow-glass w-full">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <p className="text-sm text-gray-300">Create account</p>
+                            <h2 className="text-2xl font-bold text-white">Join TaskNexus</h2>
                         </div>
+                        <Link to="/login" className="btn btn-secondary text-xs">
+                            Sign in
+                        </Link>
                     </div>
 
-                    <div className="space-y-4">
+                    <form className="space-y-6" onSubmit={handleSubmit}>
+                        {/* Role Selection */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <RoleCard
+                                title="Submit tasks"
+                                subtitle="I need work delivered"
+                                active={formData.role === USER_ROLES.CLIENT}
+                                onClick={() => setFormData({ ...formData, role: USER_ROLES.CLIENT })}
+                                icon={<Briefcase className="w-5 h-5" />}
+                            />
+                            <RoleCard
+                                title="Deliver work"
+                                subtitle="I complete tasks"
+                                active={formData.role === USER_ROLES.FREELANCER}
+                                onClick={() => setFormData({ ...formData, role: USER_ROLES.FREELANCER })}
+                                icon={<Laptop className="w-5 h-5" />}
+                            />
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
-                            <input
+                            <InputField
                                 name="profile.firstName"
-                                type="text"
-                                required
-                                className="input"
                                 placeholder="First Name"
                                 value={formData.profile.firstName}
                                 onChange={handleChange}
-                            />
-                            <input
-                                name="profile.lastName"
-                                type="text"
                                 required
-                                className="input"
+                            />
+                            <InputField
+                                name="profile.lastName"
                                 placeholder="Last Name"
                                 value={formData.profile.lastName}
                                 onChange={handleChange}
+                                required
                             />
                         </div>
 
-                        <input
+                        <InputField
                             name="email"
                             type="email"
-                            required
-                            className="input"
-                            placeholder="Email address"
+                            placeholder="Work email"
                             value={formData.email}
                             onChange={handleChange}
+                            required
                         />
 
-                        <input
+                        <InputField
                             name="profile.phone"
                             type="tel"
-                            className="input"
                             placeholder="Phone (optional)"
                             value={formData.profile.phone}
                             onChange={handleChange}
                         />
 
-                        <div>
-                            <input
-                                name="password"
-                                type="password"
-                                required
-                                className="input"
-                                placeholder="Password (min 8 characters)"
-                                value={formData.password}
-                                onChange={handleChange}
-                            />
-                            <p className="mt-1 text-xs text-gray-500">
-                                Must contain: 8+ characters, uppercase, lowercase, and number
-                            </p>
-                            {errors.password && (
-                                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                            )}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <InputField
+                                    name="password"
+                                    type="password"
+                                    placeholder="Password (8+ characters)"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    required
+                                />
+                                {errors.password && (
+                                    <p className="mt-1 text-xs text-amber-200">{errors.password}</p>
+                                )}
+                            </div>
+                            <div>
+                                <InputField
+                                    name="confirmPassword"
+                                    type="password"
+                                    placeholder="Confirm password"
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    required
+                                />
+                                {errors.confirmPassword && (
+                                    <p className="mt-1 text-xs text-amber-200">{errors.confirmPassword}</p>
+                                )}
+                            </div>
                         </div>
 
-                        <div>
-                            <input
-                                name="confirmPassword"
-                                type="password"
-                                required
-                                className="input"
-                                placeholder="Confirm Password"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
-                            />
-                            {errors.confirmPassword && (
-                                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-                            )}
-                        </div>
-                    </div>
-
-                    <div>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="btn btn-primary w-full py-3 flex items-center justify-center"
                         >
-                            <span className="absolute left-0 inset-y-0 flex items-center pl-3">
-                                <UserPlus className="h-5 w-5 text-primary-500 group-hover:text-primary-400" />
-                            </span>
+                            <UserPlus className="h-5 w-5 mr-2" />
                             {loading ? 'Creating account...' : 'Create account'}
                         </button>
-                    </div>
 
-                    <div className="text-center">
-                        <Link
-                            to="/"
-                            className="text-sm text-primary-600 hover:text-primary-500"
-                        >
-                            ← Back to home
-                        </Link>
-                    </div>
-                </form>
+                        <p className="text-center text-sm text-gray-300">
+                            Already have an account?{' '}
+                            <Link to="/login" className="text-white font-medium hover:text-primary-100">
+                                Sign in
+                            </Link>
+                        </p>
+                    </form>
+                </div>
             </div>
         </div>
     );
 };
+
+const InputField = ({ name, value, onChange, placeholder, type = 'text', required = false }) => (
+    <input
+        name={name}
+        type={type}
+        required={required}
+        className="input bg-white/10 border-white/20 text-white placeholder:text-white/50"
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+    />
+);
+
+const RoleCard = ({ title, subtitle, active, onClick, icon }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        className={`w-full text-left rounded-xl p-4 border transition-all duration-200 ${active
+            ? 'border-primary-300 bg-white/10 text-white shadow-soft'
+            : 'border-white/10 bg-white/5 text-gray-200 hover:border-primary-200/60'
+            }`}
+    >
+        <div className="flex items-center gap-2 mb-2">
+            <div className={`p-2 rounded-lg ${active ? 'bg-primary-500/20 text-white' : 'bg-white/10 text-gray-200'}`}>
+                {icon}
+            </div>
+            <p className="font-semibold">{title}</p>
+        </div>
+        <p className="text-xs text-gray-300">{subtitle}</p>
+    </button>
+);
 
 export default Register;

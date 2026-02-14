@@ -1,5 +1,5 @@
 const { verifyAccessToken } = require("../config/jwt");
-const User = require("../models/User");
+const { findUserById } = require("../data/userData");
 const logger = require("../utils/logger");
 const { ERROR_CODES } = require("../config/constants");
 
@@ -49,9 +49,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // Find user
-    const user = await User.findById(decoded.userId).select(
-      "-password -refreshToken"
-    );
+    const user = await findUserById(decoded.userId);
 
     if (!user) {
       return res.status(401).json({
@@ -76,7 +74,7 @@ const authenticate = async (req, res, next) => {
 
     // Attach user to request
     req.user = user;
-    req.userId = user._id;
+    req.userId = user.id;
     req.userRole = user.role;
 
     next();
@@ -108,13 +106,11 @@ const optionalAuth = async (req, res, next) => {
 
     try {
       const decoded = verifyAccessToken(token);
-      const user = await User.findById(decoded.userId).select(
-        "-password -refreshToken"
-      );
+      const user = await findUserById(decoded.userId);
 
       if (user && user.status === "active") {
         req.user = user;
-        req.userId = user._id;
+        req.userId = user.id;
         req.userRole = user.role;
       }
     } catch (error) {

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 /**
- * Login Page
+ * Login Page with elevated visual design
  */
 const Login = () => {
     const navigate = useNavigate();
@@ -43,84 +43,108 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8">
-                <div>
-                    <Link to="/" className="flex justify-center">
-                        <h1 className="text-3xl font-bold text-primary-600">TaskNexus</h1>
+        <div className="min-h-screen bg-gradient-to-br from-[#0b1021] via-[#0f172a] to-[#1b1f38] text-white relative overflow-hidden">
+            <div className="absolute inset-0 opacity-30 hero-grid" />
+            <div className="absolute -top-32 -left-24 h-96 w-96 bg-primary-500 blur-3xl opacity-30" />
+            <div className="absolute bottom-0 right-0 h-96 w-96 bg-accent-500 blur-3xl opacity-25" />
+
+            <div className="relative max-w-6xl mx-auto px-6 py-16 grid lg:grid-cols-2 gap-10 items-center">
+                {/* Left content */}
+                <div className="space-y-6">
+                    <Link to="/" className="inline-flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center shadow-glass">
+                            <Sparkles className="w-6 h-6 text-primary-100" />
+                        </div>
+                        <div>
+                            <p className="text-xl font-semibold">TaskNexus</p>
+                            <p className="text-sm text-gray-300">Managed task delivery</p>
+                        </div>
                     </Link>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                        Sign in to your account
-                    </h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
-                        Or{' '}
-                        <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">
-                            create a new account
-                        </Link>
+
+                    <h1 className="text-4xl font-bold leading-tight font-display">
+                        Welcome back. Jump into your control center.
+                    </h1>
+                    <p className="text-gray-200 max-w-xl">
+                        Sign in to track tasks, collaborate, and ship work faster with automated QA and visibility baked into every step.
                     </p>
+
+                    <div className="grid sm:grid-cols-2 gap-3">
+                        <SellingPoint icon={<ShieldCheck className="w-5 h-5" />} text="Secure SSO-ready auth" />
+                        <SellingPoint icon={<CheckCircle2 className="w-5 h-5" />} text="Role-based dashboards" />
+                        <SellingPoint icon={<Sparkles className="w-5 h-5" />} text="QA & delivery insights" />
+                        <SellingPoint icon={<ArrowRight className="w-5 h-5" />} text="Jump back into work" />
+                    </div>
                 </div>
 
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="rounded-md shadow-sm -space-y-px">
+                {/* Form card */}
+                <div className="card glass border-white/15 shadow-glass">
+                    <div className="flex items-center justify-between mb-6">
                         <div>
-                            <label htmlFor="email" className="sr-only">
-                                Email address
-                            </label>
+                            <p className="text-sm text-gray-300">Sign in</p>
+                            <h2 className="text-2xl font-bold text-white">Access your workspace</h2>
+                        </div>
+                        <Link to="/register" className="btn btn-secondary text-xs">
+                            Create account
+                        </Link>
+                    </div>
+
+                    <form className="space-y-5" onSubmit={handleSubmit}>
+                        <div className="space-y-3">
+                            <label className="label text-white/80">Email</label>
                             <input
                                 id="email"
                                 name="email"
                                 type="email"
                                 autoComplete="email"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                                placeholder="Email address"
+                                className="input bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                                placeholder="you@company.com"
                                 value={formData.email}
                                 onChange={handleChange}
                             />
                         </div>
-                        <div>
-                            <label htmlFor="password" className="sr-only">
-                                Password
-                            </label>
+
+                        <div className="space-y-3">
+                            <label className="label text-white/80">Password</label>
                             <input
                                 id="password"
                                 name="password"
                                 type="password"
                                 autoComplete="current-password"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                                placeholder="Password"
+                                className="input bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                                placeholder="••••••••"
                                 value={formData.password}
                                 onChange={handleChange}
                             />
                         </div>
-                    </div>
 
-                    <div>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="btn btn-primary w-full py-3 flex items-center justify-center"
                         >
-                            <span className="absolute left-0 inset-y-0 flex items-center pl-3">
-                                <LogIn className="h-5 w-5 text-primary-500 group-hover:text-primary-400" />
-                            </span>
+                            <LogIn className="h-5 w-5 mr-2" />
                             {loading ? 'Signing in...' : 'Sign in'}
                         </button>
-                    </div>
 
-                    <div className="text-center">
-                        <Link
-                            to="/"
-                            className="text-sm text-primary-600 hover:text-primary-500"
-                        >
-                            ← Back to home
-                        </Link>
-                    </div>
-                </form>
+                        <div className="text-center text-sm text-gray-300">
+                            <Link to="/" className="hover:text-white transition-colors">
+                                ← Back to home
+                            </Link>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     );
 };
+
+const SellingPoint = ({ icon, text }) => (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-200">
+        {icon}
+        {text}
+    </div>
+);
 
 export default Login;

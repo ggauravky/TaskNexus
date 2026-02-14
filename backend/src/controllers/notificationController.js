@@ -1,4 +1,5 @@
-const Notification = require("../models/Notification");
+const notificationData = require("../data/notificationData");
+const userData = require("../data/userData");
 const logger = require("../utils/logger");
 
 /**
@@ -8,37 +9,21 @@ const logger = require("../utils/logger");
  */
 exports.getNotifications = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, unreadOnly = false } = req.query;
+    const { unreadOnly = false } = req.query;
 
-    const query = { userId: req.user._id };
+    const filters = { recipient_id: req.user.id };
 
     if (unreadOnly === "true") {
-      query.read = false;
+      filters.status = "unread";
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const notifications = await Notification.find(query)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip);
-
-    const total = await Notification.countDocuments(query);
-    const unreadCount = await Notification.countDocuments({
-      userId: req.user._id,
-      read: false,
-    });
+    const notifications = await notificationData.findNotifications(filters);
+    const unreadCount = notifications.filter(n => n.status === 'unread').length;
 
     res.status(200).json({
       success: true,
       data: notifications,
       unreadCount,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
     });
   } catch (error) {
     logger.error("Error fetching notifications:", error);
@@ -53,31 +38,21 @@ exports.getNotifications = async (req, res, next) => {
  */
 exports.markAsRead = async (req, res, next) => {
   try {
-    const notification = await Notification.findById(req.params.id);
+    const notification = await notificationData.findNotifications({ id: req.params.id, recipient_id: req.user.id });
 
-    if (!notification) {
+    if (notification.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Notification not found",
       });
     }
 
-    // Verify ownership
-    if (notification.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized",
-      });
-    }
-
-    notification.read = true;
-    notification.readAt = new Date();
-    await notification.save();
+    const updatedNotification = await notificationData.updateNotification(req.params.id, { status: "read", read_at: new Date() });
 
     res.status(200).json({
       success: true,
       message: "Notification marked as read",
-      data: notification,
+      data: updatedNotification,
     });
   } catch (error) {
     logger.error("Error marking notification as read:", error);
@@ -92,15 +67,15 @@ exports.markAsRead = async (req, res, next) => {
  */
 exports.markAllAsRead = async (req, res, next) => {
   try {
-    const result = await Notification.updateMany(
-      { userId: req.user._id, read: false },
-      { read: true, readAt: new Date() }
+    const result = await notificationData.updateManyNotifications(
+      { recipient_id: req.user.id, status: "unread" },
+      { status: "read", read_at: new Date() }
     );
 
     res.status(200).json({
       success: true,
       message: "All notifications marked as read",
-      data: { modifiedCount: result.modifiedCount },
+      data: { modifiedCount: result.length },
     });
   } catch (error) {
     logger.error("Error marking all notifications as read:", error);
@@ -115,24 +90,16 @@ exports.markAllAsRead = async (req, res, next) => {
  */
 exports.deleteNotification = async (req, res, next) => {
   try {
-    const notification = await Notification.findById(req.params.id);
+    const notification = await notificationData.findNotifications({ id: req.params.id, recipient_id: req.user.id });
 
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: "Notification not found",
-      });
+    if (notification.length === 0) {
+        return res.status(404).json({
+            success: false,
+            message: "Notification not found",
+        });
     }
 
-    // Verify ownership
-    if (notification.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized",
-      });
-    }
-
-    await notification.deleteOne();
+    await notificationData.deleteNotification(req.params.id);
 
     res.status(200).json({
       success: true,
@@ -151,15 +118,15 @@ exports.deleteNotification = async (req, res, next) => {
  */
 exports.clearReadNotifications = async (req, res, next) => {
   try {
-    const result = await Notification.deleteMany({
-      userId: req.user._id,
-      read: true,
+    const result = await notificationData.deleteManyNotifications({
+      recipient_id: req.user.id,
+      status: "read",
     });
 
     res.status(200).json({
       success: true,
       message: "Read notifications cleared",
-      data: { deletedCount: result.deletedCount },
+      data: { deletedCount: result.length },
     });
   } catch (error) {
     logger.error("Error clearing read notifications:", error);
@@ -174,9 +141,8 @@ exports.clearReadNotifications = async (req, res, next) => {
  */
 exports.getPreferences = async (req, res, next) => {
   try {
-    // In a full implementation, this would fetch from a NotificationPreferences model
-    // For now, return default preferences from user model if they exist
-    const preferences = req.user.notificationPreferences || {
+    const user = await userData.findUserById(req.user.id);
+    const preferences = user.notification_preferences || {
       email: true,
       push: true,
       taskUpdates: true,
@@ -203,40 +169,24 @@ exports.updatePreferences = async (req, res, next) => {
   try {
     const { email, push, taskUpdates, paymentAlerts, messages } = req.body;
 
-    // In a full implementation, this would update a NotificationPreferences model
-    // For now, update user model
-    const User = require("../models/User");
-    const user = await User.findById(req.user._id);
+    const user = await userData.findUserById(req.user.id);
 
-    user.notificationPreferences = {
-      email:
-        email !== undefined
-          ? email
-          : user.notificationPreferences?.email || true,
-      push:
-        push !== undefined ? push : user.notificationPreferences?.push || true,
-      taskUpdates:
-        taskUpdates !== undefined
-          ? taskUpdates
-          : user.notificationPreferences?.taskUpdates || true,
-      paymentAlerts:
-        paymentAlerts !== undefined
-          ? paymentAlerts
-          : user.notificationPreferences?.paymentAlerts || true,
-      messages:
-        messages !== undefined
-          ? messages
-          : user.notificationPreferences?.messages || true,
-    };
+    const preferences = user.notification_preferences || {};
+    
+    preferences.email = email !== undefined ? email : preferences.email;
+    preferences.push = push !== undefined ? push : preferences.push;
+    preferences.taskUpdates = taskUpdates !== undefined ? taskUpdates : preferences.taskUpdates;
+    preferences.paymentAlerts = paymentAlerts !== undefined ? paymentAlerts : preferences.paymentAlerts;
+    preferences.messages = messages !== undefined ? messages : preferences.messages;
 
-    await user.save();
+    const updatedUser = await userData.updateUser(req.user.id, { notification_preferences: preferences });
 
-    logger.info(`Notification preferences updated for user: ${req.user._id}`);
+    logger.info(`Notification preferences updated for user: ${req.user.id}`);
 
     res.status(200).json({
       success: true,
       message: "Preferences updated successfully",
-      data: user.notificationPreferences,
+      data: updatedUser.notification_preferences,
     });
   } catch (error) {
     logger.error("Error updating notification preferences:", error);

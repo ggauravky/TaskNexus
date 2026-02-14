@@ -23,9 +23,6 @@ const startServer = async () => {
     // Create directories
     createDirectories();
 
-    // Connect to database
-    await connectDB();
-
     // Get port from environment or use default
     const PORT = process.env.PORT || 5000;
 
@@ -47,19 +44,8 @@ const startServer = async () => {
 
       server.close(async () => {
         logger.info("HTTP server closed");
-
-        try {
-          // Close database connection
-          const mongoose = require("mongoose");
-          await mongoose.connection.close();
-          logger.info("Database connection closed");
-
-          logger.info("Graceful shutdown completed");
-          process.exit(0);
-        } catch (error) {
-          logger.error("Error during shutdown:", error);
-          process.exit(1);
-        }
+        logger.info("Graceful shutdown completed");
+        process.exit(0);
       });
 
       // Force shutdown after 30 seconds
