@@ -39,6 +39,18 @@ const findTasks = async (filters) => {
 
     if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
+            // Supabase needs `.is(..., null)` for nullable columns; `.eq` with null throws
+            if (value === null) {
+                query = query.is(key, null);
+                return;
+            }
+
+            // Allow basic `IN` filtering when an array is passed
+            if (Array.isArray(value)) {
+                query = query.in(key, value);
+                return;
+            }
+
             query = query.eq(key, value);
         });
     }

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     LogOut, Briefcase, DollarSign, Star, TrendingUp, Clock,
     CheckCircle, RefreshCw, Eye, Target, Search, Filter,
-    Calendar, Award, Activity, Plus, FileText, Send
+    Calendar, Award, Activity, Plus, FileText, Send, AlertCircle
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
