@@ -22,9 +22,38 @@ router.get("/my-tasks", freelancerController.getMyTasks);
 // Accept a task
 router.post(
   "/tasks/:id/accept",
-  [param("id").isMongoId().withMessage("Invalid task ID")],
+  [param("id").notEmpty().withMessage("Task ID is required")],
   validate,
   freelancerController.acceptTask
+);
+
+// Start working on a task
+router.put(
+  "/tasks/:id/start",
+  [param("id").notEmpty().withMessage("Task ID is required")],
+  validate,
+  freelancerController.startTask
+);
+
+// Cancel / unaccept a task
+router.put(
+  "/tasks/:id/cancel",
+  [param("id").notEmpty().withMessage("Task ID is required")],
+  validate,
+  freelancerController.cancelTask
+);
+
+// Update task progress
+router.put(
+  "/tasks/:id/progress",
+  [
+    param("id").notEmpty().withMessage("Task ID is required"),
+    body("progress").isNumeric().withMessage("Progress must be a number"),
+    body("stage").optional().isString(),
+    body("note").optional().isString(),
+  ],
+  validate,
+  freelancerController.updateProgress
 );
 
 // Update submission
@@ -47,5 +76,29 @@ router.get("/earnings", freelancerController.getEarnings);
 
 // Reviews
 router.get("/reviews", freelancerController.getReviews);
+
+// Profile
+router.get("/profile", freelancerController.getProfile);
+router.put(
+  "/profile",
+  [
+    body("firstName").optional().isString(),
+    body("lastName").optional().isString(),
+    body("phone").optional().isString(),
+    body("avatar").optional().isString(),
+    body("title").optional().isString(),
+    body("bio").optional().isString(),
+    body("skills").optional(),
+    body("hourlyRate").optional().isNumeric(),
+    body("availability").optional().isString(),
+    body("location").optional().isString(),
+    body("experienceLevel").optional().isString(),
+    body("website").optional().isString(),
+    body("linkedin").optional().isString(),
+    body("portfolio").optional().isString(),
+  ],
+  validate,
+  freelancerController.updateProfile
+);
 
 module.exports = router;

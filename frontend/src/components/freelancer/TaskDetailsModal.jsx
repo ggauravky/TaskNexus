@@ -1,12 +1,27 @@
-import { X, Calendar, DollarSign, User, Clock, FileText, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Calendar, DollarSign, User, Clock, FileText, CheckCircle, RefreshCw } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 
 /**
  * Task Details Modal for Freelancer
  * Shows comprehensive task information
  */
-const TaskDetailsModal = ({ isOpen, onClose, task }) => {
+const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask, onUpdateProgress }) => {
     if (!isOpen || !task) return null;
+
+    const details = task.task_details || {};
+    const workflow = task.workflow || {};
+    const metrics = task.metrics || {};
+
+    const title = details.title || task.title || 'Untitled Task';
+    const type = details.type || task.type;
+    const budget = details.budget ?? task.budget ?? 0;
+    const deadline = details.deadline || task.deadline;
+    const description = details.description || task.description || 'No description provided';
+    const skillsRequired = details.skillsRequired || task.skillsRequired;
+    const experienceLevel = details.experienceLevel || task.experienceLevel;
+    const taskId = task.task_id || task.taskId || task.id || task._id;
+    const createdAt = task.created_at || task.createdAt;
 
     const formatDate = (date) => {
         if (!date) return 'No deadline';
@@ -35,6 +50,24 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
         return `${days} days remaining`;
     };
 
+    const [progress, setProgress] = useState(metrics.progress ?? 0);
+    const [stage, setStage] = useState(metrics.stage || 'in_progress');
+    const [note, setNote] = useState(metrics.progressNote || '');
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setProgress(metrics.progress ?? 0);
+        setStage(metrics.stage || 'in_progress');
+        setNote(metrics.progressNote || '');
+    }, [task]);
+
+    const handleSaveProgress = async () => {
+        if (!onUpdateProgress) return;
+        setSaving(true);
+        await onUpdateProgress(task.id, { progress, stage, note });
+        setSaving(false);
+    };
+
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
             {/* Backdrop */}
@@ -50,13 +83,13 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                     <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-start z-10">
                         <div className="flex-1">
                             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                                {task.title || 'Untitled Task'}
+                                {title}
                             </h2>
                             <div className="flex items-center gap-3">
                                 <StatusBadge status={task.status} />
-                                {task.type && (
+                                {type && (
                                     <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                                        {task.type.replace(/-/g, ' ').toUpperCase()}
+                                        {type.replace(/-/g, ' ').toUpperCase()}
                                     </span>
                                 )}
                             </div>
@@ -79,7 +112,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                     <span className="text-sm font-medium">Budget</span>
                                 </div>
                                 <p className="text-2xl font-bold text-green-700">
-                                    {formatCurrency(task.budget)}
+                                    {formatCurrency(budget)}
                                 </p>
                             </div>
 
@@ -89,10 +122,10 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                     <span className="text-sm font-medium">Deadline</span>
                                 </div>
                                 <p className="text-lg font-semibold text-blue-700">
-                                    {formatDate(task.deadline).split(',')[0]}
+                                    {formatDate(deadline).split(',')[0]}
                                 </p>
                                 <p className="text-sm text-blue-600 mt-1">
-                                    {getDaysRemaining(task.deadline)}
+                                    {getDaysRemaining(deadline)}
                                 </p>
                             </div>
                         </div>
@@ -131,19 +164,19 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                             </div>
                             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                                 <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                    {task.description || 'No description provided'}
+                                    {description}
                                 </p>
                             </div>
                         </div>
 
                         {/* Skills Required */}
-                        {task.skillsRequired && task.skillsRequired.length > 0 && (
+                        {skillsRequired && skillsRequired.length > 0 && (
                             <div>
                                 <h3 className="font-semibold text-lg text-gray-700 mb-3">
                                     Skills Required
                                 </h3>
                                 <div className="flex flex-wrap gap-2">
-                                    {task.skillsRequired.map((skill, index) => (
+                                    {skillsRequired.map((skill, index) => (
                                         <span
                                             key={index}
                                             className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium"
@@ -156,46 +189,46 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                         )}
 
                         {/* Experience Level */}
-                        {task.experienceLevel && (
+                        {experienceLevel && (
                             <div className="flex items-center space-x-2">
                                 <span className="text-sm font-medium text-gray-600">Experience Level:</span>
                                 <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium capitalize">
-                                    {task.experienceLevel}
+                                    {experienceLevel}
                                 </span>
                             </div>
                         )}
 
                         {/* Task Timeline */}
-                        {(task.workflow?.assignedAt || task.workflow?.startedAt || task.createdAt) && (
+                        {(workflow.assignedAt || workflow.startedAt || createdAt) && (
                             <div>
                                 <h3 className="font-semibold text-lg text-gray-700 mb-3">
                                     Timeline
                                 </h3>
                                 <div className="space-y-3 ml-4">
-                                    {task.createdAt && (
+                                    {createdAt && (
                                         <div className="flex items-start">
                                             <div className="w-2 h-2 rounded-full bg-gray-400 mt-2 mr-3"></div>
                                             <div>
                                                 <p className="text-sm font-medium text-gray-700">Task Created</p>
-                                                <p className="text-xs text-gray-500">{formatDate(task.createdAt)}</p>
+                                                <p className="text-xs text-gray-500">{formatDate(createdAt)}</p>
                                             </div>
                                         </div>
                                     )}
-                                    {task.workflow?.assignedAt && (
+                                    {workflow.assignedAt && (
                                         <div className="flex items-start">
                                             <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-3"></div>
                                             <div>
                                                 <p className="text-sm font-medium text-gray-700">Task Assigned</p>
-                                                <p className="text-xs text-gray-500">{formatDate(task.workflow.assignedAt)}</p>
+                                                <p className="text-xs text-gray-500">{formatDate(workflow.assignedAt)}</p>
                                             </div>
                                         </div>
                                     )}
-                                    {task.workflow?.startedAt && (
+                                    {workflow.startedAt && (
                                         <div className="flex items-start">
                                             <div className="w-2 h-2 rounded-full bg-green-500 mt-2 mr-3"></div>
                                             <div>
                                                 <p className="text-sm font-medium text-gray-700">Work Started</p>
-                                                <p className="text-xs text-gray-500">{formatDate(task.workflow.startedAt)}</p>
+                                                <p className="text-xs text-gray-500">{formatDate(workflow.startedAt)}</p>
                                             </div>
                                         </div>
                                     )}
@@ -205,7 +238,49 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
 
                         {/* Task ID */}
                         <div className="text-xs text-gray-500 pt-4 border-t border-gray-200">
-                            Task ID: {task.taskId || task._id}
+                            Task ID: {taskId}
+                        </div>
+
+                        {/* Progress Tracker */}
+                        <div className="pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="font-semibold text-lg text-gray-700">Progress</h3>
+                                <span className="text-sm text-gray-600 font-medium">{progress}%</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={progress}
+                                onChange={(e) => setProgress(Number(e.target.value))}
+                                className="w-full accent-primary-600"
+                            />
+                            <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                                <div className="flex-1">
+                                    <label className="block text-sm text-gray-600 mb-1">Stage</label>
+                                    <select
+                                        value={stage}
+                                        onChange={(e) => setStage(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    >
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="blocked">Blocked</option>
+                                        <option value="in_review">In Review</option>
+                                        <option value="ready_for_submission">Ready for Submission</option>
+                                        <option value="completed">Completed</option>
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-sm text-gray-600 mb-1">Note (visible to client)</label>
+                                    <textarea
+                                        value={note}
+                                        onChange={(e) => setNote(e.target.value)}
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        placeholder="What did you complete? Anything blocked?"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -218,16 +293,31 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                             >
                                 Close
                             </button>
-                            {task.status === 'assigned' && (
+                            {task.status === 'assigned' && onStartWorking && (
                                 <button
                                     className="btn btn-primary"
-                                    onClick={() => {
-                                        // This will be implemented later for starting work
-                                        onClose();
-                                    }}
+                                    onClick={() => onStartWorking(task)}
                                 >
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Start Working
+                                </button>
+                            )}
+                            {['assigned', 'in_progress'].includes(task.status) && onCancelTask && (
+                                <button
+                                    className="btn btn-secondary"
+                                    onClick={() => onCancelTask(task)}
+                                >
+                                    Cancel Task
+                                </button>
+                            )}
+                            {onUpdateProgress && (
+                                <button
+                                    className="btn btn-primary flex items-center"
+                                    onClick={handleSaveProgress}
+                                    disabled={saving}
+                                >
+                                    <RefreshCw className={`w-4 h-4 mr-2 ${saving ? 'animate-spin' : ''}`} />
+                                    Save Progress
                                 </button>
                             )}
                         </div>

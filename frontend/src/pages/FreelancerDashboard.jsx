@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +13,8 @@ import EmptyState from '../components/common/EmptyState';
 import StatCard from '../components/common/StatCard';
 import StatusBadge from '../components/common/StatusBadge';
 import TaskDetailsModal from '../components/freelancer/TaskDetailsModal';
+import DashboardSettings from '../components/common/DashboardSettings';
+import { usePreferences } from '../hooks/usePreferences';
 
 const FreelancerDashboard = () => {
     console.log('[FreelancerDashboard] Component rendering');
@@ -43,6 +45,33 @@ const FreelancerDashboard = () => {
     const [reviews, setReviews] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
+    const { preferences, togglePreference } = usePreferences();
+
+    const LOCAL_PROGRESS_KEY = 'tasknexus_freelancer_progress';
+
+    const loadProgressCache = () => {
+        try {
+            return JSON.parse(localStorage.getItem(LOCAL_PROGRESS_KEY)) || {};
+        } catch {
+            return {};
+        }
+    };
+
+    const saveProgressCache = (taskId, metrics) => {
+        const cache = loadProgressCache();
+        cache[taskId] = metrics;
+        localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(cache));
+    };
+
+    const mergeProgressFromCache = (tasks) => {
+        const cache = loadProgressCache();
+        return (tasks || []).map((task) => {
+            const cachedMetrics = cache[task.id];
+            // If API returns metrics, keep it; otherwise use cached.
+            if (task.metrics || !cachedMetrics) return task;
+            return { ...task, metrics: cachedMetrics };
+        });
+    };
 
     useEffect(() => {
         console.log('[FreelancerDashboard] useEffect triggered');
@@ -63,11 +92,11 @@ const FreelancerDashboard = () => {
             }
 
             if (myTasksRes.data.success) {
-                setMyTasks(myTasksRes.data.data.tasks || []);
+                setMyTasks(mergeProgressFromCache(myTasksRes.data.data.tasks || []));
             }
 
             if (availableRes.data.success) {
-                setAvailableTasks(availableRes.data.data.tasks || []);
+                setAvailableTasks(mergeProgressFromCache(availableRes.data.data.tasks || []));
             }
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -139,6 +168,46 @@ const FreelancerDashboard = () => {
         setShowDetailsModal(true);
     };
 
+    const handleStartWorking = async (task) => {
+        try {
+            await api.put(`/freelancer/tasks/${task.id}/start`);
+            toast.success('Marked as In Progress');
+            setShowDetailsModal(false);
+            await fetchDashboardData();
+        } catch (error) {
+            const msg = error.response?.data?.message || 'Could not start task';
+            toast.error(msg);
+        }
+    };
+
+    const handleCancelTask = async (task) => {
+        try {
+            await api.put(`/freelancer/tasks/${task.id}/cancel`);
+            toast.success('Task returned to available pool');
+            setShowDetailsModal(false);
+            await fetchDashboardData();
+        } catch (error) {
+            const msg = error.response?.data?.message || 'Could not cancel task';
+            toast.error(msg);
+        }
+    };
+
+    const handleUpdateProgress = async (taskId, progressPayload) => {
+        try {
+            await api.put(`/freelancer/tasks/${taskId}/progress`, progressPayload);
+            toast.success('Progress updated');
+            saveProgressCache(taskId, {
+                ...(selectedTask?.metrics || {}),
+                ...progressPayload,
+                progressUpdatedAt: new Date().toISOString(),
+            });
+            await fetchDashboardData();
+        } catch (error) {
+            const msg = error.response?.data?.message || 'Could not update progress';
+            toast.error(msg);
+        }
+    };
+
     const handleLogout = async () => {
         await logout();
         navigate('/login');
@@ -198,15 +267,20 @@ const FreelancerDashboard = () => {
         );
     }
 
-    const TaskCard = ({ task, isAvailable = false }) => (
-        <div className="border border-gray-200 rounded-lg p-5 hover:shadow-lg transition-all duration-200 hover:border-primary-300 bg-white">
+    const TaskCard = ({ task, isAvailable = false }) => {
+        const compact = preferences?.compactCards;
+        const paddingClass = compact ? 'p-4' : 'p-5';
+        const progress = task.metrics?.progress ?? null;
+
+        return (
+        <div className={`border border-slate-200 rounded-xl ${paddingClass} hover:shadow-xl transition-all duration-200 hover:border-primary-200 bg-white/80 backdrop-blur-sm`}>
             <div className="flex justify-between items-start mb-3">
                 <div className="flex-1">
                     <h4 className="font-semibold text-gray-900 mb-2 text-lg">
-                        {task.title || 'Untitled Task'}
+                        {task.task_details?.title || 'Untitled Task'}
                     </h4>
                     <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-                        {task.description || 'No description'}
+                        {task.task_details?.description || 'No description'}
                     </p>
                 </div>
                 {!isAvailable && (
@@ -219,18 +293,34 @@ const FreelancerDashboard = () => {
             <div className="flex items-center flex-wrap gap-4 text-sm text-gray-600 mb-4 pb-4 border-b border-gray-100">
                 <span className="flex items-center font-medium text-green-600">
                     <DollarSign className="w-4 h-4 mr-1" />
-                    {formatCurrency(task.budget)}
+                    {formatCurrency(task.task_details?.budget)}
                 </span>
                 <span className="flex items-center">
                     <Calendar className="w-4 h-4 mr-1 text-blue-600" />
-                    {formatDate(task.deadline)}
+                    {formatDate(task.task_details?.deadline)}
                 </span>
-                {task.type && (
+                {task.task_details?.type && (
                     <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-                        {task.type.replace(/-/g, ' ').toUpperCase()}
+                        {task.task_details.type.replace(/-/g, ' ').toUpperCase()}
+                    </span>
+                )}
+                {progress !== null && (
+                    <span className="text-xs text-primary-600 bg-primary-50 px-2 py-1 rounded-full font-semibold">
+                        {progress}% complete
                     </span>
                 )}
             </div>
+
+            {progress !== null && preferences?.showProgressBars && (
+                <div className="mb-4">
+                    <div className="w-full bg-slate-100 rounded-full h-2">
+                        <div
+                            className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-indigo-500"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                </div>
+            )}
 
             <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2">
@@ -242,7 +332,7 @@ const FreelancerDashboard = () => {
                 </div>
                 {isAvailable ? (
                     <button
-                        onClick={() => handleAcceptTask(task._id)}
+                        onClick={() => handleAcceptTask(task.id)}
                         className="btn-sm btn-primary flex items-center"
                     >
                         <CheckCircle className="w-4 h-4 mr-1" />
@@ -260,35 +350,45 @@ const FreelancerDashboard = () => {
             </div>
         </div>
     );
+    }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Header */}
-            <header className="bg-white shadow-sm sticky top-0 z-10">
+            <header className="backdrop-blur bg-white/80 shadow-sm sticky top-0 z-10 border-b border-slate-100">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex justify-between items-center">
-                        <div>
-                            <h1 className="text-2xl font-bold text-primary-600">TaskNexus</h1>
-                            <p className="text-sm text-gray-600">Freelancer Dashboard</p>
+                        <div className="flex items-center space-x-3">
+                            <div className="h-10 w-10 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center font-bold">TN</div>
+                            <div>
+                                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">TaskNexus</h1>
+                                <p className="text-xs sm:text-sm text-slate-500">Freelancer Workspace</p>
+                            </div>
                         </div>
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-3">
                             <button
                                 onClick={handleRefresh}
                                 disabled={refreshing}
-                                className="btn-sm btn-secondary flex items-center"
+                                className="btn-sm btn-secondary flex items-center rounded-full px-4"
                             >
                                 <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
                                 Refresh
                             </button>
+                            <button
+                                onClick={() => navigate('/freelancer/profile')}
+                                className="btn-sm btn-secondary rounded-full px-4"
+                            >
+                                Profile
+                            </button>
                             <div className="text-right">
-                                <p className="text-sm font-medium text-gray-900">
+                                <p className="text-sm font-semibold text-slate-900">
                                     {user?.profile.firstName} {user?.profile.lastName}
                                 </p>
-                                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+                                <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
                             </div>
                             <button
                                 onClick={handleLogout}
-                                className="btn btn-secondary flex items-center"
+                                className="btn btn-secondary flex items-center rounded-full"
                             >
                                 <LogOut className="w-4 h-4 mr-2" />
                                 Logout
@@ -301,32 +401,26 @@ const FreelancerDashboard = () => {
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Welcome Section */}
-                <div className="mb-8 bg-gradient-to-r from-primary-50 to-blue-50 rounded-2xl p-8 shadow-sm border border-primary-100">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                        Welcome back, {user?.profile.firstName}! 👋
-                    </h2>
-                    <p className="text-gray-600 text-lg mb-4">
-                        Your freelancer performance overview
-                    </p>
-                    {stats.rating > 0 && (
-                        <div className="flex items-center space-x-6 text-sm">
-                            <span className="flex items-center text-yellow-700 font-medium">
-                                <Star className="w-5 h-5 mr-1 fill-yellow-500 text-yellow-500" />
-                                {stats.rating}/5.0 Rating ({stats.totalReviews} reviews)
-                            </span>
-                            <span className="flex items-center text-green-700 font-medium">
-                                <Target className="w-5 h-5 mr-1" />
-                                {stats.onTimeDeliveryRate}% On-Time Delivery
-                            </span>
-                            <span className="flex items-center text-blue-700 font-medium">
-                                <Award className="w-5 h-5 mr-1" />
-                                Performance Score: {stats.performanceScore}/100
-                            </span>
-                        </div>
-                    )}
+                <div className="mb-8 relative overflow-hidden rounded-2xl border border-slate-100 shadow-lg bg-gradient-to-r from-primary-500 via-indigo-500 to-purple-500 text-white">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.25),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.18),transparent_30%)]" />
+                    <div className="relative p-8">
+                        <h2 className="text-3xl font-bold mb-2">
+                            Welcome back, {user?.profile.firstName}! 👋
+                        </h2>
+                        <p className="text-white/90 text-lg mb-4">
+                            Stay on track, showcase progress, and keep clients updated.
+                        </p>
+                        {stats.rating > 0 && (
+                            <div className="flex items-center flex-wrap gap-4 text-sm">
+                                <HeroBadge><Star className="w-5 h-5 mr-1 fill-yellow-400 text-yellow-400" />{stats.rating}/5.0 Rating ({stats.totalReviews} reviews)</HeroBadge>
+                                <HeroBadge><Target className="w-5 h-5 mr-1" />{stats.onTimeDeliveryRate}% On-Time Delivery</HeroBadge>
+                                <HeroBadge><Award className="w-5 h-5 mr-1" />Performance Score: {stats.performanceScore}/100</HeroBadge>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Stats Grid */}
+                {/* Stats Grid + Settings */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
                     <StatCard
                         title="Active Tasks"
@@ -364,6 +458,14 @@ const FreelancerDashboard = () => {
                         icon={<Briefcase className="w-8 h-8 text-purple-600" />}
                         color="bg-purple-50"
                     />
+                    <div className="col-span-1 md:col-span-3 lg:col-span-2">
+                        <DashboardSettings
+                            preferences={preferences}
+                            togglePreference={togglePreference}
+                            title="Workspace Preferences"
+                            className="max-w-3xl"
+                        />
+                    </div>
                 </div>
 
                 {/* Tabs Navigation */}
@@ -466,7 +568,7 @@ const FreelancerDashboard = () => {
                             ) : (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     {getFilteredTasks(myTasks).map((task) => (
-                                        <TaskCard key={task._id} task={task} />
+                                        <TaskCard key={task.id} task={task} />
                                     ))}
                                 </div>
                             )}
@@ -488,7 +590,7 @@ const FreelancerDashboard = () => {
                             ) : (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     {getFilteredTasks(availableTasks).map((task) => (
-                                        <TaskCard key={task._id} task={task} isAvailable={true} />
+                                        <TaskCard key={task.id} task={task} isAvailable={true} />
                                     ))}
                                 </div>
                             )}
@@ -521,13 +623,13 @@ const FreelancerDashboard = () => {
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
                                             {earnings.map((payment) => (
-                                                <tr key={payment._id} className="hover:bg-gray-50">
-                                                    <td className="px-6 py-4 text-sm text-gray-900">{payment.taskTitle}</td>
+                                                <tr key={payment.id} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4 text-sm text-gray-900">{payment.task?.task_details?.title}</td>
                                                     <td className="px-6 py-4 text-sm text-gray-600">
                                                         {payment.client?.profile?.firstName} {payment.client?.profile?.lastName}
                                                     </td>
                                                     <td className="px-6 py-4 text-sm font-medium text-green-600">
-                                                        {formatCurrency(payment.amount)}
+                                                        {formatCurrency(payment.amounts?.freelancerPayout)}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className={`px-2 py-1 text-xs rounded-full ${payment.status === 'released' ? 'bg-green-100 text-green-800' :
@@ -538,7 +640,7 @@ const FreelancerDashboard = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-sm text-gray-600">
-                                                        {formatDate(payment.createdAt)}
+                                                        {formatDate(payment.created_at)}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -564,14 +666,14 @@ const FreelancerDashboard = () => {
                             ) : (
                                 <div className="space-y-4">
                                     {reviews.map((review) => (
-                                        <div key={review._id} className="border border-gray-200 rounded-lg p-5">
+                                        <div key={review.id} className="border border-gray-200 rounded-lg p-5">
                                             <div className="flex items-start justify-between mb-3">
                                                 <div className="flex-1">
                                                     <h4 className="font-semibold text-gray-900 mb-1">
-                                                        {review.taskTitle}
+                                                        {review.task?.task_details?.title}
                                                     </h4>
                                                     <p className="text-sm text-gray-600">
-                                                        {review.client?.profile?.firstName} {review.client?.profile?.lastName}
+                                                        {review.reviewer?.profile?.firstName} {review.reviewer?.profile?.lastName}
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center">
@@ -586,11 +688,11 @@ const FreelancerDashboard = () => {
                                                     ))}
                                                 </div>
                                             </div>
-                                            {review.comment && (
-                                                <p className="text-gray-700 text-sm mb-2">{review.comment}</p>
+                                            {review.feedback && (
+                                                <p className="text-gray-700 text-sm mb-2">{review.feedback}</p>
                                             )}
                                             <p className="text-xs text-gray-500">
-                                                {formatDate(review.createdAt)}
+                                                {formatDate(review.created_at)}
                                             </p>
                                         </div>
                                     ))}
@@ -606,9 +708,19 @@ const FreelancerDashboard = () => {
                 isOpen={showDetailsModal}
                 onClose={() => setShowDetailsModal(false)}
                 task={selectedTask}
+                onStartWorking={handleStartWorking}
+                onCancelTask={handleCancelTask}
+                onUpdateProgress={handleUpdateProgress}
             />
         </div>
     );
 };
 
+const HeroBadge = ({ children }) => (
+    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/25">
+        {children}
+    </span>
+);
+
 export default FreelancerDashboard;
+

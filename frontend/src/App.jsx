@@ -11,6 +11,7 @@ import Register from './pages/Register';
 import AdminLogin from './pages/AdminLogin';
 import ClientDashboard from './pages/ClientDashboard';
 import FreelancerDashboard from './pages/FreelancerDashboard';
+import FreelancerProfile from './pages/FreelancerProfile';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminTasks from './pages/AdminTasks';
 import AdminUsers from './pages/AdminUsers';
@@ -94,6 +95,11 @@ function AppRoutes() {
             <Route path="/freelancer/dashboard" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.FREELANCER]}>
                     <FreelancerDashboard />
+                </ProtectedRoute>
+            } />
+            <Route path="/freelancer/profile" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.FREELANCER]}>
+                    <FreelancerProfile />
                 </ProtectedRoute>
             } />
 

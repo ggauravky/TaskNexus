@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, DollarSign, Calendar, User, Tag, Clock, MapPin, FileText } from 'lucide-react';
+import { X, DollarSign, Calendar, User, Tag, Clock, MapPin, FileText, Activity } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 
 /**
@@ -8,6 +8,20 @@ import StatusBadge from '../common/StatusBadge';
  */
 const TaskDetailsModal = ({ isOpen, onClose, task }) => {
     if (!isOpen || !task) return null;
+
+    // Normalize task fields (Supabase rows use task_details JSONB)
+    const details = task.task_details || {};
+    const workflow = task.workflow || {};
+
+    const title = details.title || task.title || 'Task Details';
+    const description = details.description || task.description || 'No description provided';
+    const budget = details.budget ?? task.budget ?? 0;
+    const deadline = details.deadline || task.deadline;
+    const category = details.type || task.category;
+    const experienceLevel = details.experienceLevel || task.experienceLevel;
+    const skillsRequired = details.skillsRequired || task.skillsRequired;
+    const createdAt = task.created_at || task.createdAt;
+    const updatedAt = task.updated_at || task.updatedAt;
 
     const formatDate = (date) => {
         if (!date) return 'N/A';
@@ -25,7 +39,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                 <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
                     <div className="flex-1">
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                            {task.title || 'Task Details'}
+                            {title}
                         </h2>
                         <StatusBadge status={task.status} />
                     </div>
@@ -46,7 +60,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                             Description
                         </h3>
                         <p className="text-gray-700 whitespace-pre-wrap">
-                            {task.description || 'No description provided'}
+                            {description}
                         </p>
                     </div>
 
@@ -59,7 +73,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                 <span className="text-sm font-medium">Budget</span>
                             </div>
                             <p className="text-2xl font-bold text-gray-900">
-                                ${task.budget || 0}
+                                ${budget}
                             </p>
                         </div>
 
@@ -70,7 +84,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                 <span className="text-sm font-medium">Deadline</span>
                             </div>
                             <p className="text-xl font-semibold text-gray-900">
-                                {formatDate(task.deadline)}
+                                {formatDate(deadline)}
                             </p>
                         </div>
 
@@ -81,7 +95,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                 <span className="text-sm font-medium">Category</span>
                             </div>
                             <p className="text-lg font-semibold text-gray-900 capitalize">
-                                {task.category?.replace(/_/g, ' ') || 'N/A'}
+                                {category ? category.replace(/[_-]/g, ' ') : 'N/A'}
                             </p>
                         </div>
 
@@ -92,17 +106,17 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                 <span className="text-sm font-medium">Experience Level</span>
                             </div>
                             <p className="text-lg font-semibold text-gray-900 capitalize">
-                                {task.experienceLevel || 'N/A'}
+                                {experienceLevel || 'N/A'}
                             </p>
                         </div>
                     </div>
 
                     {/* Skills Required */}
-                    {task.skillsRequired && task.skillsRequired.length > 0 && (
+                    {skillsRequired && skillsRequired.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 mb-3">Skills Required</h3>
                             <div className="flex flex-wrap gap-2">
-                                {task.skillsRequired.map((skill, index) => (
+                                {skillsRequired.map((skill, index) => (
                                     <span
                                         key={index}
                                         className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium"
@@ -139,13 +153,53 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                     <div className="border-t pt-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                             <div>
-                                <span className="font-medium">Created:</span> {formatDate(task.createdAt)}
+                                <span className="font-medium">Created:</span> {formatDate(createdAt)}
                             </div>
                             <div>
-                                <span className="font-medium">Last Updated:</span> {formatDate(task.updatedAt)}
+                                <span className="font-medium">Last Updated:</span> {formatDate(updatedAt)}
+                            </div>
+                            {workflow.assignedAt && (
+                                <div>
+                                    <span className="font-medium">Assigned:</span> {formatDate(workflow.assignedAt)}
+                                </div>
+                            )}
+                            <div>
+                                <span className="font-medium">Task ID:</span> {task.task_id || task.id || task._id}
                             </div>
                         </div>
                     </div>
+
+                    {/* Progress for client view */}
+                    {(task.metrics?.progress !== undefined || task.metrics?.stage) && (
+                        <div className="border-t pt-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                                <Activity className="w-5 h-5 mr-2 text-primary-600" />
+                                Progress
+                            </h3>
+                            <div className="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden">
+                                <div
+                                    className="bg-primary-500 h-3"
+                                    style={{ width: `${task.metrics?.progress || 0}%` }}
+                                />
+                            </div>
+                            <div className="flex justify-between text-sm text-gray-700">
+                                <span>{task.metrics?.progress || 0}% complete</span>
+                                {task.metrics?.stage && (
+                                    <span className="capitalize">Stage: {task.metrics.stage.replace(/_/g, ' ')}</span>
+                                )}
+                            </div>
+                            {task.metrics?.progressNote && (
+                                <p className="text-sm text-gray-600 mt-2">
+                                    Update: {task.metrics.progressNote}
+                                </p>
+                            )}
+                            {task.metrics?.progressUpdatedAt && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Last update: {formatDate(task.metrics.progressUpdatedAt)}
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}

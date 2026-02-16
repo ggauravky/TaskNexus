@@ -5,6 +5,8 @@ const reviewData = require("../data/reviewData");
 const auditLogData = require("../data/auditLogData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
+const { TASK_STATUS } = require("../config/constants");
+const userData = require("../data/userData");
 
 /**
  * @desc    Get freelancer dashboard overview
@@ -20,7 +22,11 @@ exports.getDashboard = async (req, res, next) => {
     const reviews = await reviewData.findReviews({ reviewee_id: freelancerId });
 
     const activeTasks = allTasks.filter((t) =>
-      ["assigned", "in_progress", "submitted_work"].includes(t.status),
+      ["assigned", "in_progress"].includes(t.status),
+    ).length;
+    
+    const pendingTasks = allTasks.filter((t) =>
+      ["submitted_work", "qa_review", "client_revision"].includes(t.status),
     ).length;
 
     const completedTasks = allTasks.filter(
@@ -30,21 +36,35 @@ exports.getDashboard = async (req, res, next) => {
     const totalEarnings = payments
       .filter((p) => p.status === "released")
       .reduce((sum, p) => sum + (p.amounts?.freelancerPayout || 0), 0);
+
+    const pendingEarnings = payments
+      .filter((p) => ["pending", "escrowed"].includes(p.status))
+      .reduce((sum, p) => sum + (p.amounts?.freelancerPayout || 0), 0);
       
     const avgRating =
         reviews.length > 0
-            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
             : 0;
+
+    // TODO: Implement performance score calculation
+    const performanceScore = 85;
+
+    // TODO: Implement on-time delivery rate calculation
+    const onTimeDeliveryRate = 95;
 
     res.status(200).json({
       success: true,
       data: {
         activeTasks,
+        pendingTasks,
         completedTasks,
         totalEarnings,
+        pendingEarnings,
         rating: avgRating,
         totalReviews: reviews.length,
         totalTasks: allTasks.length,
+        performanceScore,
+        onTimeDeliveryRate,
       },
     });
   } catch (error) {
@@ -62,10 +82,8 @@ exports.getAvailableTasks = async (req, res, next) => {
   try {
     const { category, minBudget, maxBudget } = req.query;
 
-    const filters = {
-      status: "under_review",
-      freelancer_id: null,
-    };
+    // Show any task that is unassigned and not cancelled/completed
+    const filters = { freelancer_id: null };
 
     if (category) {
       filters["task_details->>type"] = category;
@@ -77,9 +95,25 @@ exports.getAvailableTasks = async (req, res, next) => {
 
     const tasks = await taskData.findTasks(filters);
 
+    // Include tasks that are newly created (null status) or in submitted/under_review
+    const allowedStatuses = new Set([
+      TASK_STATUS.SUBMITTED,
+      TASK_STATUS.UNDER_REVIEW,
+      null,
+      undefined,
+    ]);
+
+    const filteredTasks = tasks.filter(
+      (t) =>
+        allowedStatuses.has(t.status ?? null) &&
+        ![TASK_STATUS.CANCELLED, TASK_STATUS.COMPLETED, TASK_STATUS.DISPUTED].includes(
+          t.status,
+        ),
+    );
+
     res.status(200).json({
       success: true,
-      data: { tasks },
+      data: { tasks: filteredTasks },
     });
   } catch (error) {
     logger.error("Error fetching available tasks:", error);
@@ -94,7 +128,7 @@ exports.getAvailableTasks = async (req, res, next) => {
  */
 exports.acceptTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await taskData.findTaskById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
@@ -104,7 +138,7 @@ exports.acceptTask = async (req, res, next) => {
     }
 
     logger.info(
-      `Task ${task._id} status: ${task.status}, freelancer: ${task.freelancer}`,
+      `Task ${task.id} status: ${task.status}, freelancer: ${task.freelancer_id}`,
     );
 
     if (!["submitted", "under_review"].includes(task.status)) {
@@ -119,7 +153,7 @@ exports.acceptTask = async (req, res, next) => {
       });
     }
 
-    if (task.freelancer) {
+    if (task.freelancer_id) {
       return res.status(400).json({
         success: false,
         message: "Task is already assigned to another freelancer",
@@ -127,12 +161,12 @@ exports.acceptTask = async (req, res, next) => {
     }
 
     // Check if freelancer has too many active tasks
-    const activeTasks = await Task.countDocuments({
-      freelancer: req.user._id,
-      status: { $in: ["assigned", "in_progress", "submitted_work"] },
+    const activeTasks = await taskData.findTasks({
+      freelancer_id: req.user.id,
+      status: ["assigned", "in_progress", "submitted_work"],
     });
 
-    if (activeTasks >= 10) {
+    if (activeTasks.length >= 10) {
       return res.status(400).json({
         success: false,
         message: "You have reached the maximum number of active tasks (10)",
@@ -140,24 +174,26 @@ exports.acceptTask = async (req, res, next) => {
     }
 
     // Assign task to freelancer
-    task.freelancer = req.user._id;
-    task.status = "assigned";
-    task.workflow = task.workflow || {};
-    task.workflow.assignedAt = new Date();
-    await task.save();
+    const workflow = task.workflow || {};
+    workflow.assignedAt = new Date();
+
+    const updatedTask = await taskData.updateTask(req.params.id, {
+        freelancer_id: req.user.id,
+        status: "assigned",
+        workflow,
+    });
+
 
     // Try to notify client (don't fail if notification fails)
     try {
       await NotificationService.create({
-        recipient: task.client,
-        type: "task_accepted",
+        recipient_id: task.client_id,
+        type: "task_assigned",
         content: {
-          title: "Freelancer Accepted Task",
-          message: `A freelancer has accepted your task: ${task.taskDetails.title}`,
-          actionUrl: `/client/tasks/${task._id}`,
-          actionLabel: "View Task",
+          title: "Freelancer Assigned",
+          message: `A freelancer has been assigned to your task: ${task.task_details.title}`,
         },
-        relatedTask: task._id,
+        related_task_id: task.id,
         priority: "medium",
       });
     } catch (notifError) {
@@ -166,23 +202,353 @@ exports.acceptTask = async (req, res, next) => {
     }
 
     // Log audit
-    await AuditLog.create({
-      user: req.user._id,
+    await auditLogData.log({
+      user_id: req.user.id,
       action: "task_accepted",
       resource: "task",
-      resourceId: task._id,
-      ipAddress: req.ip,
+      resource_id: task.id,
+      ip_address: req.ip,
     });
 
-    logger.info(`Task accepted: ${task._id} by freelancer: ${req.user._id}`);
+    logger.info(`Task accepted: ${task.id} by freelancer: ${req.user.id}`);
 
     res.status(200).json({
       success: true,
       message: "Task accepted successfully",
-      data: task,
+      data: updatedTask,
     });
   } catch (error) {
     logger.error("Error accepting task:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Start working on an assigned task
+ * @route   PUT /api/freelancer/tasks/:id/start
+ * @access  Private (Freelancer)
+ */
+exports.startTask = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
+    }
+
+    if (task.freelancer_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not assigned to this task",
+      });
+    }
+
+    if (task.status !== TASK_STATUS.ASSIGNED) {
+      return res.status(400).json({
+        success: false,
+        message: `Task must be in '${TASK_STATUS.ASSIGNED}' status to start work`,
+      });
+    }
+
+    const workflow = task.workflow || {};
+    workflow.startedAt = new Date();
+
+    const updatedTask = await taskData.updateTask(task.id, {
+      status: TASK_STATUS.IN_PROGRESS,
+      workflow,
+    });
+
+    // Optional notification to client
+    try {
+      await NotificationService.create({
+        recipient_id: task.client_id,
+        type: "task_started",
+        content: {
+          title: "Task In Progress",
+          message: "Your freelancer has started working on your task",
+        },
+        related_task_id: task.id,
+      });
+    } catch (notifError) {
+      logger.error("Failed to send task start notification:", notifError);
+    }
+
+    await auditLogData.log({
+      user_id: req.user.id,
+      action: "task_started",
+      resource: "task",
+      resource_id: task.id,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Task marked as in progress",
+      data: updatedTask,
+    });
+  } catch (error) {
+    logger.error("Error starting task:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Cancel / unaccept an assigned task (freelancer backs out)
+ * @route   PUT /api/freelancer/tasks/:id/cancel
+ * @access  Private (Freelancer)
+ */
+exports.cancelTask = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
+    }
+
+    if (task.freelancer_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not assigned to this task",
+      });
+    }
+
+    if (![TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS].includes(task.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only assigned or in-progress tasks can be cancelled by freelancer",
+      });
+    }
+
+    const workflow = task.workflow || {};
+    workflow.unassignedAt = new Date();
+
+    const updatedTask = await taskData.updateTask(task.id, {
+      status: TASK_STATUS.UNDER_REVIEW,
+      freelancer_id: null,
+      workflow,
+    });
+
+    // Notify client
+    try {
+      await NotificationService.create({
+        recipient_id: task.client_id,
+        type: "task_unaccepted",
+        content: {
+          title: "Freelancer Unassigned",
+          message: "Your task has been returned to the pool for review.",
+        },
+        related_task_id: task.id,
+      });
+    } catch (notifError) {
+      logger.error("Failed to send unassignment notification:", notifError);
+    }
+
+    await auditLogData.log({
+      user_id: req.user.id,
+      action: "task_cancelled_by_freelancer",
+      resource: "task",
+      resource_id: task.id,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Task returned to under review",
+      data: updatedTask,
+    });
+  } catch (error) {
+    logger.error("Error cancelling task:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update task progress (percentage + stage) by freelancer
+ * @route   PUT /api/freelancer/tasks/:id/progress
+ * @access  Private (Freelancer)
+ */
+exports.updateProgress = async (req, res, next) => {
+  try {
+    const { progress, stage, note } = req.body;
+    const task = await taskData.findTaskById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    if (task.freelancer_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not assigned to this task",
+      });
+    }
+
+    const pct = Number(progress);
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Progress must be a number between 0 and 100",
+      });
+    }
+
+    const metrics = task.metrics || {};
+    metrics.progress = pct;
+    metrics.stage = stage || metrics.stage || "in_progress";
+    metrics.progressNote = note ?? metrics.progressNote;
+    metrics.progressUpdatedAt = new Date();
+
+    const updatedTask = await taskData.updateTask(task.id, { metrics });
+
+    // Notify client best-effort
+    try {
+      await NotificationService.create({
+        recipient_id: task.client_id,
+        type: "task_progress",
+        content: {
+          title: "Task progress updated",
+          message: `Progress set to ${pct}%${stage ? ` (${stage})` : ""}`,
+        },
+        related_task_id: task.id,
+      });
+    } catch (notifError) {
+      logger.error("Failed to send progress notification:", notifError);
+    }
+
+    await auditLogData.log({
+      user_id: req.user.id,
+      action: "task_progress_updated",
+      resource: "task",
+      resource_id: task.id,
+      ip_address: req.ip,
+      changes: { progress: pct, stage },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Progress updated",
+      data: updatedTask,
+    });
+  } catch (error) {
+    logger.error("Error updating progress:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get freelancer profile
+ * @route   GET /api/freelancer/profile
+ * @access  Private (Freelancer)
+ */
+exports.getProfile = async (req, res, next) => {
+  try {
+    const user = await userData.findUserById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Freelancer not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        profile: user.profile || {},
+        freelancerProfile: user.freelancer_profile || {},
+      },
+    });
+  } catch (error) {
+    logger.error("Error fetching freelancer profile:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update freelancer profile
+ * @route   PUT /api/freelancer/profile
+ * @access  Private (Freelancer)
+ */
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      phone,
+      avatar,
+      title,
+      bio,
+      skills,
+      hourlyRate,
+      availability,
+      location,
+      experienceLevel,
+      website,
+      linkedin,
+      portfolio,
+    } = req.body;
+
+    const user = await userData.findUserById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Freelancer not found",
+      });
+    }
+
+    const profile = { ...(user.profile || {}) };
+    if (firstName !== undefined) profile.firstName = firstName;
+    if (lastName !== undefined) profile.lastName = lastName;
+    if (phone !== undefined) profile.phone = phone;
+    if (avatar !== undefined) profile.avatar = avatar;
+    if (location !== undefined) profile.location = location;
+
+    const freelancerProfile = { ...(user.freelancer_profile || {}) };
+    if (title !== undefined) freelancerProfile.title = title;
+    if (bio !== undefined) freelancerProfile.bio = bio;
+    if (skills !== undefined)
+      freelancerProfile.skills = Array.isArray(skills)
+        ? skills
+        : String(skills || "")
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+    if (hourlyRate !== undefined) freelancerProfile.hourlyRate = Number(hourlyRate) || 0;
+    if (availability !== undefined) freelancerProfile.availability = availability;
+    if (experienceLevel !== undefined) freelancerProfile.experienceLevel = experienceLevel;
+    if (website !== undefined) freelancerProfile.website = website;
+    if (linkedin !== undefined) freelancerProfile.linkedin = linkedin;
+    if (portfolio !== undefined) freelancerProfile.portfolio = portfolio;
+
+    const updatedUser = await userData.updateUser(req.user.id, {
+      profile,
+      freelancer_profile: freelancerProfile,
+    });
+
+    await auditLogData.log({
+      user_id: req.user.id,
+      action: "freelancer_profile_updated",
+      resource: "user",
+      resource_id: req.user.id,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: {
+        profile: updatedUser.profile,
+        freelancerProfile: updatedUser.freelancer_profile,
+      },
+    });
+  } catch (error) {
+    logger.error("Error updating freelancer profile:", error);
     next(error);
   }
 };
@@ -258,7 +624,7 @@ exports.updateSubmission = async (req, res, next) => {
         client_review: clientReview,
     });
 
-    await taskService.transitionTo(submission.task_id, "submitted_work");
+    await taskData.updateTask(submission.task_id, { status: "submitted_work" });
     
     const task = await taskData.findTaskById(submission.task_id);
 

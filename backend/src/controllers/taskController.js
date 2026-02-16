@@ -3,6 +3,7 @@ const submissionData = require("../data/submissionData");
 const auditLogData = require("../data/auditLogData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
+const { TASK_STATUS } = require("../config/constants");
 
 /**
  * @desc    Create a new task (Client only)
@@ -23,6 +24,7 @@ exports.createTask = async (req, res, next) => {
 
     const task = await taskData.createTask({
       client_id: req.user.id,
+      status: TASK_STATUS.UNDER_REVIEW,
       task_details: {
         title: title.trim(),
         type: taskType,

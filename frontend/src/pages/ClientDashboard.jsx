@@ -13,6 +13,8 @@ import StatCard from '../components/common/StatCard';
 import StatusBadge from '../components/common/StatusBadge';
 import CreateTaskModal from '../components/client/CreateTaskModal';
 import TaskDetailsModal from '../components/client/TaskDetailsModal';
+import DashboardSettings from '../components/common/DashboardSettings';
+import { usePreferences } from '../hooks/usePreferences';
 
 /**
  * Enhanced Client Dashboard with API Integration
@@ -41,6 +43,7 @@ const ClientDashboard = () => {
   const [recentTasks, setRecentTasks] = useState([]);
   const [allTasks, setAllTasks] = useState([]);
   const [totalTasksCount, setTotalTasksCount] = useState(0);
+  const { preferences, togglePreference } = usePreferences();
 
   useEffect(() => {
     console.log('[ClientDashboard] useEffect triggered');
@@ -149,33 +152,36 @@ const ClientDashboard = () => {
 
   console.log('[ClientDashboard] Rendering main dashboard');
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
+      <header className="backdrop-blur bg-white/80 shadow-sm sticky top-0 z-10 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-primary-600">TaskNexus</h1>
-              <p className="text-sm text-gray-600">Client Dashboard</p>
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center font-bold">TN</div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">TaskNexus</h1>
+                <p className="text-xs sm:text-sm text-slate-500">Client Workspace</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="btn-sm btn-secondary flex items-center"
+                className="btn-sm btn-secondary flex items-center rounded-full px-4"
               >
                 <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
+                <p className="text-sm font-semibold text-slate-900">
                   {user?.profile.firstName} {user?.profile.lastName}
                 </p>
-                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+                <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="btn btn-secondary flex items-center"
+                className="btn btn-secondary flex items-center rounded-full"
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
@@ -188,49 +194,49 @@ const ClientDashboard = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section with Gradient */}
-        <div className="mb-8 bg-gradient-to-r from-primary-50 to-blue-50 rounded-2xl p-8 shadow-sm border border-primary-100">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back, {user?.profile.firstName}! 👋
-          </h2>
-          <p className="text-gray-600 text-lg">
-            Manage your tasks and track progress all in one place
-          </p>
-          {stats.totalTasks > 0 && (
-            <div className="mt-4 flex items-center space-x-6 text-sm">
-              <span className="flex items-center text-green-700 font-medium">
-                <CheckCircle className="w-4 h-4 mr-1" />
-                {stats.completedTasks} completed
-              </span>
-              <span className="flex items-center text-yellow-700 font-medium">
-                <Clock className="w-4 h-4 mr-1" />
-                {stats.activeTasks} in progress
-              </span>
-              {stats.pendingReview > 0 && (
-                <span className="flex items-center text-orange-700 font-medium">
-                  <AlertCircle className="w-4 h-4 mr-1" />
-                  {stats.pendingReview} pending review
-                </span>
-              )}
-            </div>
-          )}
+        <div className="mb-8 relative overflow-hidden rounded-2xl border border-slate-100 shadow-lg bg-gradient-to-r from-primary-500 via-blue-500 to-indigo-500 text-white">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.25),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.18),transparent_30%)]" />
+          <div className="relative p-8">
+            <h2 className="text-3xl font-bold mb-2">
+              Welcome back, {user?.profile.firstName}! 👋
+            </h2>
+            <p className="text-lg text-white/90">
+              Manage your projects, track spend, and stay on top of reviews.
+            </p>
+            {stats.totalTasks > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
+                <Badge tone="success"><CheckCircle className="w-4 h-4 mr-1" />{stats.completedTasks} completed</Badge>
+                <Badge tone="warning"><Clock className="w-4 h-4 mr-1" />{stats.activeTasks} in progress</Badge>
+                {stats.pendingReview > 0 && (
+                  <Badge tone="amber"><AlertCircle className="w-4 h-4 mr-1" />{stats.pendingReview} pending review</Badge>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="mb-8 flex flex-wrap gap-4">
+        <div className="mb-8 flex flex-wrap gap-3 items-start">
           <button
             onClick={handleCreateTask}
-            className="btn btn-primary flex items-center text-lg shadow-lg hover:shadow-xl transition-shadow"
+            className="btn btn-primary flex items-center text-sm sm:text-base shadow-lg hover:shadow-xl transition-all rounded-full px-4"
           >
             <Plus className="w-5 h-5 mr-2" />
             Create New Task
           </button>
           <button
             onClick={handleViewAllTasks}
-            className="btn btn-secondary flex items-center text-lg shadow-md hover:shadow-lg transition-shadow"
+            className="btn btn-secondary flex items-center text-sm sm:text-base shadow-md hover:shadow-lg transition-all rounded-full px-4"
           >
             <List className="w-5 h-5 mr-2" />
             {viewAllTasks ? 'Show Recent Tasks' : 'View All Tasks'}
           </button>
+          <div className="w-full md:max-w-2xl lg:max-w-3xl">
+            <DashboardSettings
+              preferences={preferences}
+              togglePreference={togglePreference}
+            />
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -309,10 +315,11 @@ const ClientDashboard = () => {
               <div className="space-y-4">
                 {(viewAllTasks ? allTasks : recentTasks).map((task) => (
                   <TaskCard
-                    key={task._id}
+                    key={task.id || task._id}
                     task={task}
                     onRefresh={fetchDashboardData}
                     onViewDetails={handleViewTask}
+                    preferences={preferences}
                   />
                 ))}
               </div>
@@ -337,7 +344,7 @@ const ClientDashboard = () => {
 };
 
 // Task Card Component
-const TaskCard = ({ task, onRefresh, onViewDetails }) => {
+const TaskCard = ({ task, onRefresh, onViewDetails, preferences }) => {
   const formatDate = (date) => {
     if (!date) return 'No deadline';
     return new Date(date).toLocaleDateString('en-US', {
@@ -347,15 +354,19 @@ const TaskCard = ({ task, onRefresh, onViewDetails }) => {
     });
   };
 
+  const progress = task.metrics?.progress ?? null;
+  const compact = preferences?.compactCards;
+  const paddingClass = compact ? 'p-4' : 'p-5';
+
   return (
-    <div className="border border-gray-200 rounded-lg p-5 hover:shadow-lg transition-all duration-200 hover:border-primary-300 bg-white">
+    <div className={`border border-slate-200 rounded-xl ${paddingClass} hover:shadow-xl transition-all duration-200 hover:border-primary-200 bg-white/80 backdrop-blur-sm`}>
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1">
           <h4 className="font-semibold text-gray-900 mb-2 text-lg hover:text-primary-600 transition-colors">
-            {task.title || 'Untitled Task'}
+            {task.task_details?.title || task.title || 'Untitled Task'}
           </h4>
           <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-            {task.description || 'No description'}
+            {task.task_details?.description || task.description || 'No description'}
           </p>
         </div>
         <div className="ml-4">
@@ -366,24 +377,40 @@ const TaskCard = ({ task, onRefresh, onViewDetails }) => {
       <div className="flex items-center flex-wrap gap-4 text-sm text-gray-600 mb-4 pb-4 border-b border-gray-100">
         <span className="flex items-center font-medium">
           <DollarSign className="w-4 h-4 mr-1 text-green-600" />
-          ${task.budget || 0}
+          ${task.task_details?.budget || task.budget || 0}
         </span>
         <span className="flex items-center">
           <Calendar className="w-4 h-4 mr-1 text-blue-600" />
-          {formatDate(task.deadline)}
+          {formatDate(task.task_details?.deadline || task.deadline)}
         </span>
-        {task.category && (
+        {(task.task_details?.type || task.category) && (
           <span className="flex items-center capitalize">
             <FileText className="w-4 h-4 mr-1 text-purple-600" />
-            {task.category.replace(/_/g, ' ')}
+            {(task.task_details?.type || task.category).replace(/[_-]/g, ' ')}
+          </span>
+        )}
+        {progress !== null && (
+          <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-2 py-1 rounded-full">
+            {progress}% complete
           </span>
         )}
       </div>
 
+      {progress !== null && preferences?.showProgressBars && (
+        <div className="mb-4">
+          <div className="w-full bg-slate-100 rounded-full h-2">
+            <div
+              className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-blue-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex space-x-2">
         <button
           onClick={() => onViewDetails(task)}
-          className="btn-sm btn-primary flex items-center"
+          className="btn-sm btn-primary flex items-center rounded-full px-4"
         >
           <Eye className="w-4 h-4 mr-1" />
           View Details
@@ -396,6 +423,19 @@ const TaskCard = ({ task, onRefresh, onViewDetails }) => {
         )}
       </div>
     </div>
+  );
+};
+
+const Badge = ({ children, tone }) => {
+  const tones = {
+    success: 'bg-white/20 text-white border border-white/30',
+    warning: 'bg-white/15 text-white border border-white/25',
+    amber: 'bg-white/15 text-white border border-white/25',
+  };
+  return (
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${tones[tone] || tones.success}`}>
+      {children}
+    </span>
   );
 };
 
