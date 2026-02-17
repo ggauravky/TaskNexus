@@ -1,9 +1,9 @@
-import { Bell, Layers, BarChart3 } from 'lucide-react';
+import { Bell, Layers } from 'lucide-react';
 
 const Toggle = ({ id, label, description, checked, onChange }) => (
   <label
     htmlFor={id}
-    className="flex items-start justify-between p-2.5 rounded-lg border border-slate-200 hover:border-primary-200 bg-white/90 transition-colors cursor-pointer shadow-[0_6px_18px_rgba(15,23,42,0.04)]"
+    className="flex items-start justify-between min-w-[220px] p-2 rounded-lg border border-slate-200 hover:border-primary-200 bg-white/90 transition-colors cursor-pointer shadow-[0_6px_18px_rgba(15,23,42,0.04)]"
   >
     <div className="pr-3">
       <p className="text-[13px] font-semibold text-slate-900 leading-snug">{label}</p>
@@ -27,12 +27,17 @@ const Toggle = ({ id, label, description, checked, onChange }) => (
 const DashboardSettings = ({ preferences, togglePreference, title = 'Preferences', className = '' }) => {
   return (
     <div className={`w-full bg-white/95 backdrop-blur-sm border border-slate-100 rounded-2xl shadow-md ${className}`}>
-      <div className="px-4 py-2.5 border-b border-slate-100 flex items-center space-x-2">
-        <Layers className="w-4 h-4 text-primary-600" />
-        <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+      <div className="px-4 py-2.5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+        <div className="flex items-center space-x-2">
+          <Layers className="w-4 h-4 text-primary-600" />
+          <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+        </div>
+        <p className="text-[11px] text-slate-500 leading-snug">
+          Preferences are saved locally on this device.
+        </p>
       </div>
-      <div className="p-3 space-y-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="p-3 space-y-3">
+        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <Toggle
             id="pref-compact"
             label="Compact cards"
@@ -49,11 +54,11 @@ const DashboardSettings = ({ preferences, togglePreference, title = 'Preferences
           />
         </div>
 
-        <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.08em] pt-1">
+        <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.08em]">
           <Bell className="w-4 h-4 text-primary-600" />
           <span>Notifications</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <Toggle
             id="pref-email"
             label="Email alerts"
@@ -84,13 +89,6 @@ const DashboardSettings = ({ preferences, togglePreference, title = 'Preferences
           />
         </div>
 
-        <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.08em] pt-1">
-          <BarChart3 className="w-4 h-4 text-primary-600" />
-          <span>Data</span>
-        </div>
-        <p className="text-[11px] text-slate-500 leading-snug">
-          Preferences are saved locally on this device.
-        </p>
       </div>
     </div>
   );

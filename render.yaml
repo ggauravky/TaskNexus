@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: tasknexus-backend
+    env: node
+    region: oregon  # change if you need another region
+    plan: starter
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CLIENT_URL
+        value: https://tasknexus.vercel.app
+      - key: ALLOWED_ORIGINS
+        value: https://tasknexus.vercel.app,http://localhost:5173
+      - key: UPLOAD_PATH
+        value: /opt/render/project/src/uploads
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true

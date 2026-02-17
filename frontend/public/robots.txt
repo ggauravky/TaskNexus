@@ -1,0 +1,6 @@
+# Robots policy for TaskNexus
+User-agent: *
+Allow: /
+
+# Important: replace the domain below after you set your production hostname.
+Sitemap: https://tasknexus.vercel.app/sitemap.xml

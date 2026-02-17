@@ -1,0 +1,17 @@
+{
+  "name": "TaskNexus",
+  "short_name": "TaskNexus",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1224",
+  "theme_color": "#2563eb",
+  "description": "Managed task outsourcing platform for clients and freelancers.",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
