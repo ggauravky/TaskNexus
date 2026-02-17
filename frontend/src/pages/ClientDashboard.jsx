@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Plus, FileText, Clock, CheckCircle, DollarSign,
-  AlertCircle, TrendingUp, Calendar, Eye, RefreshCw, List
+  AlertCircle, TrendingUp, Calendar, Eye, RefreshCw, List, User
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -15,6 +15,7 @@ import CreateTaskModal from '../components/client/CreateTaskModal';
 import TaskDetailsModal from '../components/client/TaskDetailsModal';
 import DashboardSettings from '../components/common/DashboardSettings';
 import { usePreferences } from '../hooks/usePreferences';
+import { TASK_STATUS } from '../utils/constants';
 
 /**
  * Enhanced Client Dashboard with API Integration
@@ -32,6 +33,8 @@ const ClientDashboard = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [viewAllTasks, setViewAllTasks] = useState(false);
+  const [taskSearch, setTaskSearch] = useState('');
+  const [taskFilter, setTaskFilter] = useState('all'); // all | active | pending_review | completed
   const [stats, setStats] = useState({
     totalTasks: 0,
     activeTasks: 0,
@@ -122,6 +125,47 @@ const ClientDashboard = () => {
       // Fetch and show all tasks
       await fetchAllTasks();
     }
+  };
+
+  const statusMatch = (task) => {
+    if (taskFilter === 'all') return true;
+    const status = task?.status;
+    if (!status) return false;
+    if (taskFilter === 'completed') return status === TASK_STATUS.COMPLETED;
+    if (taskFilter === 'pending_review') {
+      return [
+        TASK_STATUS.SUBMITTED,
+        TASK_STATUS.UNDER_REVIEW,
+        TASK_STATUS.SUBMITTED_WORK,
+        TASK_STATUS.QA_REVIEW,
+        TASK_STATUS.REVISION_REQUESTED,
+        TASK_STATUS.CLIENT_REVISION,
+        TASK_STATUS.DELIVERED
+      ].includes(status);
+    }
+    if (taskFilter === 'active') {
+      return [
+        TASK_STATUS.ASSIGNED,
+        TASK_STATUS.IN_PROGRESS,
+        TASK_STATUS.SUBMITTED,
+        TASK_STATUS.SUBMITTED_WORK,
+        TASK_STATUS.DELIVERED
+      ].includes(status);
+    }
+    return true;
+  };
+
+  const searchMatch = (task) => {
+    if (!taskSearch.trim()) return true;
+    const query = taskSearch.toLowerCase();
+    const title = task?.task_details?.title?.toLowerCase() || task?.title?.toLowerCase() || '';
+    const id = (task.id || task._id || '').toString().toLowerCase();
+    return title.includes(query) || id.includes(query);
+  };
+
+  const getFilteredTasks = () => {
+    const source = viewAllTasks ? allTasks : recentTasks;
+    return (source || []).filter((t) => statusMatch(t) && searchMatch(t));
   };
 
   const handleLogout = async () => {
@@ -231,6 +275,13 @@ const ClientDashboard = () => {
             <List className="w-5 h-5 mr-2" />
             {viewAllTasks ? 'Show Recent Tasks' : 'View All Tasks'}
           </button>
+          <button
+            onClick={() => navigate('/client/profile')}
+            className="btn btn-ghost border border-slate-200 flex items-center text-sm sm:text-base rounded-full px-4 hover:shadow-md"
+          >
+            <User className="w-5 h-5 mr-2" />
+            Profile
+          </button>
           <div className="w-full md:max-w-2xl lg:max-w-3xl">
             <DashboardSettings
               preferences={preferences}
@@ -285,10 +336,15 @@ const ClientDashboard = () => {
 
         {/* Recent Tasks */}
         <div className="bg-white rounded-lg shadow-md">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {viewAllTasks ? `All Tasks (${allTasks.length})` : `Recent Tasks (${recentTasks.length})`}
-            </h3>
+          <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {viewAllTasks ? `All Tasks (${allTasks.length})` : `Recent Tasks (${recentTasks.length})`}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Showing {getFilteredTasks().length} task{getFilteredTasks().length === 1 ? '' : 's'} after filters
+              </p>
+            </div>
             {(recentTasks.length > 0 || viewAllTasks) && (
               <button
                 onClick={handleViewAllTasks}
@@ -298,12 +354,47 @@ const ClientDashboard = () => {
               </button>
             )}
           </div>
+
+          <div className="px-6 pt-4 pb-2 border-b border-gray-100 space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  placeholder="Search by title or task ID"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'active', label: 'Active' },
+                  { id: 'pending_review', label: 'Pending review' },
+                  { id: 'completed', label: 'Completed' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setTaskFilter(f.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${
+                      taskFilter === f.id
+                        ? 'bg-primary-50 text-primary-700 border-primary-200'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="p-6">
-            {(viewAllTasks ? allTasks : recentTasks).length === 0 ? (
+            {getFilteredTasks().length === 0 ? (
               <EmptyState
                 icon={FileText}
-                title="No tasks yet"
-                description="Create your first task to get started"
+                title="No tasks match"
+                description="Clear filters or create a new task"
                 action={
                   <button onClick={handleCreateTask} className="btn btn-primary flex items-center">
                     <Plus className="w-4 h-4 mr-2" />
@@ -313,7 +404,7 @@ const ClientDashboard = () => {
               />
             ) : (
               <div className="space-y-4">
-                {(viewAllTasks ? allTasks : recentTasks).map((task) => (
+                {getFilteredTasks().map((task) => (
                   <TaskCard
                     key={task.id || task._id}
                     task={task}

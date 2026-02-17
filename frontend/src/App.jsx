@@ -12,6 +12,7 @@ import AdminLogin from './pages/AdminLogin';
 import ClientDashboard from './pages/ClientDashboard';
 import FreelancerDashboard from './pages/FreelancerDashboard';
 import FreelancerProfile from './pages/FreelancerProfile';
+import ClientProfile from './pages/ClientProfile';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminTasks from './pages/AdminTasks';
 import AdminUsers from './pages/AdminUsers';
@@ -88,6 +89,11 @@ function AppRoutes() {
             <Route path="/client/dashboard" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
                     <ClientDashboard />
+                </ProtectedRoute>
+            } />
+            <Route path="/client/profile" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
+                    <ClientProfile />
                 </ProtectedRoute>
             } />
 

@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, User, Phone, MapPin, Briefcase, FileText, Link2, Loader2 } from 'lucide-react';
+import {
+    ArrowLeft, Save, User, Phone, MapPin, Briefcase, FileText, Link2, Loader2,
+    Clock, Sparkles, Star, Globe2, CheckCircle, Target
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -94,181 +97,239 @@ const FreelancerProfile = () => {
         }
     };
 
+    const skillList = useMemo(
+        () =>
+            form.skills
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean),
+        [form.skills],
+    );
+
+    const completeness = useMemo(() => {
+        const fields = ['firstName', 'lastName', 'title', 'bio', 'skills', 'hourlyRate', 'location'];
+        const filled = fields.filter((f) => form[f]?.toString().trim()).length;
+        return Math.round((filled / fields.length) * 100);
+    }, [form]);
+
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50">
                 <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <header className="bg-white shadow-sm">
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+            <header className="bg-white/90 backdrop-blur border-b border-slate-100 sticky top-0 z-10">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                         <button
                             onClick={() => navigate('/freelancer/dashboard')}
-                            className="text-primary-600 hover:text-primary-700 flex items-center text-sm font-medium"
+                            className="text-primary-600 hover:text-primary-700 flex items-center text-sm font-semibold"
                         >
                             <ArrowLeft className="w-4 h-4 mr-1" />
                             Back to Dashboard
                         </button>
-                        <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+                        <h1 className="text-2xl font-bold text-slate-900">Freelancer Profile</h1>
                     </div>
-                    <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900">
-                            {user?.profile?.firstName} {user?.profile?.lastName}
-                        </p>
-                        <p className="text-xs text-gray-500">Freelancer</p>
+                    <div className="flex items-center space-x-3">
+                        <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-900">
+                                {user?.profile?.firstName} {user?.profile?.lastName}
+                            </p>
+                            <p className="text-xs text-slate-500">Freelancer</p>
+                        </div>
+                        <div className="h-10 w-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold">
+                            {(user?.profile?.firstName?.[0] || 'F').toUpperCase()}
+                        </div>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <form onSubmit={handleSubmit} className="bg-white shadow rounded-xl p-6 space-y-6 border border-gray-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <InputField
-                            label="First Name"
-                            name="firstName"
-                            value={form.firstName}
-                            onChange={handleChange}
-                            icon={User}
-                        />
-                        <InputField
-                            label="Last Name"
-                            name="lastName"
-                            value={form.lastName}
-                            onChange={handleChange}
-                            icon={User}
-                        />
-                        <InputField
-                            label="Phone"
-                            name="phone"
-                            value={form.phone}
-                            onChange={handleChange}
-                            icon={Phone}
-                        />
-                        <InputField
-                            label="Location"
-                            name="location"
-                            value={form.location}
-                            onChange={handleChange}
-                            icon={MapPin}
-                        />
-                        <InputField
-                            label="Professional Title"
-                            name="title"
-                            value={form.title}
-                            onChange={handleChange}
-                            icon={Briefcase}
-                        />
-                        <InputField
-                            label="Hourly Rate (USD)"
-                            name="hourlyRate"
-                            type="number"
-                            value={form.hourlyRate}
-                            onChange={handleChange}
-                            icon={DollarSignIcon}
-                        />
-                    </div>
-
-                    <div>
-                        <Label title="Bio" />
-                        <textarea
-                            name="bio"
-                            value={form.bio}
-                            onChange={handleChange}
-                            rows={4}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                            placeholder="Tell clients about your experience and strengths"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <Label title="Skills (comma separated)" />
-                            <textarea
-                                name="skills"
-                                value={form.skills}
-                                onChange={handleChange}
-                                rows={2}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                placeholder="e.g., React, Node.js, UI Design"
-                            />
-                        </div>
-                        <div className="grid grid-cols-1 gap-4">
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+                <section className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                        <div className="flex items-center space-x-4">
+                            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary-500 to-cyan-500 text-white flex items-center justify-center text-2xl font-bold">
+                                {(form.firstName?.[0] || 'F').toUpperCase()}
+                            </div>
                             <div>
-                                <Label title="Availability" />
-                                <select
+                                <p className="text-sm text-slate-500">Profile completeness</p>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-3xl font-bold text-slate-900">{completeness}%</span>
+                                    <span className="text-xs px-2 py-1 rounded-full bg-primary-50 text-primary-700 font-semibold">
+                                        Pro ready
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    Fill headline, skills, rate, and bio for better matches.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+                            <Metric icon={Briefcase} label="Title" value={form.title || 'Add title'} />
+                            <Metric icon={Clock} label="Availability" value={humanAvailability(form.availability)} />
+                            <Metric icon={Sparkles} label="Skills" value={`${skillList.length} listed`} />
+                            <Metric icon={Star} label="Experience" value={humanExperience(form.experienceLevel)} />
+                        </div>
+                    </div>
+                </section>
+
+                <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    <form
+                        onSubmit={handleSubmit}
+                        className="xl:col-span-2 bg-white border border-slate-100 rounded-2xl shadow-sm p-6 space-y-8"
+                    >
+                        <div className="space-y-4">
+                            <SectionTitle icon={User} title="Identity & Contact" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <InputField label="First Name" name="firstName" value={form.firstName} onChange={handleChange} icon={User} />
+                                <InputField label="Last Name" name="lastName" value={form.lastName} onChange={handleChange} icon={User} />
+                                <InputField label="Phone" name="phone" value={form.phone} onChange={handleChange} icon={Phone} />
+                                <InputField label="Location" name="location" value={form.location} onChange={handleChange} icon={MapPin} />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <SectionTitle icon={Briefcase} title="Professional" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <InputField label="Professional Title" name="title" value={form.title} onChange={handleChange} icon={Briefcase} />
+                                <InputField label="Hourly Rate (USD)" name="hourlyRate" type="number" value={form.hourlyRate} onChange={handleChange} icon={DollarSignIcon} />
+                                <SelectField
+                                    label="Availability"
                                     name="availability"
                                     value={form.availability}
                                     onChange={handleChange}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                >
-                                    <option value="available">Available</option>
-                                    <option value="part_time">Part-time</option>
-                                    <option value="busy">Busy</option>
-                                </select>
-                            </div>
-                            <div>
-                                <Label title="Experience Level" />
-                                <select
+                                    options={[
+                                        { value: 'available', label: 'Available' },
+                                        { value: 'part_time', label: 'Part-time' },
+                                        { value: 'busy', label: 'Busy' },
+                                    ]}
+                                    icon={Clock}
+                                />
+                                <SelectField
+                                    label="Experience Level"
                                     name="experienceLevel"
                                     value={form.experienceLevel}
                                     onChange={handleChange}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                >
-                                    <option value="junior">Junior</option>
-                                    <option value="mid">Mid</option>
-                                    <option value="senior">Senior</option>
-                                </select>
+                                    options={[
+                                        { value: 'junior', label: 'Junior' },
+                                        { value: 'mid', label: 'Mid' },
+                                        { value: 'senior', label: 'Senior' },
+                                    ]}
+                                    icon={Star}
+                                />
                             </div>
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <InputField
-                            label="Website"
-                            name="website"
-                            value={form.website}
-                            onChange={handleChange}
-                            icon={Link2}
-                        />
-                        <InputField
-                            label="LinkedIn"
-                            name="linkedin"
-                            value={form.linkedin}
-                            onChange={handleChange}
-                            icon={Link2}
-                        />
-                        <InputField
-                            label="Portfolio"
-                            name="portfolio"
-                            value={form.portfolio}
-                            onChange={handleChange}
-                            icon={Link2}
-                        />
-                    </div>
+                        <div className="space-y-4">
+                            <SectionTitle icon={FileText} title="Story & Skills" />
+                            <div className="grid grid-cols-1 gap-4">
+                                <Label title="Bio" />
+                                <textarea
+                                    name="bio"
+                                    value={form.bio}
+                                    onChange={handleChange}
+                                    rows={4}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    placeholder="Tell clients about your experience, industries, and standout results."
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                                <Label title="Skills (comma separated)" />
+                                <textarea
+                                    name="skills"
+                                    value={form.skills}
+                                    onChange={handleChange}
+                                    rows={2}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    placeholder="e.g., React, Node.js, UX Writing, Motion Graphics"
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                    {skillList.slice(0, 12).map((skill) => (
+                                        <span key={skill} className="px-3 py-1 text-xs rounded-full bg-primary-50 text-primary-700 border border-primary-100">
+                                            {skill}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
 
-                    <div className="flex justify-end space-x-3">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/freelancer/dashboard')}
-                            className="btn btn-secondary"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            className="btn btn-primary flex items-center"
-                            disabled={saving}
-                        >
-                            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                            Save Profile
-                        </button>
-                    </div>
-                </form>
+                        <div className="space-y-4">
+                            <SectionTitle icon={Globe2} title="Links" />
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <InputField label="Website" name="website" value={form.website} onChange={handleChange} icon={Link2} />
+                                <InputField label="LinkedIn" name="linkedin" value={form.linkedin} onChange={handleChange} icon={Link2} />
+                                <InputField label="Portfolio" name="portfolio" value={form.portfolio} onChange={handleChange} icon={Link2} />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/freelancer/dashboard')}
+                                className="btn btn-secondary"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="btn btn-primary flex items-center"
+                                disabled={saving}
+                            >
+                                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                                Save Profile
+                            </button>
+                        </div>
+                    </form>
+
+                    <aside className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 space-y-5">
+                        <SectionTitle icon={Target} title="Live Profile Card" />
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-600 to-cyan-500 text-white shadow-lg space-y-3">
+                            <div className="flex items-center gap-3">
+                                <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center text-xl font-bold">
+                                    {(form.firstName?.[0] || 'F').toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="text-lg font-semibold">{form.firstName || 'First'} {form.lastName || 'Last'}</p>
+                                    <p className="text-sm text-white/80">{form.title || 'Role / Specialty'}</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <Badge tone="soft">Rate: {form.hourlyRate ? `$${form.hourlyRate}/hr` : 'Add rate'}</Badge>
+                                <Badge tone="soft">Experience: {humanExperience(form.experienceLevel)}</Badge>
+                                <Badge tone={form.availability === 'available' ? 'success' : form.availability === 'part_time' ? 'warning' : 'muted'}>
+                                    {humanAvailability(form.availability)}
+                                </Badge>
+                            </div>
+                            <p className="text-sm leading-relaxed text-white/90 line-clamp-4">
+                                {form.bio || 'Your short bio appears here. Describe your niche, outcomes, and key wins.'}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {skillList.slice(0, 8).map((skill) => (
+                                    <span key={skill} className="px-3 py-1 text-xs rounded-full bg-white/15 border border-white/20">
+                                        {skill}
+                                    </span>
+                                ))}
+                                {skillList.length > 8 && (
+                                    <span className="px-3 py-1 text-xs rounded-full bg-white/15 border border-white/20">
+                                        +{skillList.length - 8} more
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            <SectionTitle icon={CheckCircle} title="Tips to boost visibility" />
+                            <ul className="space-y-2 text-sm text-slate-600">
+                                <li>• Keep a clear title (e.g., “Senior React Engineer — dashboards & data viz”).</li>
+                                <li>• List 6–12 focused skills and your strongest industries.</li>
+                                <li>• Add a concise 3–4 sentence bio with measurable outcomes.</li>
+                            </ul>
+                        </div>
+                    </aside>
+                </section>
             </main>
         </div>
     );
@@ -300,5 +361,71 @@ const InputField = ({ label, name, value, onChange, icon: Icon, type = 'text' })
         </div>
     </div>
 );
+
+const SelectField = ({ label, name, value, onChange, options, icon: Icon }) => (
+    <div>
+        <Label title={label} />
+        <div className="relative">
+            {Icon && <Icon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />}
+            <select
+                name={name}
+                value={value}
+                onChange={onChange}
+                className={`w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white ${Icon ? 'pl-9' : ''}`}
+            >
+                {options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                    </option>
+                ))}
+            </select>
+        </div>
+    </div>
+);
+
+const SectionTitle = ({ icon: Icon, title }) => (
+    <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+        {Icon && <Icon className="w-4 h-4 text-primary-600" />}
+        {title}
+    </h3>
+);
+
+const Badge = ({ tone = 'soft', children }) => {
+    const styles = {
+        soft: 'bg-white/15 text-white',
+        success: 'bg-emerald-100 text-emerald-700',
+        warning: 'bg-amber-100 text-amber-700',
+        muted: 'bg-slate-200 text-slate-700',
+    };
+    return <span className={`px-3 py-1 rounded-full text-xs font-semibold ${styles[tone] || styles.soft}`}>{children}</span>;
+};
+
+const Metric = ({ icon: Icon, label, value }) => (
+    <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100">
+        <Icon className="w-4 h-4 text-primary-600 mt-0.5" />
+        <div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">{label}</p>
+            <p className="text-sm font-bold text-slate-900">{value}</p>
+        </div>
+    </div>
+);
+
+const humanAvailability = (value) => {
+    const map = {
+        available: 'Available',
+        part_time: 'Part-time',
+        busy: 'Busy',
+    };
+    return map[value] || 'Available';
+};
+
+const humanExperience = (value) => {
+    const map = {
+        junior: 'Junior',
+        mid: 'Mid-level',
+        senior: 'Senior',
+    };
+    return map[value] || 'Mid-level';
+};
 
 export default FreelancerProfile;
