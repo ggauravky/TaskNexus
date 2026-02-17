@@ -18,7 +18,7 @@ import { usePreferences } from '../hooks/usePreferences';
 
 const FreelancerDashboard = () => {
     console.log('[FreelancerDashboard] Component rendering');
-    const { user, logout } = useAuth();
+    const { user, logout, updateUser } = useAuth();
     const navigate = useNavigate();
     console.log('[FreelancerDashboard] User:', user);
     const [loading, setLoading] = useState(true);
@@ -45,6 +45,8 @@ const FreelancerDashboard = () => {
     const [reviews, setReviews] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
+    const [matchSkills, setMatchSkills] = useState(false);
+    const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
     const { preferences, togglePreference } = usePreferences();
 
     const LOCAL_PROGRESS_KEY = 'tasknexus_freelancer_progress';
@@ -213,6 +215,22 @@ const FreelancerDashboard = () => {
         navigate('/login');
     };
 
+    const handleAvailabilityChange = async (availability) => {
+        try {
+            setAvailabilityUpdating(true);
+            const res = await api.put('/freelancer/profile', { availability });
+            if (res.data.success) {
+                toast.success(`Availability set to ${availability.replace('_', ' ')}`);
+                updateUser({ ...user, freelancer_profile: res.data.data.freelancerProfile });
+            }
+        } catch (error) {
+            const msg = error.response?.data?.message || 'Could not update availability';
+            toast.error(msg);
+        } finally {
+            setAvailabilityUpdating(false);
+        }
+    };
+
     const formatDate = (date) => {
         if (!date) return 'No deadline';
         return new Date(date).toLocaleDateString('en-US', {
@@ -229,6 +247,8 @@ const FreelancerDashboard = () => {
         }).format(amount || 0);
     };
 
+    const mySkills = (user?.freelancer_profile?.skills || []).map((s) => s.toLowerCase());
+
     const getFilteredTasks = (tasks) => {
         let filtered = tasks;
 
@@ -237,10 +257,19 @@ const FreelancerDashboard = () => {
         }
 
         if (searchTerm) {
-            filtered = filtered.filter(task =>
-                task.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                task.description?.toLowerCase().includes(searchTerm.toLowerCase())
-            );
+            const q = searchTerm.toLowerCase();
+            filtered = filtered.filter(task => {
+                const title = task.task_details?.title || task.title || '';
+                const desc = task.task_details?.description || task.description || '';
+                return title.toLowerCase().includes(q) || desc.toLowerCase().includes(q);
+            });
+        }
+
+        if (matchSkills && mySkills.length) {
+            filtered = filtered.filter(task => {
+                const hay = `${task.task_details?.title || task.title || ''} ${task.task_details?.description || task.description || ''}`.toLowerCase();
+                return mySkills.some((skill) => hay.includes(skill));
+            });
         }
 
         return filtered;
@@ -366,6 +395,28 @@ const FreelancerDashboard = () => {
                             </div>
                         </div>
                         <div className="flex items-center space-x-3">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleAvailabilityChange('available')}
+                                    disabled={availabilityUpdating}
+                                    className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'available'
+                                        ? 'btn-primary'
+                                        : 'btn-secondary'
+                                        }`}
+                                >
+                                    Available
+                                </button>
+                                <button
+                                    onClick={() => handleAvailabilityChange('busy')}
+                                    disabled={availabilityUpdating}
+                                    className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'busy'
+                                        ? 'btn-primary'
+                                        : 'btn-secondary'
+                                        }`}
+                                >
+                                    Busy
+                                </button>
+                            </div>
                             <button
                                 onClick={handleRefresh}
                                 disabled={refreshing}
@@ -545,6 +596,17 @@ const FreelancerDashboard = () => {
                                     <option value="completed">Completed</option>
                                 </select>
                             </div>
+                        )}
+                        {activeTab === 'available' && (
+                            <label className="inline-flex items-center gap-2 text-sm text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                                <input
+                                    type="checkbox"
+                                    checked={matchSkills}
+                                    onChange={(e) => setMatchSkills(e.target.checked)}
+                                    className="accent-primary-600"
+                                />
+                                <span>Match my skills</span>
+                            </label>
                         )}
                     </div>
                 )}
