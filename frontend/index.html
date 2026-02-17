@@ -22,6 +22,7 @@
     <meta property="og:url" content="%VITE_SITE_URL%" />
     <meta property="og:site_name" content="TaskNexus" />
     <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -45,6 +46,34 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "TaskNexus",
+        "url": "%VITE_SITE_URL%/",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "%VITE_SITE_URL%/search?q={query}",
+          "query-input": "required name=query"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "TaskNexus",
+        "url": "%VITE_SITE_URL%/",
+        "logo": "%VITE_SITE_URL%/icons/icon.svg",
+        "sameAs": [
+          "https://www.linkedin.com",
+          "https://twitter.com"
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

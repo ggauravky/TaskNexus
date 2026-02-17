@@ -2,5 +2,4 @@
 User-agent: *
 Allow: /
 
-# Important: replace the domain below after you set your production hostname.
-Sitemap: https://tasknexus.vercel.app/sitemap.xml
+Sitemap: https://task-nexus-official.vercel.app/sitemap.xml
