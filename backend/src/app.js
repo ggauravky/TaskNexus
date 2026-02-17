@@ -22,12 +22,40 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration with strict allowlist + optional Vercel preview support
+const parseAllowedOrigins = () =>
+  (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+const allowedOrigins = parseAllowedOrigins();
+const allowVercelPreview = process.env.ALLOW_VERCEL_PREVIEW === "true";
+
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:5173"],
+  origin: (origin, callback) => {
+    // Allow server-to-server or tools (no origin header)
+    if (!origin) return callback(null, true);
+
+    // Exact allowlist match
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Optional: allow any vercel.app preview when enabled
+    if (allowVercelPreview) {
+      try {
+        const hostname = new URL(origin).hostname;
+        if (hostname.endsWith(".vercel.app")) return callback(null, true);
+      } catch (e) {
+        return callback(new Error("Invalid Origin"));
+      }
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
   optionsSuccessStatus: 200,
 };
+
 app.use(cors(corsOptions));
 
 // Body parser middleware
