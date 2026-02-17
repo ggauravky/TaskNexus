@@ -21,10 +21,10 @@ router.get("/profile", clientController.getProfile);
 router.put(
   "/profile",
   [
-    body("firstName").optional().trim().notEmpty(),
-    body("lastName").optional().trim().notEmpty(),
-    body("phone").optional().trim(),
-    body("avatar").optional().trim().isURL(),
+    body("firstName").optional({ checkFalsy: true }).trim(),
+    body("lastName").optional({ checkFalsy: true }).trim(),
+    body("phone").optional({ checkFalsy: true }).trim(),
+    body("avatar").optional({ checkFalsy: true }).trim().isURL(),
   ],
   validate,
   clientController.updateProfile,

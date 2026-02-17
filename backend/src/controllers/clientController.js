@@ -603,15 +603,28 @@ exports.getProfile = async (req, res, next) => {
  */
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { firstName, lastName, phone, avatar } = req.body;
+    const { firstName, lastName, phone, avatar } = req.body || {};
 
     const user = await userData.findUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Client not found",
+      });
+    }
 
-    const profileUpdate = { ...user.profile };
-    if (firstName) profileUpdate.firstName = firstName;
-    if (lastName) profileUpdate.lastName = lastName;
-    if (phone) profileUpdate.phone = phone;
-    if (avatar) profileUpdate.avatar = avatar;
+    const profileUpdate = { ...(user.profile || {}) };
+    const clean = (v) => (typeof v === "string" ? v.trim() : undefined);
+
+    const fn = clean(firstName);
+    const ln = clean(lastName);
+    const ph = clean(phone);
+    const av = clean(avatar);
+
+    if (fn) profileUpdate.firstName = fn;
+    if (ln) profileUpdate.lastName = ln;
+    if (ph) profileUpdate.phone = ph;
+    if (av) profileUpdate.avatar = av;
 
     const updatedClient = await userData.updateUser(req.user.id, { profile: profileUpdate });
 

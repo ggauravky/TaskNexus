@@ -21,6 +21,7 @@ const ClientProfile = () => {
     phone: '',
     avatar: '',
   });
+  const [initialForm, setInitialForm] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -30,6 +31,12 @@ const ClientProfile = () => {
           const profile = res.data.data.profile || {};
           const statistics = res.data.data.statistics || {};
           setForm({
+            firstName: profile.firstName || '',
+            lastName: profile.lastName || '',
+            phone: profile.phone || '',
+            avatar: profile.avatar || '',
+          });
+          setInitialForm({
             firstName: profile.firstName || '',
             lastName: profile.lastName || '',
             phone: profile.phone || '',
@@ -56,6 +63,13 @@ const ClientProfile = () => {
     return Math.round((filled / fields.length) * 100);
   }, [form]);
 
+  const dirty = useMemo(() => {
+    if (!initialForm) return false;
+    return ['firstName', 'lastName', 'phone', 'avatar'].some(
+      (k) => (form[k] || '') !== (initialForm[k] || '')
+    );
+  }, [form, initialForm]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -70,6 +84,12 @@ const ClientProfile = () => {
       if (res.data.success) {
         toast.success('Profile updated');
         updateUser({ ...user, profile: res.data.data.profile });
+        setInitialForm({
+          firstName: res.data.data.profile.firstName || '',
+          lastName: res.data.data.profile.lastName || '',
+          phone: res.data.data.profile.phone || '',
+          avatar: res.data.data.profile.avatar || '',
+        });
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Update failed';
@@ -103,10 +123,10 @@ const ClientProfile = () => {
           </div>
           <div className="flex items-center space-x-3">
             <span className="text-sm font-semibold text-slate-900">
-              {user?.profile?.firstName} {user?.profile?.lastName}
+              {form.firstName || 'First'} {form.lastName || 'Last'}
             </span>
             <div className="h-10 w-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold">
-              {(user?.profile?.firstName?.[0] || 'C').toUpperCase()}
+              {(form.firstName?.[0] || 'C').toUpperCase()}
             </div>
           </div>
         </div>
@@ -153,11 +173,11 @@ const ClientProfile = () => {
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={saving}
-                className="btn btn-primary flex items-center px-4"
+                disabled={saving || !dirty}
+                className={`btn btn-primary flex items-center px-4 ${!dirty ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Save Profile
+                {dirty ? 'Save Changes' : 'Up to date'}
               </button>
             </div>
           </form>

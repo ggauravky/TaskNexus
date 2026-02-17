@@ -29,6 +29,7 @@ const FreelancerProfile = () => {
         linkedin: '',
         portfolio: '',
     });
+    const [initialForm, setInitialForm] = useState(null);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -37,6 +38,21 @@ const FreelancerProfile = () => {
                 if (res.data.success) {
                     const { profile = {}, freelancerProfile = {} } = res.data.data;
                     setForm({
+                        firstName: profile.firstName || '',
+                        lastName: profile.lastName || '',
+                        phone: profile.phone || '',
+                        location: profile.location || '',
+                        title: freelancerProfile.title || '',
+                        bio: freelancerProfile.bio || '',
+                        skills: (freelancerProfile.skills || []).join(', '),
+                        hourlyRate: freelancerProfile.hourlyRate ?? '',
+                        availability: freelancerProfile.availability || 'available',
+                        experienceLevel: freelancerProfile.experienceLevel || 'mid',
+                        website: freelancerProfile.website || '',
+                        linkedin: freelancerProfile.linkedin || '',
+                        portfolio: freelancerProfile.portfolio || '',
+                    });
+                    setInitialForm({
                         firstName: profile.firstName || '',
                         lastName: profile.lastName || '',
                         phone: profile.phone || '',
@@ -88,6 +104,21 @@ const FreelancerProfile = () => {
                     profile: res.data.data.profile,
                     freelancer_profile: res.data.data.freelancerProfile,
                 });
+                setInitialForm({
+                    firstName: res.data.data.profile.firstName || '',
+                    lastName: res.data.data.profile.lastName || '',
+                    phone: res.data.data.profile.phone || '',
+                    location: res.data.data.profile.location || '',
+                    title: res.data.data.freelancerProfile.title || '',
+                    bio: res.data.data.freelancerProfile.bio || '',
+                    skills: (res.data.data.freelancerProfile.skills || []).join(', '),
+                    hourlyRate: res.data.data.freelancerProfile.hourlyRate ?? '',
+                    availability: res.data.data.freelancerProfile.availability || 'available',
+                    experienceLevel: res.data.data.freelancerProfile.experienceLevel || 'mid',
+                    website: res.data.data.freelancerProfile.website || '',
+                    linkedin: res.data.data.freelancerProfile.linkedin || '',
+                    portfolio: res.data.data.freelancerProfile.portfolio || '',
+                });
             }
         } catch (error) {
             const msg = error.response?.data?.message || 'Update failed';
@@ -111,6 +142,15 @@ const FreelancerProfile = () => {
         const filled = fields.filter((f) => form[f]?.toString().trim()).length;
         return Math.round((filled / fields.length) * 100);
     }, [form]);
+
+    const dirty = useMemo(() => {
+        if (!initialForm) return false;
+        return [
+            'firstName', 'lastName', 'phone', 'location',
+            'title', 'bio', 'skills', 'hourlyRate',
+            'availability', 'experienceLevel', 'website', 'linkedin', 'portfolio'
+        ].some((k) => (form[k] || '') !== (initialForm[k] || ''));
+    }, [form, initialForm]);
 
     if (loading) {
         return (
@@ -276,11 +316,11 @@ const FreelancerProfile = () => {
                             </button>
                             <button
                                 type="submit"
-                                className="btn btn-primary flex items-center"
-                                disabled={saving}
+                                className={`btn btn-primary flex items-center ${!dirty ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                disabled={saving || !dirty}
                             >
                                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                                Save Profile
+                                {dirty ? 'Save Changes' : 'Up to date'}
                             </button>
                         </div>
                     </form>

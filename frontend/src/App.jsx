@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { USER_ROLES } from './utils/constants';
+import { API_URL } from './utils/constants';
 
 // Page imports (placeholders - to be created)
 import LandingPage from './pages/LandingPage';
@@ -24,6 +26,36 @@ import TestPage from './pages/TestPage';
  * Main App Component
  */
 function App() {
+    // Warm the backend (Render spins down) as soon as the app loads.
+    useEffect(() => {
+        const controller = new AbortController();
+        const warm = async () => {
+            try {
+                const base = API_URL.replace(/\/api\/?$/, '');
+                const healthUrl = `${base}/health`;
+                const apiHealthUrl = `${base}/api/health`;
+
+                const doPing = async (url) => {
+                    const res = await fetch(url, {
+                        signal: controller.signal,
+                        credentials: 'include',
+                        cache: 'no-cache',
+                    });
+                    return res.ok;
+                };
+
+                const ok = (await doPing(healthUrl)) || (await doPing(apiHealthUrl));
+                if (ok) {
+                console.log('[Warmup] Backend health ping sent');
+                }
+            } catch (err) {
+                console.warn('[Warmup] Health ping failed (likely cold start)', err?.message || err);
+            }
+        };
+        warm();
+        return () => controller.abort();
+    }, []);
+
     return (
         <AuthProvider>
             <Router>
