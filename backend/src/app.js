@@ -23,10 +23,11 @@ const app = express();
 app.use(helmet());
 
 // CORS configuration with strict allowlist + optional Vercel preview support
+const normalizeOrigin = (origin) => (origin ? origin.replace(/\/$/, "") : origin);
 const parseAllowedOrigins = () =>
   (process.env.ALLOWED_ORIGINS || "")
     .split(",")
-    .map((o) => o.trim())
+    .map((o) => normalizeOrigin(o.trim()))
     .filter(Boolean);
 
 const allowedOrigins = parseAllowedOrigins();
@@ -37,8 +38,10 @@ const corsOptions = {
     // Allow server-to-server or tools (no origin header)
     if (!origin) return callback(null, true);
 
+    const normalizedOrigin = normalizeOrigin(origin);
+
     // Exact allowlist match
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
 
     // Optional: allow any vercel.app preview when enabled
     if (allowVercelPreview) {
