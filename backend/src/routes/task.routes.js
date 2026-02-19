@@ -9,6 +9,7 @@ const {
 } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
 const { body, query, param } = require("express-validator");
+const { commentAttachmentUpload } = require("../middleware/upload");
 
 // Validation rules
 const createTaskValidation = [
@@ -93,7 +94,7 @@ router.post(
 // Get specific task
 router.get(
   "/:id",
-  param("id").isMongoId().withMessage("Invalid task ID"),
+  param("id").isUUID().withMessage("Invalid task ID"),
   validate,
   taskController.getTaskById,
 );
@@ -102,7 +103,7 @@ router.get(
 router.put(
   "/:id",
   requireClient,
-  param("id").isMongoId().withMessage("Invalid task ID"),
+  param("id").isUUID().withMessage("Invalid task ID"),
   validate,
   taskController.updateTask,
 );
@@ -111,7 +112,7 @@ router.put(
 router.delete(
   "/:id",
   requireRole("client", "admin"),
-  param("id").isMongoId().withMessage("Invalid task ID"),
+  param("id").isUUID().withMessage("Invalid task ID"),
   validate,
   taskController.deleteTask,
 );
@@ -120,10 +121,103 @@ router.delete(
 router.post(
   "/:id/submit",
   requireFreelancer,
-  param("id").isMongoId().withMessage("Invalid task ID"),
+  param("id").isUUID().withMessage("Invalid task ID"),
   submitTaskValidation,
   validate,
   taskController.submitTask,
+);
+
+// Collaboration comments + mentions + attachments
+router.get(
+  "/:id/comments",
+  [param("id").isUUID().withMessage("Invalid task ID")],
+  validate,
+  taskController.getTaskComments,
+);
+
+router.post(
+  "/:id/comments",
+  [param("id").isUUID().withMessage("Invalid task ID")],
+  validate,
+  commentAttachmentUpload.array("attachments", 5),
+  taskController.addTaskComment,
+);
+
+router.get(
+  "/:id/activity",
+  [param("id").isUUID().withMessage("Invalid task ID")],
+  validate,
+  taskController.getTaskActivity,
+);
+
+// Subtasks and milestones
+router.get(
+  "/:id/subtasks",
+  [param("id").isUUID().withMessage("Invalid task ID")],
+  validate,
+  taskController.getSubtasks,
+);
+
+router.post(
+  "/:id/subtasks",
+  [
+    param("id").isUUID().withMessage("Invalid task ID"),
+    body("title")
+      .trim()
+      .notEmpty()
+      .withMessage("Subtask title is required")
+      .isLength({ max: 200 })
+      .withMessage("Subtask title must be at most 200 characters"),
+    body("description")
+      .optional({ nullable: true })
+      .trim()
+      .isLength({ max: 2000 })
+      .withMessage("Description must be at most 2000 characters"),
+    body("weight")
+      .optional()
+      .isFloat({ min: 0, max: 100 })
+      .withMessage("Weight must be between 0 and 100"),
+    body("dueDate").optional({ nullable: true }).isISO8601(),
+  ],
+  validate,
+  taskController.createSubtask,
+);
+
+router.patch(
+  "/:id/subtasks/:subtaskId",
+  [
+    param("id").isUUID().withMessage("Invalid task ID"),
+    param("subtaskId").trim().notEmpty().withMessage("Subtask ID is required"),
+    body("title")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 200 })
+      .withMessage("Subtask title must be between 1 and 200 characters"),
+    body("description")
+      .optional({ nullable: true })
+      .trim()
+      .isLength({ max: 2000 })
+      .withMessage("Description must be at most 2000 characters"),
+    body("weight")
+      .optional()
+      .isFloat({ min: 0, max: 100 })
+      .withMessage("Weight must be between 0 and 100"),
+    body("dueDate").optional({ nullable: true }).isISO8601(),
+    body("completed").optional().isBoolean(),
+    body("order").optional().isInt({ min: 0 }),
+  ],
+  validate,
+  taskController.updateSubtask,
+);
+
+router.delete(
+  "/:id/subtasks/:subtaskId",
+  [
+    param("id").isUUID().withMessage("Invalid task ID"),
+    param("subtaskId").trim().notEmpty().withMessage("Subtask ID is required"),
+  ],
+  validate,
+  taskController.deleteSubtask,
 );
 
 module.exports = router;

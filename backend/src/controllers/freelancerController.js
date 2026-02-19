@@ -7,6 +7,7 @@ const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 const { TASK_STATUS } = require("../config/constants");
 const userData = require("../data/userData");
+const realtimeHub = require("../services/realtimeHub");
 
 /**
  * @desc    Get freelancer dashboard overview
@@ -212,6 +213,19 @@ exports.acceptTask = async (req, res, next) => {
 
     logger.info(`Task accepted: ${task.id} by freelancer: ${req.user.id}`);
 
+    realtimeHub.publish({
+      users: [task.client_id, req.user.id].filter(Boolean),
+      event: "task.status_changed",
+      payload: {
+        taskId: task.id,
+        status: updatedTask.status,
+      },
+    });
+    realtimeHub.publishToRole("freelancer", "offer.updated", {
+      taskId: task.id,
+      status: updatedTask.status,
+    });
+
     res.status(200).json({
       success: true,
       message: "Task accepted successfully",
@@ -282,6 +296,15 @@ exports.startTask = async (req, res, next) => {
       resource: "task",
       resource_id: task.id,
       ip_address: req.ip,
+    });
+
+    realtimeHub.publish({
+      users: [task.client_id, req.user.id].filter(Boolean),
+      event: "task.status_changed",
+      payload: {
+        taskId: task.id,
+        status: updatedTask.status,
+      },
     });
 
     res.status(200).json({
@@ -357,6 +380,22 @@ exports.cancelTask = async (req, res, next) => {
       ip_address: req.ip,
     });
 
+    realtimeHub.publish({
+      users: [task.client_id, req.user.id].filter(Boolean),
+      event: "task.status_changed",
+      payload: {
+        taskId: task.id,
+        status: updatedTask.status,
+      },
+    });
+    realtimeHub.publishToRole("freelancer", "offer.new", {
+      taskId: task.id,
+      status: updatedTask.status,
+      title: updatedTask.task_details?.title,
+      budget: updatedTask.task_details?.budget,
+      deadline: updatedTask.task_details?.deadline,
+    });
+
     res.status(200).json({
       success: true,
       message: "Task returned to under review",
@@ -427,6 +466,16 @@ exports.updateProgress = async (req, res, next) => {
       resource_id: task.id,
       ip_address: req.ip,
       changes: { progress: pct, stage },
+    });
+
+    realtimeHub.publish({
+      users: [task.client_id, req.user.id].filter(Boolean),
+      event: "task.progress.updated",
+      payload: {
+        taskId: task.id,
+        progress: pct,
+        stage: metrics.stage,
+      },
     });
 
     res.status(200).json({

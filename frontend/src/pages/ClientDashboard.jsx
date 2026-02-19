@@ -30,6 +30,8 @@ import CreateTaskModal from '../components/client/CreateTaskModal';
 import TaskDetailsModal from '../components/client/TaskDetailsModal';
 import DashboardSettings from '../components/common/DashboardSettings';
 import { usePreferences } from '../hooks/usePreferences';
+import useBoardState from '../hooks/useBoardState';
+import useRealtimeEvents from '../hooks/useRealtimeEvents';
 import { TASK_STATUS } from '../utils/constants';
 
 const PINNED_STORAGE_KEY = 'tasknexus_client_pinned_tasks_v1';
@@ -180,7 +182,32 @@ const ClientDashboard = () => {
   const [allTasks, setAllTasks] = useState([]);
   const [pinnedTaskIds, setPinnedTaskIds] = useState([]);
 
-  const { preferences, togglePreference, setPreference, resetPreferences } = usePreferences();
+  const {
+    preferences,
+    presets,
+    activePresetId,
+    loadingPreferences,
+    savingPreferences,
+    syncError,
+    togglePreference,
+    setPreference,
+    resetPreferences,
+    applyPreset,
+    savePreset,
+  } = usePreferences();
+  const {
+    boardState,
+    orderedColumns,
+    savingBoard,
+    updateBoardState,
+    resetBoardState,
+    moveTask,
+    reorderColumns,
+    sortTasksByColumnOrder,
+  } = useBoardState({ boardKey: 'client-dashboard', role: 'client' });
+
+  const [draggingTask, setDraggingTask] = useState(null);
+  const [draggingColumn, setDraggingColumn] = useState(null);
 
   useEffect(() => {
     setPinnedTaskIds(getSafeStorageArray(PINNED_STORAGE_KEY));
@@ -191,12 +218,12 @@ const ClientDashboard = () => {
   }, [pinnedTaskIds]);
 
   useEffect(() => {
-    setTaskFilter(preferences.defaultTaskFilter || 'all');
-  }, [preferences.defaultTaskFilter]);
+    setTaskFilter(boardState.filter || preferences.defaultTaskFilter || 'all');
+  }, [boardState.filter, preferences.defaultTaskFilter]);
 
   useEffect(() => {
-    setTaskSort(preferences.defaultTaskSort || 'newest');
-  }, [preferences.defaultTaskSort]);
+    setTaskSort(boardState.sort || preferences.defaultTaskSort || 'newest');
+  }, [boardState.sort, preferences.defaultTaskSort]);
 
   const fetchDashboardData = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -302,6 +329,63 @@ const ClientDashboard = () => {
     );
   };
 
+  const handleTaskFilterChange = useCallback(
+    (nextFilter) => {
+      setTaskFilter(nextFilter);
+      updateBoardState({ filter: nextFilter });
+    },
+    [updateBoardState],
+  );
+
+  const handleTaskSortChange = useCallback(
+    (nextSort) => {
+      setTaskSort(nextSort);
+      updateBoardState({ sort: nextSort });
+    },
+    [updateBoardState],
+  );
+
+  const taskLayout = boardState.view || preferences.taskLayout || 'list';
+  const handleTaskLayoutChange = useCallback(
+    (nextLayout) => {
+      setPreference('taskLayout', nextLayout);
+      updateBoardState({ view: nextLayout });
+    },
+    [setPreference, updateBoardState],
+  );
+
+  useRealtimeEvents(
+    useCallback(
+      (event) => {
+        const type = event?.type;
+        if (!type) return;
+
+        const dashboardEvents = new Set([
+          'task.created',
+          'task.updated',
+          'task.status_changed',
+          'task.progress.updated',
+          'task.comment.created',
+          'task.subtask.created',
+          'task.subtask.updated',
+          'task.subtask.deleted',
+          'notification.created',
+          'settings.preferences.updated',
+          'settings.preset.applied',
+          'settings.board.updated',
+        ]);
+
+        if (dashboardEvents.has(type)) {
+          fetchDashboardData({ silent: true });
+          if (viewAllTasks) {
+            fetchAllTasks();
+          }
+        }
+      },
+      [fetchDashboardData, fetchAllTasks, viewAllTasks],
+    ),
+  );
+
   const sourceTasks = viewAllTasks ? allTasks : recentTasks;
 
   const filteredTasks = useMemo(() => {
@@ -388,51 +472,81 @@ const ClientDashboard = () => {
     });
   }, [sourceTasks, taskFilter, taskSearch, taskSort, preferences.quickActions.pinning, pinnedTaskIds]);
 
-  const boardColumns = useMemo(
-    () => [
-      {
-        id: 'planning',
-        title: 'Planning',
-        matcher: (status) => [TASK_STATUS.SUBMITTED, TASK_STATUS.UNDER_REVIEW].includes(status),
-      },
-      {
-        id: 'execution',
-        title: 'Execution',
-        matcher: (status) =>
-          [
-            TASK_STATUS.ASSIGNED,
-            TASK_STATUS.IN_PROGRESS,
-            TASK_STATUS.SUBMITTED_WORK,
-            TASK_STATUS.QA_REVIEW,
-            TASK_STATUS.REVISION_REQUESTED,
-            TASK_STATUS.CLIENT_REVISION,
-            TASK_STATUS.DELIVERED,
-          ].includes(status),
-      },
-      {
-        id: 'done',
-        title: 'Done',
-        matcher: (status) => status === TASK_STATUS.COMPLETED,
-      },
-      {
-        id: 'other',
-        title: 'Other',
-        matcher: (status) => [TASK_STATUS.CANCELLED, TASK_STATUS.DISPUTED].includes(status),
-      },
-    ],
+  const boardMatchers = useMemo(
+    () => ({
+      planning: (status) => [TASK_STATUS.SUBMITTED, TASK_STATUS.UNDER_REVIEW].includes(status),
+      execution: (status) =>
+        [
+          TASK_STATUS.ASSIGNED,
+          TASK_STATUS.IN_PROGRESS,
+          TASK_STATUS.SUBMITTED_WORK,
+          TASK_STATUS.QA_REVIEW,
+          TASK_STATUS.REVISION_REQUESTED,
+          TASK_STATUS.CLIENT_REVISION,
+          TASK_STATUS.DELIVERED,
+        ].includes(status),
+      done: (status) => status === TASK_STATUS.COMPLETED,
+      other: (status) => [TASK_STATUS.CANCELLED, TASK_STATUS.DISPUTED].includes(status),
+    }),
     [],
   );
 
-  const groupedBoard = useMemo(
+  const boardColumns = useMemo(
     () =>
-      boardColumns
-        .map((column) => ({
-          ...column,
-          tasks: filteredTasks.filter((task) => column.matcher(task?.status)),
-        }))
-        .filter((column) => column.tasks.length > 0),
-    [boardColumns, filteredTasks],
+      (orderedColumns.length > 0
+        ? orderedColumns
+        : [
+            { id: 'planning', title: 'Planning' },
+            { id: 'execution', title: 'Execution' },
+            { id: 'done', title: 'Done' },
+            { id: 'other', title: 'Other' },
+          ]
+      ).map((column) => ({
+        ...column,
+        matcher: boardMatchers[column.id] || (() => false),
+      })),
+    [boardMatchers, orderedColumns],
   );
+
+  const taskColumnOverrides = useMemo(() => {
+    const overrideMap = {};
+    Object.entries(boardState.taskOrder || {}).forEach(([columnId, taskIds]) => {
+      (Array.isArray(taskIds) ? taskIds : []).forEach((taskId) => {
+        overrideMap[taskId] = columnId;
+      });
+    });
+    return overrideMap;
+  }, [boardState.taskOrder]);
+
+  const groupedBoard = useMemo(() => {
+    const grouped = boardColumns.reduce((acc, column) => {
+      acc[column.id] = [];
+      return acc;
+    }, {});
+
+    filteredTasks.forEach((task) => {
+      const taskId = getTaskId(task);
+      const manualColumn = taskColumnOverrides[taskId];
+
+      if (manualColumn && grouped[manualColumn]) {
+        grouped[manualColumn].push(task);
+        return;
+      }
+
+      const defaultColumn =
+        boardColumns.find((column) => column.matcher(task?.status))?.id ||
+        boardColumns[boardColumns.length - 1]?.id;
+
+      if (defaultColumn) {
+        grouped[defaultColumn].push(task);
+      }
+    });
+
+    return boardColumns.map((column) => ({
+      ...column,
+      tasks: sortTasksByColumnOrder(column.id, grouped[column.id] || []),
+    }));
+  }, [boardColumns, filteredTasks, sortTasksByColumnOrder, taskColumnOverrides]);
 
   const deadlineSource = allTasks.length > 0 ? allTasks : recentTasks;
 
@@ -514,7 +628,29 @@ const ClientDashboard = () => {
     toast.success('Task CSV exported');
   };
 
-  const taskLayout = preferences.taskLayout || 'list';
+  const handleBoardTaskDragStart = (taskId, fromColumnId) => {
+    setDraggingTask({ taskId, fromColumnId });
+  };
+
+  const handleBoardTaskDrop = (toColumnId, insertAt = 0) => {
+    if (!draggingTask?.taskId) return;
+    moveTask(draggingTask.taskId, draggingTask.fromColumnId, toColumnId, insertAt);
+    setDraggingTask(null);
+  };
+
+  const handleBoardColumnDragStart = (columnId) => {
+    setDraggingColumn(columnId);
+  };
+
+  const handleBoardColumnDrop = (toColumnId) => {
+    if (!draggingColumn || draggingColumn === toColumnId) return;
+    const fromIndex = boardColumns.findIndex((column) => column.id === draggingColumn);
+    const toIndex = boardColumns.findIndex((column) => column.id === toColumnId);
+    if (fromIndex >= 0 && toIndex >= 0) {
+      reorderColumns(fromIndex, toIndex);
+    }
+    setDraggingColumn(null);
+  };
 
   if (loading) {
     return <Loading fullScreen={true} text="Loading client workspace..." />;
@@ -631,7 +767,11 @@ const ClientDashboard = () => {
             </button>
           )}
           <button
-            onClick={() => setPreference('taskLayout', taskLayout === 'list' ? 'grid' : taskLayout === 'grid' ? 'board' : 'list')}
+            onClick={() =>
+              handleTaskLayoutChange(
+                taskLayout === 'list' ? 'grid' : taskLayout === 'grid' ? 'board' : 'list',
+              )
+            }
             className="btn btn-ghost rounded-full px-5"
           >
             Switch Layout
@@ -755,6 +895,12 @@ const ClientDashboard = () => {
             togglePreference={togglePreference}
             setPreference={setPreference}
             resetPreferences={resetPreferences}
+            presets={presets}
+            activePresetId={activePresetId}
+            applyPreset={applyPreset}
+            savePreset={savePreset}
+            savingPreferences={savingPreferences || loadingPreferences}
+            syncError={syncError}
             title="Client Workspace Settings"
           />
         </section>
@@ -772,7 +918,7 @@ const ClientDashboard = () => {
                 <button
                   key={layout}
                   type="button"
-                  onClick={() => setPreference('taskLayout', layout)}
+                  onClick={() => handleTaskLayoutChange(layout)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-full border ${
                     taskLayout === layout
                       ? 'bg-primary-50 text-primary-700 border-primary-200'
@@ -782,6 +928,10 @@ const ClientDashboard = () => {
                   {layout}
                 </button>
               ))}
+              <button type="button" onClick={resetBoardState} className="btn-sm btn-secondary">
+                Reset Board
+              </button>
+              {savingBoard && <span className="text-[11px] text-slate-500">Saving board...</span>}
             </div>
           </div>
 
@@ -804,7 +954,7 @@ const ClientDashboard = () => {
                 </p>
                 <select
                   value={taskFilter}
-                  onChange={(event) => setTaskFilter(event.target.value)}
+                  onChange={(event) => handleTaskFilterChange(event.target.value)}
                   className="input py-2"
                 >
                   {TASK_FILTER_OPTIONS.map((option) => (
@@ -818,7 +968,7 @@ const ClientDashboard = () => {
                 <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Sort</p>
                 <select
                   value={taskSort}
-                  onChange={(event) => setTaskSort(event.target.value)}
+                  onChange={(event) => handleTaskSortChange(event.target.value)}
                   className="input py-2"
                 >
                   {TASK_SORT_OPTIONS.map((option) => (
@@ -835,7 +985,7 @@ const ClientDashboard = () => {
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => setTaskFilter(option.id)}
+                  onClick={() => handleTaskFilterChange(option.id)}
                   className={`px-3 py-1 rounded-full text-xs font-semibold border ${
                     taskFilter === option.id
                       ? 'bg-primary-50 text-primary-700 border-primary-200'
@@ -869,16 +1019,30 @@ const ClientDashboard = () => {
             ) : taskLayout === 'board' ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
                 {groupedBoard.map((column) => (
-                  <div key={column.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div
+                    key={column.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"
+                    draggable
+                    onDragStart={() => handleBoardColumnDragStart(column.id)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={() => handleBoardColumnDrop(column.id)}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-sm font-semibold text-slate-700">{column.title}</h4>
                       <span className="text-xs font-semibold text-slate-500">{column.tasks.length}</span>
                     </div>
-                    <div className="space-y-2">
-                      {column.tasks.map((task) => (
+                    <div
+                      className="space-y-2 min-h-[60px]"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={() => handleBoardTaskDrop(column.id, column.tasks.length)}
+                    >
+                      {column.tasks.map((task, index) => (
                         <BoardCard
                           key={getTaskId(task)}
                           task={task}
+                          columnId={column.id}
+                          onDragStart={handleBoardTaskDragStart}
+                          onDropAt={(toColumnId) => handleBoardTaskDrop(toColumnId, index)}
                           onClick={() => {
                             setSelectedTask(task);
                             setShowDetailsModal(true);
@@ -1016,11 +1180,32 @@ const TaskCard = ({
   );
 };
 
-const BoardCard = ({ task, onClick, isPinned, onTogglePin, canPin }) => {
+const BoardCard = ({
+  task,
+  columnId,
+  onDragStart,
+  onDropAt,
+  onClick,
+  isPinned,
+  onTogglePin,
+  canPin,
+}) => {
   const dueBadge = getDueBadge(task);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+    <div
+      className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm cursor-grab"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move';
+        onDragStart?.(getTaskId(task), columnId);
+      }}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDropAt?.(columnId);
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
         <button type="button" onClick={onClick} className="text-left min-w-0">
           <p className="text-sm font-semibold text-slate-900 line-clamp-1">{getTaskTitle(task)}</p>

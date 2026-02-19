@@ -19,6 +19,18 @@ const findSubmissions = async (filters) => {
 
     if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
+            if (key.includes('->>')) {
+                const [column, jsonPath] = key.split('->>');
+                query = query.filter(`${column}->>${jsonPath}`, 'eq', value);
+                return;
+            }
+
+            if (key.includes('->')) {
+                const [column, jsonPath] = key.split('->');
+                query = query.filter(`${column}->${jsonPath}`, 'eq', value);
+                return;
+            }
+
             if (Array.isArray(value)) {
                 query = query.in(key, value);
             } else {

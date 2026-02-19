@@ -4,6 +4,7 @@ const {
   NOTIFICATION_PRIORITY,
 } = require("../config/constants");
 const logger = require("../utils/logger");
+const realtimeHub = require("./realtimeHub");
 
 /**
  * Notification Service
@@ -15,7 +16,14 @@ class NotificationService {
    */
   static async create(data) {
     try {
-      return await notificationData.createNotification(data);
+      const notification = await notificationData.createNotification(data);
+      if (notification?.recipient_id) {
+        realtimeHub.publishToUser(notification.recipient_id, "notification.created", {
+          notification,
+          unreadIncrement: notification.status === "unread" ? 1 : 0,
+        });
+      }
+      return notification;
     } catch (error) {
       logger.error("Error creating notification:", error);
       throw error;

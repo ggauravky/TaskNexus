@@ -8,6 +8,7 @@ const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 const taskService = require("../services/taskService");
 const { TASK_STATUS, PAYMENT_STATUS } = require("../config/constants");
+const realtimeHub = require("../services/realtimeHub");
 
 /**
  * @desc    Get client dashboard overview with comprehensive statistics
@@ -268,6 +269,19 @@ exports.reviewSubmission = async (req, res, next) => {
         },
       });
 
+      realtimeHub.publish({
+        users: [task.client_id, task.freelancer_id].filter(Boolean),
+        event: "task.status_changed",
+        payload: {
+          taskId: task.id,
+          status: TASK_STATUS.COMPLETED,
+        },
+      });
+      realtimeHub.publishToUser(task.freelancer_id, "payout.new", {
+        taskId: task.id,
+        status: PAYMENT_STATUS.ESCROWED,
+      });
+
       await NotificationService.create({
         recipient_id: submission.freelancer_id,
         type: "submission_approved",
@@ -280,9 +294,10 @@ exports.reviewSubmission = async (req, res, next) => {
 
       logger.info(`Submission approved: ${submission.id}`);
     } else if (action === "request_revision") {
-        const revisionCount = await submissionData.getRevisionCount(task.id);
+      const revisionCount = await submissionData.getRevisionCount(task.id);
+      const revisionLimit = Number(task.task_details.revisionLimit || 2);
 
-      if (revisionCount.length >= task.task_details.revisionLimit) {
+      if (Number(revisionCount || 0) >= revisionLimit) {
         return res.status(400).json({
           success: false,
           message: "Revision limit exceeded for this task",
@@ -311,6 +326,15 @@ exports.reviewSubmission = async (req, res, next) => {
       });
 
       logger.info(`Revision requested: ${submission.id}`);
+
+      realtimeHub.publish({
+        users: [task.client_id, task.freelancer_id].filter(Boolean),
+        event: "task.status_changed",
+        payload: {
+          taskId: task.id,
+          status: TASK_STATUS.CLIENT_REVISION,
+        },
+      });
     }
 
     await auditLogData.log({
@@ -424,6 +448,12 @@ exports.rateFreelancer = async (req, res, next) => {
         message: `You received a ${rating}-star review from a client`,
       },
       related_task_id: task.id,
+    });
+
+    realtimeHub.publishToUser(task.freelancer_id, "review.new", {
+      taskId,
+      rating,
+      reviewId: review.id,
     });
 
     logger.info(`Freelancer rated: ${task.freelancer_id} - Rating: ${rating}`);

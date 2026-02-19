@@ -4,6 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
 const { apiLimiter } = require("./middleware/rateLimiter");
 const logger = require("./utils/logger");
@@ -15,6 +16,8 @@ const clientRoutes = require("./routes/client.routes");
 const freelancerRoutes = require("./routes/freelancer.routes");
 const adminRoutes = require("./routes/admin.routes");
 const notificationRoutes = require("./routes/notification.routes");
+const settingsRoutes = require("./routes/settings.routes");
+const realtimeRoutes = require("./routes/realtime.routes");
 
 // Create Express app
 const app = express();
@@ -67,6 +70,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Cookie parser
 app.use(cookieParser());
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Logging middleware
 if (process.env.NODE_ENV === "development") {
@@ -75,8 +79,13 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("combined", { stream: logger.stream }));
 }
 
-// Rate limiting
-app.use("/api/", apiLimiter);
+// Rate limiting (exclude SSE stream endpoint)
+app.use("/api/", (req, res, next) => {
+  if (req.path.startsWith("/realtime/stream")) {
+    return next();
+  }
+  return apiLimiter(req, res, next);
+});
 
 // Health check route
 app.get("/health", (req, res) => {
@@ -95,6 +104,8 @@ app.use("/api/client", clientRoutes);
 app.use("/api/freelancer", freelancerRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/realtime", realtimeRoutes);
 
 // 404 handler
 app.use(notFound);

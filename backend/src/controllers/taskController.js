@@ -3,6 +3,9 @@ const submissionData = require("../data/submissionData");
 const auditLogData = require("../data/auditLogData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
+const taskService = require("../services/taskService");
+const realtimeHub = require("../services/realtimeHub");
+const collaborationService = require("../services/collaborationService");
 const { TASK_STATUS } = require("../config/constants");
 
 /**
@@ -18,6 +21,8 @@ exports.createTask = async (req, res, next) => {
       category,
       budget,
       deadline,
+      skillsRequired,
+      experienceLevel,
     } = req.body;
 
     const taskType = category.replace(/_/g, "-");
@@ -31,6 +36,18 @@ exports.createTask = async (req, res, next) => {
         description: description.trim(),
         budget: parseFloat(budget),
         deadline: new Date(deadline),
+        skillsRequired: Array.isArray(skillsRequired) ? skillsRequired : [],
+        experienceLevel: experienceLevel || "intermediate",
+      },
+      workflow: {
+        collaboration: {
+          comments: [],
+          activity: [],
+        },
+      },
+      metrics: {
+        subtasks: [],
+        milestoneProgress: 0,
       },
     });
 
@@ -44,6 +61,20 @@ exports.createTask = async (req, res, next) => {
     });
 
     logger.info(`Task created: ${task.id} by client: ${req.user.id}`);
+
+    realtimeHub.publishToUser(req.user.id, "task.created", {
+      taskId: task.id,
+      status: task.status,
+      title: task.task_details?.title,
+    });
+    realtimeHub.publishToRole("freelancer", "offer.new", {
+      taskId: task.id,
+      status: task.status,
+      title: task.task_details?.title,
+      budget: task.task_details?.budget,
+      type: task.task_details?.type,
+      deadline: task.task_details?.deadline,
+    });
 
     res.status(201).json({
       success: true,
@@ -209,6 +240,16 @@ exports.updateTask = async (req, res, next) => {
 
     logger.info(`Task updated: ${task.id}`);
 
+    realtimeHub.publish({
+      users: [task.client_id, task.freelancer_id].filter(Boolean),
+      event: "task.updated",
+      payload: {
+        taskId: task.id,
+        status: updatedTask.status,
+        title: updatedTask.task_details?.title,
+      },
+    });
+
     res.status(200).json({
       success: true,
       message: "Task updated successfully",
@@ -266,6 +307,15 @@ exports.deleteTask = async (req, res, next) => {
     });
 
     logger.info(`Task cancelled: ${task.id}`);
+
+    realtimeHub.publish({
+      users: [task.client_id, task.freelancer_id].filter(Boolean),
+      event: "task.status_changed",
+      payload: {
+        taskId: task.id,
+        status: "cancelled",
+      },
+    });
 
     res.status(200).json({
       success: true,
@@ -349,6 +399,15 @@ exports.submitTask = async (req, res, next) => {
 
     logger.info(`Task submitted: ${task.id} by freelancer: ${req.user.id}`);
 
+    realtimeHub.publish({
+      users: [task.client_id, task.freelancer_id].filter(Boolean),
+      event: "task.status_changed",
+      payload: {
+        taskId: task.id,
+        status: updatedTask.status,
+      },
+    });
+
     res.status(201).json({
       success: true,
       message: "Work submitted successfully",
@@ -386,6 +445,195 @@ exports.getTaskStats = async (req, res, next) => {
     });
   } catch (error) {
     logger.error("Error fetching task stats:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get collaboration comments for a task
+ * @route   GET /api/tasks/:id/comments
+ * @access  Private
+ */
+exports.getTaskComments = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const [comments, participants] = await Promise.all([
+      collaborationService.listTaskComments(task),
+      collaborationService.getParticipants(task),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        comments,
+        participants,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Add comment with mentions and attachments
+ * @route   POST /api/tasks/:id/comments
+ * @access  Private
+ */
+exports.addTaskComment = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const body = String(req.body?.body || "").trim();
+    if (!body && (!req.files || req.files.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Comment body or attachment is required",
+      });
+    }
+
+    const result = await collaborationService.addTaskComment({
+      task,
+      actor: req.user,
+      body,
+      files: req.files || [],
+      req,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Comment added",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get task activity history
+ * @route   GET /api/tasks/:id/activity
+ * @access  Private
+ */
+exports.getTaskActivity = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const history = await collaborationService.listTaskActivity(task);
+    res.status(200).json({
+      success: true,
+      data: history,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get task subtasks/milestones
+ * @route   GET /api/tasks/:id/subtasks
+ * @access  Private
+ */
+exports.getSubtasks = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const subtasks = Array.isArray(task.metrics?.subtasks)
+      ? task.metrics.subtasks
+      : [];
+    const milestoneProgress = task.metrics?.milestoneProgress ?? 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        subtasks,
+        milestoneProgress,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Create a subtask/milestone
+ * @route   POST /api/tasks/:id/subtasks
+ * @access  Private
+ */
+exports.createSubtask = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const result = await collaborationService.addSubtask({
+      task,
+      actor: req.user,
+      payload: req.body || {},
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Subtask created",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update subtask/milestone
+ * @route   PATCH /api/tasks/:id/subtasks/:subtaskId
+ * @access  Private
+ */
+exports.updateSubtask = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const result = await collaborationService.updateSubtask({
+      task,
+      actor: req.user,
+      subtaskId: req.params.subtaskId,
+      payload: req.body || {},
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Subtask updated",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete subtask/milestone
+ * @route   DELETE /api/tasks/:id/subtasks/:subtaskId
+ * @access  Private
+ */
+exports.deleteSubtask = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const result = await collaborationService.deleteSubtask({
+      task,
+      actor: req.user,
+      subtaskId: req.params.subtaskId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Subtask deleted",
+      data: result,
+    });
+  } catch (error) {
     next(error);
   }
 };

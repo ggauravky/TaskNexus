@@ -101,7 +101,7 @@ const createTaskValidation = [
  * Validation rules for task ID parameter
  */
 const taskIdValidation = [
-  param("id").isMongoId().withMessage("Invalid task ID"),
+  param("id").isUUID().withMessage("Invalid task ID"),
 ];
 
 /**

@@ -60,7 +60,7 @@ router.put(
 router.put(
   "/submissions/:id",
   [
-    param("id").isMongoId().withMessage("Invalid submission ID"),
+    param("id").isUUID().withMessage("Invalid submission ID"),
     body("deliverables")
       .optional()
       .isArray()

@@ -19,7 +19,7 @@ router.get("/users", adminController.getUsers);
 router.patch(
   "/users/:id/status",
   [
-    param("id").isMongoId().withMessage("Invalid user ID"),
+    param("id").isUUID().withMessage("Invalid user ID"),
     body("status")
       .isIn(["active", "suspended", "banned"])
       .withMessage("Invalid status"),
@@ -32,7 +32,7 @@ router.patch(
 router.post(
   "/tasks/:id/review",
   [
-    param("id").isMongoId().withMessage("Invalid task ID"),
+    param("id").isUUID().withMessage("Invalid task ID"),
     body("action").isIn(["approve", "reject"]).withMessage("Invalid action"),
     body("reason").optional().trim(),
   ],
@@ -43,8 +43,8 @@ router.post(
 router.post(
   "/tasks/:id/assign",
   [
-    param("id").isMongoId().withMessage("Invalid task ID"),
-    body("freelancerId").isMongoId().withMessage("Invalid freelancer ID"),
+    param("id").isUUID().withMessage("Invalid task ID"),
+    body("freelancerId").isUUID().withMessage("Invalid freelancer ID"),
   ],
   validate,
   adminController.assignTask
@@ -60,7 +60,7 @@ router.get("/statistics", adminController.getStatistics);
 router.post(
   "/disputes/:id/resolve",
   [
-    param("id").isMongoId().withMessage("Invalid dispute ID"),
+    param("id").isUUID().withMessage("Invalid dispute ID"),
     body("resolution").trim().notEmpty().withMessage("Resolution is required"),
     body("refundClient").optional().isBoolean(),
     body("payFreelancer").optional().isBoolean(),

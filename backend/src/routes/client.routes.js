@@ -50,7 +50,7 @@ router.get(
 
 router.get(
   "/tasks/:id",
-  [param("id").isMongoId().withMessage("Invalid task ID")],
+  [param("id").isUUID().withMessage("Invalid task ID")],
   validate,
   clientController.getTaskDetails,
 );
@@ -62,7 +62,7 @@ router.get(
     query("page").optional().isInt({ min: 1 }),
     query("limit").optional().isInt({ min: 1, max: 100 }),
     query("status").optional().trim(),
-    query("taskId").optional().isMongoId(),
+    query("taskId").optional().isUUID(),
     query("sortBy").optional().trim(),
     query("sortOrder").optional().isIn(["asc", "desc"]),
   ],
@@ -72,7 +72,7 @@ router.get(
 
 router.get(
   "/submissions/:id",
-  [param("id").isMongoId().withMessage("Invalid submission ID")],
+  [param("id").isUUID().withMessage("Invalid submission ID")],
   validate,
   clientController.getSubmissionDetails,
 );
@@ -81,7 +81,7 @@ router.get(
 router.post(
   "/submissions/:id/review",
   [
-    param("id").isMongoId().withMessage("Invalid submission ID"),
+    param("id").isUUID().withMessage("Invalid submission ID"),
     body("action")
       .isIn(["approve", "request_revision"])
       .withMessage("Invalid action"),
@@ -96,7 +96,7 @@ router.post(
 router.post(
   "/rate-freelancer",
   [
-    body("taskId").isMongoId().withMessage("Invalid task ID"),
+    body("taskId").isUUID().withMessage("Invalid task ID"),
     body("rating")
       .isInt({ min: 1, max: 5 })
       .withMessage("Rating must be between 1 and 5"),
@@ -124,7 +124,7 @@ router.get(
 
 router.get(
   "/payments/:id",
-  [param("id").isMongoId().withMessage("Invalid payment ID")],
+  [param("id").isUUID().withMessage("Invalid payment ID")],
   validate,
   clientController.getPaymentDetails,
 );

@@ -26,6 +26,8 @@ import StatusBadge from '../components/common/StatusBadge';
 import TaskDetailsModal from '../components/freelancer/TaskDetailsModal';
 import DashboardSettings from '../components/common/DashboardSettings';
 import { usePreferences } from '../hooks/usePreferences';
+import useBoardState from '../hooks/useBoardState';
+import useRealtimeEvents from '../hooks/useRealtimeEvents';
 import { TASK_STATUS } from '../utils/constants';
 
 const FREELANCER_PINNED_STORAGE_KEY = 'tasknexus_freelancer_pinned_tasks_v1';
@@ -150,7 +152,32 @@ const FreelancerDashboard = () => {
   const [pinnedTaskIds, setPinnedTaskIds] = useState([]);
   const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
 
-  const { preferences, togglePreference, setPreference, resetPreferences } = usePreferences();
+  const {
+    preferences,
+    presets,
+    activePresetId,
+    loadingPreferences,
+    savingPreferences,
+    syncError,
+    togglePreference,
+    setPreference,
+    resetPreferences,
+    applyPreset,
+    savePreset,
+  } = usePreferences();
+  const {
+    boardState,
+    orderedColumns,
+    savingBoard,
+    updateBoardState,
+    resetBoardState,
+    moveTask,
+    reorderColumns,
+    sortTasksByColumnOrder,
+  } = useBoardState({ boardKey: 'freelancer-dashboard', role: 'freelancer' });
+
+  const [draggingTask, setDraggingTask] = useState(null);
+  const [draggingColumn, setDraggingColumn] = useState(null);
 
   useEffect(() => {
     setPinnedTaskIds(getSafeStorageArray(FREELANCER_PINNED_STORAGE_KEY));
@@ -161,8 +188,12 @@ const FreelancerDashboard = () => {
   }, [pinnedTaskIds]);
 
   useEffect(() => {
-    setTaskSort(preferences.defaultTaskSort || 'newest');
-  }, [preferences.defaultTaskSort]);
+    setTaskSort(boardState.sort || preferences.defaultTaskSort || 'newest');
+  }, [boardState.sort, preferences.defaultTaskSort]);
+
+  useEffect(() => {
+    setFilterStatus(boardState.filter || 'all');
+  }, [boardState.filter]);
 
   const loadProgressCache = useCallback(() => {
     try {
@@ -379,6 +410,74 @@ const FreelancerDashboard = () => {
     );
   };
 
+  const handleTaskSortChange = useCallback(
+    (nextSort) => {
+      setTaskSort(nextSort);
+      updateBoardState({ sort: nextSort });
+    },
+    [updateBoardState],
+  );
+
+  const handleFilterStatusChange = useCallback(
+    (nextFilter) => {
+      setFilterStatus(nextFilter);
+      updateBoardState({ filter: nextFilter });
+    },
+    [updateBoardState],
+  );
+
+  const taskLayout = boardState.view || preferences.taskLayout || 'list';
+  const handleTaskLayoutChange = useCallback(
+    (nextLayout) => {
+      setPreference('taskLayout', nextLayout);
+      updateBoardState({ view: nextLayout });
+    },
+    [setPreference, updateBoardState],
+  );
+
+  useRealtimeEvents(
+    useCallback(
+      (event) => {
+        const type = event?.type;
+        if (!type) return;
+
+        const refreshEvents = new Set([
+          'task.status_changed',
+          'task.progress.updated',
+          'task.comment.created',
+          'task.subtask.created',
+          'task.subtask.updated',
+          'task.subtask.deleted',
+          'offer.new',
+          'offer.updated',
+          'notification.created',
+          'settings.preferences.updated',
+          'settings.preset.applied',
+          'settings.board.updated',
+        ]);
+
+        if (refreshEvents.has(type)) {
+          fetchDashboardData({ silent: true });
+        }
+
+        if (type === 'review.new') {
+          toast.success('New review received');
+          if (activeTab === 'reviews') {
+            fetchReviews();
+          }
+        }
+
+        if (type === 'payout.new') {
+          toast.success('New payout update available');
+          if (activeTab === 'earnings') {
+            fetchEarnings();
+          }
+        }
+      },
+      [activeTab, fetchDashboardData, fetchEarnings, fetchReviews],
+    ),
+  );
+
   const processTasks = useCallback(
     (tasks, { allowStatusFilter = false } = {}) => {
       let filtered = [...tasks];
@@ -441,42 +540,79 @@ const FreelancerDashboard = () => {
   const filteredMyTasks = useMemo(() => processTasks(myTasks, { allowStatusFilter: true }), [myTasks, processTasks]);
   const filteredAvailableTasks = useMemo(() => processTasks(availableTasks), [availableTasks, processTasks]);
 
-  const boardColumns = useMemo(
-    () => [
-      {
-        id: 'active',
-        title: 'Active',
-        matcher: (status) => [TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS].includes(status),
-      },
-      {
-        id: 'review',
-        title: 'Review',
-        matcher: (status) => [TASK_STATUS.SUBMITTED_WORK, TASK_STATUS.QA_REVIEW].includes(status),
-      },
-      {
-        id: 'done',
-        title: 'Done',
-        matcher: (status) => status === TASK_STATUS.COMPLETED,
-      },
-      {
-        id: 'other',
-        title: 'Other',
-        matcher: (status) => ![TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS, TASK_STATUS.SUBMITTED_WORK, TASK_STATUS.QA_REVIEW, TASK_STATUS.COMPLETED].includes(status),
-      },
-    ],
+  const boardMatchers = useMemo(
+    () => ({
+      active: (status) => [TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS].includes(status),
+      review: (status) => [TASK_STATUS.SUBMITTED_WORK, TASK_STATUS.QA_REVIEW].includes(status),
+      done: (status) => status === TASK_STATUS.COMPLETED,
+      other: (status) =>
+        ![
+          TASK_STATUS.ASSIGNED,
+          TASK_STATUS.IN_PROGRESS,
+          TASK_STATUS.SUBMITTED_WORK,
+          TASK_STATUS.QA_REVIEW,
+          TASK_STATUS.COMPLETED,
+        ].includes(status),
+    }),
     [],
   );
 
-  const groupedMyTasks = useMemo(
+  const boardColumns = useMemo(
     () =>
-      boardColumns
-        .map((column) => ({
-          ...column,
-          tasks: filteredMyTasks.filter((task) => column.matcher(task.status)),
-        }))
-        .filter((column) => column.tasks.length > 0),
-    [boardColumns, filteredMyTasks],
+      (orderedColumns.length > 0
+        ? orderedColumns
+        : [
+            { id: 'active', title: 'Active' },
+            { id: 'review', title: 'Review' },
+            { id: 'done', title: 'Done' },
+            { id: 'other', title: 'Other' },
+          ]
+      ).map((column) => ({
+        ...column,
+        matcher: boardMatchers[column.id] || (() => false),
+      })),
+    [boardMatchers, orderedColumns],
   );
+
+  const taskColumnOverrides = useMemo(() => {
+    const overrideMap = {};
+    Object.entries(boardState.taskOrder || {}).forEach(([columnId, taskIds]) => {
+      (Array.isArray(taskIds) ? taskIds : []).forEach((taskId) => {
+        overrideMap[taskId] = columnId;
+      });
+    });
+    return overrideMap;
+  }, [boardState.taskOrder]);
+
+  const groupedMyTasks = useMemo(() => {
+    const grouped = boardColumns.reduce((acc, column) => {
+      acc[column.id] = [];
+      return acc;
+    }, {});
+
+    filteredMyTasks.forEach((task) => {
+      const taskId = getTaskId(task);
+      const manualColumn = taskColumnOverrides[taskId];
+
+      if (manualColumn && grouped[manualColumn]) {
+        grouped[manualColumn].push(task);
+        return;
+      }
+
+      const defaultColumn =
+        boardColumns.find((column) => column.matcher(task.status))?.id ||
+        boardColumns[boardColumns.length - 1]?.id;
+
+      if (defaultColumn) {
+        grouped[defaultColumn].push(task);
+      }
+    });
+
+    return boardColumns.map((column) => ({
+      ...column,
+      tasks: sortTasksByColumnOrder(column.id, grouped[column.id] || []),
+    }));
+  }, [boardColumns, filteredMyTasks, sortTasksByColumnOrder, taskColumnOverrides]);
 
   const deadlineRailTasks = useMemo(
     () =>
@@ -570,6 +706,30 @@ const FreelancerDashboard = () => {
     toast.success('Earnings CSV exported');
   };
 
+  const handleBoardTaskDragStart = (taskId, fromColumnId) => {
+    setDraggingTask({ taskId, fromColumnId });
+  };
+
+  const handleBoardTaskDrop = (toColumnId, insertAt = 0) => {
+    if (!draggingTask?.taskId) return;
+    moveTask(draggingTask.taskId, draggingTask.fromColumnId, toColumnId, insertAt);
+    setDraggingTask(null);
+  };
+
+  const handleBoardColumnDragStart = (columnId) => {
+    setDraggingColumn(columnId);
+  };
+
+  const handleBoardColumnDrop = (toColumnId) => {
+    if (!draggingColumn || draggingColumn === toColumnId) return;
+    const fromIndex = boardColumns.findIndex((column) => column.id === draggingColumn);
+    const toIndex = boardColumns.findIndex((column) => column.id === toColumnId);
+    if (fromIndex >= 0 && toIndex >= 0) {
+      reorderColumns(fromIndex, toIndex);
+    }
+    setDraggingColumn(null);
+  };
+
   if (loading) {
     return <Loading fullScreen={true} text="Loading freelancer workspace..." />;
   }
@@ -586,8 +746,6 @@ const FreelancerDashboard = () => {
       </div>
     );
   }
-
-  const taskLayout = preferences.taskLayout || 'list';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
@@ -706,6 +864,12 @@ const FreelancerDashboard = () => {
             togglePreference={togglePreference}
             setPreference={setPreference}
             resetPreferences={resetPreferences}
+            presets={presets}
+            activePresetId={activePresetId}
+            applyPreset={applyPreset}
+            savePreset={savePreset}
+            savingPreferences={savingPreferences || loadingPreferences}
+            syncError={syncError}
             title="Freelancer Workspace Settings"
           />
         </section>
@@ -738,7 +902,7 @@ const FreelancerDashboard = () => {
                 <button
                   key={layout}
                   type="button"
-                  onClick={() => setPreference('taskLayout', layout)}
+                  onClick={() => handleTaskLayoutChange(layout)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-full border ${
                     taskLayout === layout
                       ? 'bg-primary-50 text-primary-700 border-primary-200'
@@ -748,6 +912,10 @@ const FreelancerDashboard = () => {
                   {layout}
                 </button>
               ))}
+              <button type="button" onClick={resetBoardState} className="btn-sm btn-secondary">
+                Reset Board
+              </button>
+              {savingBoard && <span className="text-[11px] text-slate-500">Saving board...</span>}
             </div>
           </div>
 
@@ -770,7 +938,7 @@ const FreelancerDashboard = () => {
                     <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Status</p>
                     <select
                       value={filterStatus}
-                      onChange={(event) => setFilterStatus(event.target.value)}
+                      onChange={(event) => handleFilterStatusChange(event.target.value)}
                       className="input py-2"
                     >
                       {MY_TASK_FILTER_OPTIONS.map((option) => (
@@ -794,7 +962,11 @@ const FreelancerDashboard = () => {
 
                 <label className="block">
                   <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Sort</p>
-                  <select value={taskSort} onChange={(event) => setTaskSort(event.target.value)} className="input py-2">
+                  <select
+                    value={taskSort}
+                    onChange={(event) => handleTaskSortChange(event.target.value)}
+                    className="input py-2"
+                  >
                     {TASK_SORT_OPTIONS.map((option) => (
                       <option key={option.id} value={option.id}>{option.label}</option>
                     ))}
@@ -811,16 +983,30 @@ const FreelancerDashboard = () => {
               ) : taskLayout === 'board' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
                   {groupedMyTasks.map((column) => (
-                    <div key={column.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <div
+                      key={column.id}
+                      className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"
+                      draggable
+                      onDragStart={() => handleBoardColumnDragStart(column.id)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={() => handleBoardColumnDrop(column.id)}
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-sm font-semibold text-slate-700">{column.title}</h4>
                         <span className="text-xs font-semibold text-slate-500">{column.tasks.length}</span>
                       </div>
-                      <div className="space-y-2">
-                        {column.tasks.map((task) => (
+                      <div
+                        className="space-y-2 min-h-[60px]"
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => handleBoardTaskDrop(column.id, column.tasks.length)}
+                      >
+                        {column.tasks.map((task, index) => (
                           <BoardTaskCard
                             key={getTaskId(task)}
                             task={task}
+                            columnId={column.id}
+                            onDragStart={handleBoardTaskDragStart}
+                            onDropAt={(toColumnId) => handleBoardTaskDrop(toColumnId, index)}
                             onClick={() => {
                               setSelectedTask(task);
                               setShowDetailsModal(true);
@@ -1023,11 +1209,32 @@ const FreelancerTaskCard = ({
   );
 };
 
-const BoardTaskCard = ({ task, onClick, isPinned, onTogglePin, canPin }) => {
+const BoardTaskCard = ({
+  task,
+  columnId,
+  onDragStart,
+  onDropAt,
+  onClick,
+  isPinned,
+  onTogglePin,
+  canPin,
+}) => {
   const dueBadge = getDueBadge(task);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div
+      className="rounded-lg border border-slate-200 bg-white p-3 cursor-grab"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move';
+        onDragStart?.(getTaskId(task), columnId);
+      }}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDropAt?.(columnId);
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
         <button type="button" onClick={onClick} className="text-left min-w-0">
           <p className="text-sm font-semibold text-slate-900 line-clamp-1">{getTaskTitle(task)}</p>

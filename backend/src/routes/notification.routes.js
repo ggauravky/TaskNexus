@@ -14,7 +14,7 @@ router.get("/", notificationController.getNotifications);
 // Mark single notification as read
 router.patch(
   "/:id/read",
-  [param("id").isMongoId().withMessage("Invalid notification ID")],
+  [param("id").isUUID().withMessage("Invalid notification ID")],
   validate,
   notificationController.markAsRead
 );
@@ -22,16 +22,16 @@ router.patch(
 // Mark all notifications as read
 router.patch("/read-all", notificationController.markAllAsRead);
 
+// Clear all read notifications
+router.delete("/clear-read", notificationController.clearReadNotifications);
+
 // Delete single notification
 router.delete(
   "/:id",
-  [param("id").isMongoId().withMessage("Invalid notification ID")],
+  [param("id").isUUID().withMessage("Invalid notification ID")],
   validate,
   notificationController.deleteNotification
 );
-
-// Clear all read notifications
-router.delete("/clear-read", notificationController.clearReadNotifications);
 
 // Get notification preferences
 router.get("/preferences", notificationController.getPreferences);

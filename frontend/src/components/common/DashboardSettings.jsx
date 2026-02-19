@@ -1,4 +1,5 @@
-﻿import { Bell, Layers, Clock, Target, CheckCircle } from 'lucide-react';
+import { useMemo, useState } from "react";
+import { Bell, Layers, Clock, Target, CheckCircle } from "lucide-react";
 
 const Toggle = ({ id, label, description, checked, onChange }) => (
   <label
@@ -7,7 +8,11 @@ const Toggle = ({ id, label, description, checked, onChange }) => (
   >
     <div className="pr-3">
       <p className="text-[13px] font-semibold text-slate-900 leading-snug">{label}</p>
-      {description && <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{description}</p>}
+      {description && (
+        <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+          {description}
+        </p>
+      )}
     </div>
     <div className="relative inline-flex items-center">
       <input
@@ -26,13 +31,10 @@ const Toggle = ({ id, label, description, checked, onChange }) => (
 
 const SelectField = ({ id, label, value, options, onChange }) => (
   <label htmlFor={id} className="block min-w-[220px]">
-    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">{label}</p>
-    <select
-      id={id}
-      className="input py-2"
-      value={value}
-      onChange={onChange}
-    >
+    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+      {label}
+    </p>
+    <select id={id} className="input py-2" value={value} onChange={onChange}>
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -44,7 +46,9 @@ const SelectField = ({ id, label, value, options, onChange }) => (
 
 const NumberField = ({ id, label, value, min, max, onChange, disabled = false }) => (
   <label htmlFor={id} className="block min-w-[180px]">
-    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">{label}</p>
+    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+      {label}
+    </p>
     <input
       id={id}
       type="number"
@@ -70,34 +74,99 @@ const DashboardSettings = ({
   togglePreference,
   setPreference,
   resetPreferences,
-  title = 'Workspace Preferences',
-  className = '',
+  presets = [],
+  activePresetId = "balanced",
+  applyPreset,
+  savePreset,
+  savingPreferences = false,
+  syncError = null,
+  title = "Workspace Preferences",
+  className = "",
 }) => {
+  const [presetName, setPresetName] = useState("");
   const onToggle = togglePreference || (() => {});
   const onSet = setPreference || (() => {});
+  const onApplyPreset = applyPreset || (() => {});
+  const onSavePreset = savePreset || (() => Promise.resolve({ success: false }));
+
+  const presetOptions = useMemo(() => {
+    if (!Array.isArray(presets) || presets.length === 0) {
+      return [{ id: "balanced", name: "Balanced" }];
+    }
+    return presets.map((preset) => ({
+      id: preset.id,
+      name: preset.name || preset.id,
+    }));
+  }, [presets]);
 
   return (
-    <div className={`w-full bg-white/95 backdrop-blur-sm border border-slate-100 rounded-2xl shadow-md ${className}`}>
+    <div
+      className={`w-full bg-white/95 backdrop-blur-sm border border-slate-100 rounded-2xl shadow-md ${className}`}
+    >
       <div className="px-4 py-3 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
         <div className="flex items-center space-x-2">
           <Layers className="w-4 h-4 text-primary-600" />
           <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
           <p className="text-[11px] text-slate-500 leading-snug">
-            Saved locally for this browser.
+            Cloud synced per profile.
           </p>
+
+          <select
+            className="input py-1.5 text-xs min-w-[140px]"
+            value={activePresetId}
+            onChange={(event) => onApplyPreset(event.target.value)}
+            disabled={savingPreferences}
+          >
+            {presetOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="text"
+            value={presetName}
+            onChange={(event) => setPresetName(event.target.value)}
+            placeholder="Preset name"
+            className="input py-1.5 text-xs min-w-[140px]"
+          />
+
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            disabled={savingPreferences}
+            onClick={async () => {
+              const result = await onSavePreset(presetName.trim());
+              if (result?.success) {
+                setPresetName("");
+              }
+            }}
+          >
+            Save Preset
+          </button>
+
           {resetPreferences && (
             <button
               type="button"
               className="btn-sm btn-secondary"
               onClick={resetPreferences}
+              disabled={savingPreferences}
             >
-              Reset
+              Reset To Default
             </button>
           )}
         </div>
       </div>
+
+      {syncError && (
+        <div className="px-4 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
+          {syncError}
+        </div>
+      )}
 
       <div className="p-3 space-y-4">
         <SectionTitle icon={CheckCircle} title="Workspace" />
@@ -107,42 +176,42 @@ const DashboardSettings = ({
             label="Compact cards"
             description="Reduce card spacing"
             checked={preferences.compactCards}
-            onChange={() => onToggle('compactCards')}
+            onChange={() => onToggle("compactCards")}
           />
           <Toggle
             id="pref-progress"
             label="Progress bars"
             description="Show completion bars"
             checked={preferences.showProgressBars}
-            onChange={() => onToggle('showProgressBars')}
+            onChange={() => onToggle("showProgressBars")}
           />
           <Toggle
             id="pref-advanced-stats"
             label="Advanced insights"
             description="Enable additional analytics"
             checked={preferences.showAdvancedStats}
-            onChange={() => onToggle('showAdvancedStats')}
+            onChange={() => onToggle("showAdvancedStats")}
           />
           <Toggle
             id="pref-deadline-rail"
             label="Deadline rail"
             description="Show due-soon tracker"
             checked={preferences.showDeadlineRail}
-            onChange={() => onToggle('showDeadlineRail')}
+            onChange={() => onToggle("showDeadlineRail")}
           />
           <Toggle
             id="pref-focus"
             label="Focus mode"
             description="Reduce non-essential UI"
             checked={preferences.focusMode}
-            onChange={() => onToggle('focusMode')}
+            onChange={() => onToggle("focusMode")}
           />
           <Toggle
             id="pref-financial"
             label="Hide financials"
             description="Mask revenue and budgets"
             checked={preferences.hideFinancials}
-            onChange={() => onToggle('hideFinancials')}
+            onChange={() => onToggle("hideFinancials")}
           />
         </div>
 
@@ -153,43 +222,43 @@ const DashboardSettings = ({
             label="Task layout"
             value={preferences.taskLayout}
             options={[
-              { value: 'list', label: 'List' },
-              { value: 'grid', label: 'Grid' },
-              { value: 'board', label: 'Board' },
+              { value: "list", label: "List" },
+              { value: "grid", label: "Grid" },
+              { value: "board", label: "Board" },
             ]}
-            onChange={(event) => onSet('taskLayout', event.target.value)}
+            onChange={(event) => onSet("taskLayout", event.target.value)}
           />
           <SelectField
             id="pref-sort"
             label="Default sort"
             value={preferences.defaultTaskSort}
             options={[
-              { value: 'newest', label: 'Newest first' },
-              { value: 'oldest', label: 'Oldest first' },
-              { value: 'budget_high', label: 'Highest budget' },
-              { value: 'budget_low', label: 'Lowest budget' },
-              { value: 'deadline_soon', label: 'Nearest deadline' },
+              { value: "newest", label: "Newest first" },
+              { value: "oldest", label: "Oldest first" },
+              { value: "budget_high", label: "Highest budget" },
+              { value: "budget_low", label: "Lowest budget" },
+              { value: "deadline_soon", label: "Nearest deadline" },
             ]}
-            onChange={(event) => onSet('defaultTaskSort', event.target.value)}
+            onChange={(event) => onSet("defaultTaskSort", event.target.value)}
           />
           <SelectField
             id="pref-filter"
             label="Default filter"
             value={preferences.defaultTaskFilter}
             options={[
-              { value: 'all', label: 'All tasks' },
-              { value: 'active', label: 'Active' },
-              { value: 'pending_review', label: 'Pending review' },
-              { value: 'completed', label: 'Completed' },
+              { value: "all", label: "All tasks" },
+              { value: "active", label: "Active" },
+              { value: "pending_review", label: "Pending review" },
+              { value: "completed", label: "Completed" },
             ]}
-            onChange={(event) => onSet('defaultTaskFilter', event.target.value)}
+            onChange={(event) => onSet("defaultTaskFilter", event.target.value)}
           />
           <Toggle
             id="pref-autorefresh"
             label="Auto refresh"
             description="Refresh dashboard periodically"
             checked={preferences.autoRefresh}
-            onChange={() => onToggle('autoRefresh')}
+            onChange={() => onToggle("autoRefresh")}
           />
           <NumberField
             id="pref-autorefresh-seconds"
@@ -204,7 +273,7 @@ const DashboardSettings = ({
                 return;
               }
               const clamped = Math.max(30, Math.min(900, raw));
-              onSet('autoRefreshSeconds', clamped);
+              onSet("autoRefreshSeconds", clamped);
             }}
           />
         </div>
@@ -220,7 +289,7 @@ const DashboardSettings = ({
             onChange={(event) => {
               const raw = Number(event.target.value);
               if (!Number.isNaN(raw)) {
-                onSet('goals.weeklyEarnings', Math.max(100, raw));
+                onSet("goals.weeklyEarnings", Math.max(100, raw));
               }
             }}
           />
@@ -233,7 +302,7 @@ const DashboardSettings = ({
             onChange={(event) => {
               const raw = Number(event.target.value);
               if (!Number.isNaN(raw)) {
-                onSet('goals.weeklyCompletedTasks', Math.max(1, raw));
+                onSet("goals.weeklyCompletedTasks", Math.max(1, raw));
               }
             }}
           />
@@ -246,21 +315,21 @@ const DashboardSettings = ({
             label="Task templates"
             description="Show quick template launcher"
             checked={preferences.quickActions.templates}
-            onChange={() => onToggle('quickActions.templates')}
+            onChange={() => onToggle("quickActions.templates")}
           />
           <Toggle
             id="pref-export"
             label="CSV export"
             description="Enable one-click exports"
             checked={preferences.quickActions.export}
-            onChange={() => onToggle('quickActions.export')}
+            onChange={() => onToggle("quickActions.export")}
           />
           <Toggle
             id="pref-pinning"
             label="Pin important tasks"
             description="Keep starred tasks at top"
             checked={preferences.quickActions.pinning}
-            onChange={() => onToggle('quickActions.pinning')}
+            onChange={() => onToggle("quickActions.pinning")}
           />
         </div>
 
@@ -271,28 +340,28 @@ const DashboardSettings = ({
             label="Email alerts"
             description="Status changes and approvals"
             checked={preferences.notifications.email}
-            onChange={() => onToggle('notifications.email')}
+            onChange={() => onToggle("notifications.email")}
           />
           <Toggle
             id="pref-inapp"
             label="In-app alerts"
             description="Toast and badge updates"
             checked={preferences.notifications.inApp}
-            onChange={() => onToggle('notifications.inApp')}
+            onChange={() => onToggle("notifications.inApp")}
           />
           <Toggle
             id="pref-due"
             label="Due reminders"
             description="Deadlines approaching"
             checked={preferences.notifications.dueReminders}
-            onChange={() => onToggle('notifications.dueReminders')}
+            onChange={() => onToggle("notifications.dueReminders")}
           />
           <Toggle
             id="pref-status"
             label="Status updates"
             description="Assignee and review updates"
             checked={preferences.notifications.statusUpdates}
-            onChange={() => onToggle('notifications.statusUpdates')}
+            onChange={() => onToggle("notifications.statusUpdates")}
           />
         </div>
       </div>

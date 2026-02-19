@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Calendar, DollarSign, User, FileText, CheckCircle, RefreshCw } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
+import TaskCollaborationPanel from '../common/TaskCollaborationPanel';
 
 /**
  * Task Details Modal for Freelancer
@@ -288,6 +289,8 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
                                 </div>
                             </div>
                         </div>
+
+                        <TaskCollaborationPanel task={task} />
                     </div>
 
                     {/* Footer */}

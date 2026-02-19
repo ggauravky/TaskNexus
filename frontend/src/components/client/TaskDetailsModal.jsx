@@ -1,5 +1,6 @@
 import { X, DollarSign, Calendar, User, Tag, Clock, FileText, Activity } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
+import TaskCollaborationPanel from '../common/TaskCollaborationPanel';
 
 /**
  * Task Details Modal Component
@@ -199,6 +200,8 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                             )}
                         </div>
                     )}
+
+                    <TaskCollaborationPanel task={task} />
                 </div>
 
                 {/* Footer */}

@@ -39,6 +39,18 @@ const findTasks = async (filters) => {
 
     if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
+            if (key.includes('->>')) {
+                const [column, jsonPath] = key.split('->>');
+                query = query.filter(`${column}->>${jsonPath}`, 'eq', value);
+                return;
+            }
+
+            if (key.includes('->')) {
+                const [column, jsonPath] = key.split('->');
+                query = query.filter(`${column}->${jsonPath}`, 'eq', value);
+                return;
+            }
+
             // Supabase needs `.is(..., null)` for nullable columns; `.eq` with null throws
             if (value === null) {
                 query = query.is(key, null);

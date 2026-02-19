@@ -7,7 +7,11 @@ const path = require("path");
 
 // Create necessary directories
 const createDirectories = () => {
-  const dirs = [path.join(__dirname, "logs"), path.join(__dirname, "uploads")];
+  const dirs = [
+    path.join(__dirname, "logs"),
+    path.join(__dirname, "uploads"),
+    path.join(__dirname, "uploads", "comments"),
+  ];
 
   dirs.forEach((dir) => {
     if (!fs.existsSync(dir)) {
