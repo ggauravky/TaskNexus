@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,7 +7,11 @@
 @layer base {
   :root {
     --radius: 0.5rem;
-    --bg: radial-gradient(circle at 20% 20%, rgba(99,102,241,0.12), transparent 35%), radial-gradient(circle at 80% 0%, rgba(192,38,211,0.12), transparent 30%), radial-gradient(circle at 70% 70%, rgba(56,189,248,0.12), transparent 35%), #0b1021;
+    --bg:
+      radial-gradient(circle at 12% 8%, rgba(59, 130, 246, 0.16), transparent 34%),
+      radial-gradient(circle at 86% 4%, rgba(6, 182, 212, 0.14), transparent 28%),
+      radial-gradient(circle at 70% 78%, rgba(14, 165, 233, 0.1), transparent 34%),
+      linear-gradient(180deg, #f7faff 0%, #eef4ff 100%);
   }
 
   * {
@@ -18,13 +22,14 @@
     @apply text-gray-900 antialiased;
     background: var(--bg);
     font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
   }
 }
 
 @layer components {
   /* Layout surfaces */
   .shell {
-    @apply min-h-screen bg-transparent text-gray-900;
+    @apply min-h-screen bg-transparent text-slate-900;
   }
 
   /* Button styles */
@@ -33,11 +38,11 @@
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-700 text-white hover:from-primary-600 hover:to-primary-800 focus:ring-primary-400 shadow-soft;
+    @apply bg-gradient-to-r from-primary-500 to-cyan-600 text-white hover:from-primary-600 hover:to-cyan-700 focus:ring-primary-400 shadow-soft;
   }
 
   .btn-secondary {
-    @apply bg-white/80 border border-gray-200 text-gray-800 hover:border-primary-200 hover:text-primary-700 focus:ring-primary-200 shadow-sm;
+    @apply bg-white/90 border border-slate-200 text-slate-700 hover:border-primary-200 hover:text-primary-700 focus:ring-primary-200 shadow-sm;
   }
 
   .btn-danger {
@@ -52,6 +57,10 @@
     @apply border-2 border-primary-200 text-primary-700 hover:bg-primary-50 focus:ring-primary-300;
   }
 
+  .btn-ghost {
+    @apply bg-white/70 text-slate-700 border border-slate-200 hover:bg-white hover:text-slate-900 focus:ring-primary-200;
+  }
+
   .btn-sm {
     @apply px-3 py-1.5 text-sm;
   }
@@ -62,7 +71,7 @@
 
   /* Card styles */
   .card {
-    @apply bg-white/70 backdrop-blur-xl rounded-2xl shadow-glass border border-white/40 p-6 hover:shadow-lg transition-all duration-300;
+    @apply bg-white/85 backdrop-blur-xl rounded-2xl shadow-soft border border-white/70 p-6 hover:shadow-lg transition-all duration-300;
   }
 
   .card-header {
@@ -79,7 +88,7 @@
 
   /* Input styles */
   .input {
-    @apply w-full px-4 py-3 border border-gray-200 rounded-xl bg-white/70 backdrop-blur focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 placeholder:text-gray-400;
+    @apply w-full px-4 py-3 border border-slate-200 rounded-xl bg-white/80 backdrop-blur focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 placeholder:text-gray-400;
   }
 
   .input-error {
@@ -164,7 +173,7 @@
 
   /* Dashboard card */
   .dashboard-card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200;
+    @apply bg-white/90 rounded-xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all duration-200;
   }
 
   /* Status indicators */
@@ -190,7 +199,7 @@
 
   /* Glass and glow helpers */
   .glass {
-    @apply bg-white/10 backdrop-blur-xl border border-white/10 shadow-glass;
+    @apply bg-white/70 backdrop-blur-xl border border-white/70 shadow-soft;
   }
 
   .glow {
@@ -202,11 +211,11 @@
   }
 
   .section {
-    @apply relative overflow-hidden rounded-3xl border border-white/20 bg-white/60 backdrop-blur-xl shadow-glass;
+    @apply relative overflow-hidden rounded-3xl border border-white/70 bg-white/75 backdrop-blur-xl shadow-soft;
   }
 
   .hero-grid {
-    background-image: linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px);
+    background-image: linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
     background-size: 60px 60px;
   }
 }
@@ -265,7 +274,7 @@
     position: relative;
   }
   .dot-divider::after {
-    content: '•';
+    content: '\00B7';
     @apply text-gray-400 mx-2;
   }
 }

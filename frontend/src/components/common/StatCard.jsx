@@ -6,9 +6,9 @@ import { TrendingUp, TrendingDown } from 'lucide-react';
  */
 const StatCard = ({ title, value, icon, color = 'bg-primary-50', trend, trendUp = true }) => {
     return (
-        <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+        <div className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
             <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg ${color}`}>
+                <div className={`p-3 rounded-xl ${color}`}>
                     {icon}
                 </div>
                 {trend && (

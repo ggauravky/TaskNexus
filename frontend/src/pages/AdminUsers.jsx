@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft, Search, Filter, Eye, Ban, CheckCircle,
-    AlertCircle, RefreshCw, Mail, Phone, Calendar
+    ArrowLeft, Search,
+    AlertCircle, RefreshCw, Phone
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -22,25 +22,6 @@ const AdminUsers = () => {
     }, []);
 
     useEffect(() => {
-        filterUsers();
-    }, [users, searchTerm, roleFilter, statusFilter]);
-
-    const fetchUsers = async () => {
-        try {
-            setLoading(true);
-            const response = await api.get('/admin/users');
-            if (response.data.success) {
-                setUsers(response.data.data || []);
-            }
-        } catch (error) {
-            console.error('Error fetching users:', error);
-            toast.error('Failed to load users');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const filterUsers = () => {
         let filtered = [...users];
 
         if (roleFilter !== 'all') {
@@ -60,6 +41,21 @@ const AdminUsers = () => {
         }
 
         setFilteredUsers(filtered);
+    }, [users, searchTerm, roleFilter, statusFilter]);
+
+    const fetchUsers = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/admin/users');
+            if (response.data.success) {
+                setUsers(response.data.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching users:', error);
+            toast.error('Failed to load users');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleToggleStatus = async (userId, currentStatus) => {
@@ -81,13 +77,12 @@ const AdminUsers = () => {
 
     const clients = users.filter(u => u.role === 'client').length;
     const freelancers = users.filter(u => u.role === 'freelancer').length;
-    const admins = users.filter(u => u.role === 'admin').length;
     const activeUsers = users.filter(u => u.status === 'active').length;
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50">
             {/* Header */}
-            <header className="bg-white shadow-sm sticky top-0 z-10">
+            <header className="bg-white/85 backdrop-blur border-b border-slate-100 sticky top-0 z-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center">
@@ -115,6 +110,11 @@ const AdminUsers = () => {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="mb-6 rounded-2xl border border-slate-100 bg-gradient-to-r from-primary-600 to-cyan-600 p-6 text-white shadow-xl">
+                    <h2 className="text-2xl font-bold">User Operations</h2>
+                    <p className="text-primary-100 text-sm mt-1">Search, filter, and manage account access across the platform.</p>
+                </div>
+
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <StatCard title="Total Users" value={users.length} color="bg-blue-50 text-blue-600" />
@@ -124,7 +124,7 @@ const AdminUsers = () => {
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-4 mb-6">
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1">
                             <div className="relative">
@@ -134,7 +134,7 @@ const AdminUsers = () => {
                                     placeholder="Search by name or email..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    className="input pl-10 py-2"
                                 />
                             </div>
                         </div>
@@ -142,7 +142,7 @@ const AdminUsers = () => {
                             <select
                                 value={roleFilter}
                                 onChange={(e) => setRoleFilter(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                className="input py-2"
                             >
                                 <option value="all">All Roles</option>
                                 <option value="client">Clients</option>
@@ -154,7 +154,7 @@ const AdminUsers = () => {
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                className="input py-2"
                             >
                                 <option value="all">All Status</option>
                                 <option value="active">Active</option>
@@ -165,10 +165,10 @@ const AdminUsers = () => {
                 </div>
 
                 {/* Users Table */}
-                <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-slate-100">
+                            <thead className="bg-slate-50/80">
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         User
@@ -190,7 +190,7 @@ const AdminUsers = () => {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-white/90 divide-y divide-slate-100">
                                 {filteredUsers.length === 0 ? (
                                     <tr>
                                         <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
@@ -200,7 +200,7 @@ const AdminUsers = () => {
                                     </tr>
                                 ) : (
                                     filteredUsers.map((user) => (
-                                        <tr key={user._id} className="hover:bg-gray-50">
+                                        <tr key={user._id} className="hover:bg-slate-50/80">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
                                                     <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
@@ -261,9 +261,9 @@ const AdminUsers = () => {
 };
 
 const StatCard = ({ title, value, color }) => (
-    <div className="bg-white rounded-lg shadow-sm p-4">
+    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-4">
         <p className="text-sm text-gray-600 mb-1">{title}</p>
-        <p className={`text-2xl font-bold ${color}`}>{value}</p>
+        <p className={`text-3xl font-bold ${color}`}>{value}</p>
     </div>
 );
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Calendar, DollarSign, User, Clock, FileText, CheckCircle, RefreshCw } from 'lucide-react';
+import { X, Calendar, DollarSign, User, FileText, CheckCircle, RefreshCw } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 
 /**
@@ -7,21 +7,19 @@ import StatusBadge from '../common/StatusBadge';
  * Shows comprehensive task information
  */
 const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask, onUpdateProgress }) => {
-    if (!isOpen || !task) return null;
+    const details = task?.task_details || {};
+    const workflow = task?.workflow || {};
+    const metrics = task?.metrics || {};
 
-    const details = task.task_details || {};
-    const workflow = task.workflow || {};
-    const metrics = task.metrics || {};
-
-    const title = details.title || task.title || 'Untitled Task';
-    const type = details.type || task.type;
-    const budget = details.budget ?? task.budget ?? 0;
-    const deadline = details.deadline || task.deadline;
-    const description = details.description || task.description || 'No description provided';
-    const skillsRequired = details.skillsRequired || task.skillsRequired;
-    const experienceLevel = details.experienceLevel || task.experienceLevel;
-    const taskId = task.task_id || task.taskId || task.id || task._id;
-    const createdAt = task.created_at || task.createdAt;
+    const title = details.title || task?.title || 'Untitled Task';
+    const type = details.type || task?.type;
+    const budget = details.budget ?? task?.budget ?? 0;
+    const deadline = details.deadline || task?.deadline;
+    const description = details.description || task?.description || 'No description provided';
+    const skillsRequired = details.skillsRequired || task?.skillsRequired;
+    const experienceLevel = details.experienceLevel || task?.experienceLevel;
+    const taskId = task?.task_id || task?.taskId || task?.id || task?._id;
+    const createdAt = task?.created_at || task?.createdAt;
 
     const formatDate = (date) => {
         if (!date) return 'No deadline';
@@ -56,15 +54,23 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
+        if (!task) {
+            setProgress(0);
+            setStage('in_progress');
+            setNote('');
+            return;
+        }
         setProgress(metrics.progress ?? 0);
         setStage(metrics.stage || 'in_progress');
         setNote(metrics.progressNote || '');
-    }, [task]);
+    }, [task, metrics.progress, metrics.stage, metrics.progressNote]);
+
+    if (!isOpen || !task) return null;
 
     const handleSaveProgress = async () => {
         if (!onUpdateProgress) return;
         setSaving(true);
-        await onUpdateProgress(task.id, { progress, stage, note });
+        await onUpdateProgress(task.id || task._id, { progress, stage, note });
         setSaving(false);
     };
 
@@ -72,13 +78,13 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
         <div className="fixed inset-0 z-50 overflow-y-auto">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+                className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm transition-opacity"
                 onClick={onClose}
             />
 
             {/* Modal */}
             <div className="flex min-h-screen items-center justify-center p-4">
-                <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="relative bg-white/95 rounded-2xl shadow-2xl border border-white/70 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
                     {/* Header */}
                     <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-start z-10">
                         <div className="flex-1">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, Phone, User, Loader2, ShieldCheck, Wallet,
+  ArrowLeft, Phone, User, Loader2, ShieldCheck, Wallet,
   CheckCircle, Globe2, Activity
 } from 'lucide-react';
 import toast from 'react-hot-toast';

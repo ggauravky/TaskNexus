@@ -13,8 +13,8 @@ const Loading = ({ size = 'md', fullScreen = false, text = 'Loading...' }) => {
 
     if (fullScreen) {
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-white bg-opacity-90">
-                <div className="text-center">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/20 backdrop-blur-sm">
+                <div className="text-center bg-white/90 border border-slate-100 rounded-2xl px-8 py-6 shadow-xl">
                     <div className={spinnerClass + ' mx-auto mb-4'}></div>
                     {text && <p className="text-gray-600 font-medium">{text}</p>}
                 </div>

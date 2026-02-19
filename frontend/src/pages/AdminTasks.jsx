@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft, Search, Filter, Eye, UserCheck, X,
-    CheckCircle, AlertCircle, Clock, RefreshCw
+    ArrowLeft, Search, X,
+    CheckCircle, AlertCircle, RefreshCw
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -24,7 +24,21 @@ const AdminTasks = () => {
     }, []);
 
     useEffect(() => {
-        filterTasks();
+        let filtered = [...tasks];
+
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter(task => task.status === statusFilter);
+        }
+
+        if (searchTerm) {
+            filtered = filtered.filter(task =>
+                task.taskDetails?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                task.client?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                task.freelancer?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        setFilteredTasks(filtered);
     }, [tasks, searchTerm, statusFilter]);
 
     const fetchTasks = async () => {
@@ -42,40 +56,9 @@ const AdminTasks = () => {
         }
     };
 
-    const filterTasks = () => {
-        let filtered = [...tasks];
-
-        if (statusFilter !== 'all') {
-            filtered = filtered.filter(task => task.status === statusFilter);
-        }
-
-        if (searchTerm) {
-            filtered = filtered.filter(task =>
-                task.taskDetails?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                task.client?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                task.freelancer?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-        }
-
-        setFilteredTasks(filtered);
-    };
-
     const handleViewDetails = (task) => {
         setSelectedTask(task);
         setShowDetailsModal(true);
-    };
-
-    const handleAssignTask = async (taskId, freelancerId) => {
-        try {
-            const response = await api.post(`/admin/tasks/${taskId}/assign`, { freelancerId });
-            if (response.data.success) {
-                toast.success('Task assigned successfully!');
-                fetchTasks();
-                setShowDetailsModal(false);
-            }
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to assign task');
-        }
     };
 
     const handleUpdateStatus = async (taskId, newStatus) => {
@@ -101,9 +84,9 @@ const AdminTasks = () => {
     const completed = tasks.filter(t => t.status === 'completed').length;
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
             {/* Header */}
-            <header className="bg-white shadow-sm sticky top-0 z-10">
+            <header className="bg-white/85 backdrop-blur border-b border-slate-100 sticky top-0 z-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center">
@@ -131,6 +114,11 @@ const AdminTasks = () => {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="mb-6 rounded-2xl border border-slate-100 bg-gradient-to-r from-primary-600 to-cyan-600 p-6 text-white shadow-xl">
+                    <h2 className="text-2xl font-bold">Task Operations</h2>
+                    <p className="text-primary-100 text-sm mt-1">Review, triage, and close tasks quickly from one workspace.</p>
+                </div>
+
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <StatCard title="Pending Review" value={pendingReview} color="bg-orange-50 text-orange-600" />
@@ -140,7 +128,7 @@ const AdminTasks = () => {
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-4 mb-6">
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1">
                             <div className="relative">
@@ -150,7 +138,7 @@ const AdminTasks = () => {
                                     placeholder="Search tasks, clients, freelancers..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    className="input pl-10 py-2"
                                 />
                             </div>
                         </div>
@@ -158,7 +146,7 @@ const AdminTasks = () => {
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                className="input py-2"
                             >
                                 <option value="all">All Status</option>
                                 <option value="submitted">Submitted</option>
@@ -174,10 +162,10 @@ const AdminTasks = () => {
                 </div>
 
                 {/* Tasks Table */}
-                <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-slate-100">
+                            <thead className="bg-slate-50/80">
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Task
@@ -202,7 +190,7 @@ const AdminTasks = () => {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-white/90 divide-y divide-slate-100">
                                 {filteredTasks.length === 0 ? (
                                     <tr>
                                         <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
@@ -212,7 +200,7 @@ const AdminTasks = () => {
                                     </tr>
                                 ) : (
                                     filteredTasks.map((task) => (
-                                        <tr key={task._id} className="hover:bg-gray-50">
+                                        <tr key={task._id} className="hover:bg-slate-50/80">
                                             <td className="px-6 py-4">
                                                 <div className="text-sm font-medium text-gray-900">
                                                     {task.taskDetails?.title || 'Untitled Task'}
@@ -270,7 +258,6 @@ const AdminTasks = () => {
                 <TaskDetailsModal
                     task={selectedTask}
                     onClose={() => setShowDetailsModal(false)}
-                    onAssign={handleAssignTask}
                     onUpdateStatus={handleUpdateStatus}
                 />
             )}
@@ -279,16 +266,16 @@ const AdminTasks = () => {
 };
 
 const StatCard = ({ title, value, color }) => (
-    <div className="bg-white rounded-lg shadow-sm p-4">
+    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-4">
         <p className="text-sm text-gray-600 mb-1">{title}</p>
-        <p className={`text-2xl font-bold ${color}`}>{value}</p>
+        <p className={`text-3xl font-bold ${color}`}>{value}</p>
     </div>
 );
 
-const TaskDetailsModal = ({ task, onClose, onAssign, onUpdateStatus }) => {
+const TaskDetailsModal = ({ task, onClose, onUpdateStatus }) => {
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white/95 rounded-2xl border border-white/70 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
                 <div className="p-6">
                     <div className="flex justify-between items-start mb-6">
                         <h2 className="text-2xl font-bold text-gray-900">Task Details</h2>

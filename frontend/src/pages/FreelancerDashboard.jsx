@@ -1,10 +1,21 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
-    LogOut, Briefcase, DollarSign, Star, TrendingUp, Clock,
-    CheckCircle, RefreshCw, Eye, Target, Search, Filter,
-    Calendar, Award, Activity, Plus, FileText, Send, AlertCircle
+  LogOut,
+  Briefcase,
+  DollarSign,
+  Star,
+  Clock,
+  CheckCircle,
+  RefreshCw,
+  Eye,
+  Target,
+  Search,
+  Calendar,
+  Award,
+  Activity,
+  AlertCircle,
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -15,774 +26,1039 @@ import StatusBadge from '../components/common/StatusBadge';
 import TaskDetailsModal from '../components/freelancer/TaskDetailsModal';
 import DashboardSettings from '../components/common/DashboardSettings';
 import { usePreferences } from '../hooks/usePreferences';
+import { TASK_STATUS } from '../utils/constants';
 
-const FreelancerDashboard = () => {
-    console.log('[FreelancerDashboard] Component rendering');
-    const { user, logout, updateUser } = useAuth();
-    const navigate = useNavigate();
-    console.log('[FreelancerDashboard] User:', user);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('myTasks');
-    const [showDetailsModal, setShowDetailsModal] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(null);
-    const [stats, setStats] = useState({
-        activeTasks: 0,
-        completedTasks: 0,
-        pendingTasks: 0,
-        totalEarnings: 0,
-        pendingEarnings: 0,
-        performanceScore: 0,
-        rating: 0,
-        totalReviews: 0,
-        onTimeDeliveryRate: 0,
-        totalTasks: 0
-    });
-    const [myTasks, setMyTasks] = useState([]);
-    const [availableTasks, setAvailableTasks] = useState([]);
-    const [earnings, setEarnings] = useState([]);
-    const [reviews, setReviews] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all');
-    const [matchSkills, setMatchSkills] = useState(false);
-    const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
-    const { preferences, togglePreference } = usePreferences();
+const FREELANCER_PINNED_STORAGE_KEY = 'tasknexus_freelancer_pinned_tasks_v1';
+const LOCAL_PROGRESS_KEY = 'tasknexus_freelancer_progress';
 
-    const LOCAL_PROGRESS_KEY = 'tasknexus_freelancer_progress';
+const TASK_SORT_OPTIONS = [
+  { id: 'newest', label: 'Newest first' },
+  { id: 'oldest', label: 'Oldest first' },
+  { id: 'budget_high', label: 'Highest budget' },
+  { id: 'budget_low', label: 'Lowest budget' },
+  { id: 'deadline_soon', label: 'Nearest deadline' },
+];
 
-    const loadProgressCache = () => {
-        try {
-            return JSON.parse(localStorage.getItem(LOCAL_PROGRESS_KEY)) || {};
-        } catch {
-            return {};
-        }
-    };
+const MY_TASK_FILTER_OPTIONS = [
+  { id: 'all', label: 'All statuses' },
+  { id: TASK_STATUS.ASSIGNED, label: 'Assigned' },
+  { id: TASK_STATUS.IN_PROGRESS, label: 'In progress' },
+  { id: TASK_STATUS.SUBMITTED_WORK, label: 'Submitted work' },
+  { id: TASK_STATUS.COMPLETED, label: 'Completed' },
+];
 
-    const saveProgressCache = (taskId, metrics) => {
-        const cache = loadProgressCache();
-        cache[taskId] = metrics;
-        localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(cache));
-    };
+const getTaskId = (task) => task?.id || task?._id || '';
+const getTaskTitle = (task) => task?.task_details?.title || task?.title || 'Untitled Task';
+const getTaskDescription = (task) => task?.task_details?.description || task?.description || 'No description';
+const getTaskBudget = (task) => Number(task?.task_details?.budget ?? task?.budget ?? 0);
+const getTaskDeadline = (task) => task?.task_details?.deadline || task?.deadline || null;
+const getTaskCreatedAt = (task) => task?.created_at || task?.createdAt || null;
 
-    const mergeProgressFromCache = (tasks) => {
-        const cache = loadProgressCache();
-        return (tasks || []).map((task) => {
-            const cachedMetrics = cache[task.id];
-            // If API returns metrics, keep it; otherwise use cached.
-            if (task.metrics || !cachedMetrics) return task;
-            return { ...task, metrics: cachedMetrics };
-        });
-    };
-
-    useEffect(() => {
-        console.log('[FreelancerDashboard] useEffect triggered');
-        fetchDashboardData();
-    }, []);
-
-    const fetchDashboardData = async () => {
-        try {
-            setLoading(true);
-            const [dashboardRes, myTasksRes, availableRes] = await Promise.all([
-                api.get('/freelancer/dashboard'),
-                api.get('/freelancer/my-tasks?limit=20'),
-                api.get('/freelancer/available-tasks?limit=20')
-            ]);
-
-            if (dashboardRes.data.success) {
-                setStats(dashboardRes.data.data);
-            }
-
-            if (myTasksRes.data.success) {
-                setMyTasks(mergeProgressFromCache(myTasksRes.data.data.tasks || []));
-            }
-
-            if (availableRes.data.success) {
-                setAvailableTasks(mergeProgressFromCache(availableRes.data.data.tasks || []));
-            }
-        } catch (error) {
-            console.error('Error fetching dashboard data:', error);
-            setError(error.message || 'Failed to load dashboard data');
-            toast.error('Failed to load dashboard data. Please try refreshing.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchEarnings = async () => {
-        try {
-            const response = await api.get('/freelancer/earnings?limit=50');
-            if (response.data.success) {
-                setEarnings(response.data.data.payments || []);
-            }
-        } catch (error) {
-            console.error('Error fetching earnings:', error);
-            toast.error('Failed to load earnings');
-        }
-    };
-
-    const fetchReviews = async () => {
-        try {
-            const response = await api.get('/freelancer/reviews?limit=50');
-            if (response.data.success) {
-                setReviews(response.data.data || []);
-            }
-        } catch (error) {
-            console.error('Error fetching reviews:', error);
-            toast.error('Failed to load reviews');
-        }
-    };
-
-    useEffect(() => {
-        if (activeTab === 'earnings' && earnings.length === 0) {
-            fetchEarnings();
-        } else if (activeTab === 'reviews' && reviews.length === 0) {
-            fetchReviews();
-        }
-    }, [activeTab]);
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        await fetchDashboardData();
-        if (activeTab === 'earnings') await fetchEarnings();
-        if (activeTab === 'reviews') await fetchReviews();
-        setRefreshing(false);
-        toast.success('Dashboard refreshed!');
-    };
-
-    const handleAcceptTask = async (taskId) => {
-        try {
-            const response = await api.post(`/freelancer/tasks/${taskId}/accept`);
-            if (response.data.success) {
-                toast.success('Task accepted successfully!');
-                await fetchDashboardData();
-                setActiveTab('myTasks');
-            }
-        } catch (error) {
-            console.error('Error accepting task:', error);
-            const errorMsg = error.response?.data?.error?.message || error.response?.data?.message || 'Failed to accept task';
-            toast.error(errorMsg);
-        }
-    };
-
-    const handleViewTask = (task) => {
-        setSelectedTask(task);
-        setShowDetailsModal(true);
-    };
-
-    const handleStartWorking = async (task) => {
-        try {
-            await api.put(`/freelancer/tasks/${task.id}/start`);
-            toast.success('Marked as In Progress');
-            setShowDetailsModal(false);
-            await fetchDashboardData();
-        } catch (error) {
-            const msg = error.response?.data?.message || 'Could not start task';
-            toast.error(msg);
-        }
-    };
-
-    const handleCancelTask = async (task) => {
-        try {
-            await api.put(`/freelancer/tasks/${task.id}/cancel`);
-            toast.success('Task returned to available pool');
-            setShowDetailsModal(false);
-            await fetchDashboardData();
-        } catch (error) {
-            const msg = error.response?.data?.message || 'Could not cancel task';
-            toast.error(msg);
-        }
-    };
-
-    const handleUpdateProgress = async (taskId, progressPayload) => {
-        try {
-            await api.put(`/freelancer/tasks/${taskId}/progress`, progressPayload);
-            toast.success('Progress updated');
-            saveProgressCache(taskId, {
-                ...(selectedTask?.metrics || {}),
-                ...progressPayload,
-                progressUpdatedAt: new Date().toISOString(),
-            });
-            await fetchDashboardData();
-        } catch (error) {
-            const msg = error.response?.data?.message || 'Could not update progress';
-            toast.error(msg);
-        }
-    };
-
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
-    };
-
-    const handleAvailabilityChange = async (availability) => {
-        try {
-            setAvailabilityUpdating(true);
-            const res = await api.put('/freelancer/profile', { availability });
-            if (res.data.success) {
-                toast.success(`Availability set to ${availability.replace('_', ' ')}`);
-                updateUser({ ...user, freelancer_profile: res.data.data.freelancerProfile });
-            }
-        } catch (error) {
-            const msg = error.response?.data?.message || 'Could not update availability';
-            toast.error(msg);
-        } finally {
-            setAvailabilityUpdating(false);
-        }
-    };
-
-    const formatDate = (date) => {
-        if (!date) return 'No deadline';
-        return new Date(date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-    };
-
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount || 0);
-    };
-
-    const mySkills = (user?.freelancer_profile?.skills || []).map((s) => s.toLowerCase());
-
-    const getFilteredTasks = (tasks) => {
-        let filtered = tasks;
-
-        if (filterStatus !== 'all') {
-            filtered = filtered.filter(task => task.status === filterStatus);
-        }
-
-        if (searchTerm) {
-            const q = searchTerm.toLowerCase();
-            filtered = filtered.filter(task => {
-                const title = task.task_details?.title || task.title || '';
-                const desc = task.task_details?.description || task.description || '';
-                return title.toLowerCase().includes(q) || desc.toLowerCase().includes(q);
-            });
-        }
-
-        if (matchSkills && mySkills.length) {
-            filtered = filtered.filter(task => {
-                const hay = `${task.task_details?.title || task.title || ''} ${task.task_details?.description || task.description || ''}`.toLowerCase();
-                return mySkills.some((skill) => hay.includes(skill));
-            });
-        }
-
-        return filtered;
-    };
-
-    if (loading) {
-        console.log('[FreelancerDashboard] Rendering loading state');
-        return <Loading fullScreen={true} text="Loading dashboard..." />;
-    }
-
-    if (error && !stats.totalTasks) {
-        console.log('[FreelancerDashboard] Rendering error state:', error);
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Dashboard</h2>
-                    <p className="text-gray-600 mb-4">{error}</p>
-                    <button onClick={handleRefresh} className="btn-primary">
-                        Try Again
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const TaskCard = ({ task, isAvailable = false }) => {
-        const compact = preferences?.compactCards;
-        const paddingClass = compact ? 'p-4' : 'p-5';
-        const progress = task.metrics?.progress ?? null;
-
-        return (
-        <div className={`border border-slate-200 rounded-xl ${paddingClass} hover:shadow-xl transition-all duration-200 hover:border-primary-200 bg-white/80 backdrop-blur-sm`}>
-            <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900 mb-2 text-lg">
-                        {task.task_details?.title || 'Untitled Task'}
-                    </h4>
-                    <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-                        {task.task_details?.description || 'No description'}
-                    </p>
-                </div>
-                {!isAvailable && (
-                    <div className="ml-4">
-                        <StatusBadge status={task.status} />
-                    </div>
-                )}
-            </div>
-
-            <div className="flex items-center flex-wrap gap-4 text-sm text-gray-600 mb-4 pb-4 border-b border-gray-100">
-                <span className="flex items-center font-medium text-green-600">
-                    <DollarSign className="w-4 h-4 mr-1" />
-                    {formatCurrency(task.task_details?.budget)}
-                </span>
-                <span className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-1 text-blue-600" />
-                    {formatDate(task.task_details?.deadline)}
-                </span>
-                {task.task_details?.type && (
-                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-                        {task.task_details.type.replace(/-/g, ' ').toUpperCase()}
-                    </span>
-                )}
-                {progress !== null && (
-                    <span className="text-xs text-primary-600 bg-primary-50 px-2 py-1 rounded-full font-semibold">
-                        {progress}% complete
-                    </span>
-                )}
-            </div>
-
-            {progress !== null && preferences?.showProgressBars && (
-                <div className="mb-4">
-                    <div className="w-full bg-slate-100 rounded-full h-2">
-                        <div
-                            className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-indigo-500"
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                </div>
-            )}
-
-            <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-2">
-                    {task.client && (
-                        <span className="text-xs text-gray-500">
-                            Client: {task.client.profile?.firstName} {task.client.profile?.lastName}
-                        </span>
-                    )}
-                </div>
-                {isAvailable ? (
-                    <button
-                        onClick={() => handleAcceptTask(task.id)}
-                        className="btn-sm btn-primary flex items-center"
-                    >
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Accept Task
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => handleViewTask(task)}
-                        className="btn-sm btn-secondary flex items-center"
-                    >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View Details
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-    }
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            {/* Header */}
-            <header className="backdrop-blur bg-white/80 shadow-sm sticky top-0 z-10 border-b border-slate-100">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center space-x-3">
-                            <div className="h-10 w-10 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center font-bold">TN</div>
-                            <div>
-                                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">TaskNexus</h1>
-                                <p className="text-xs sm:text-sm text-slate-500">Freelancer Workspace</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => handleAvailabilityChange('available')}
-                                    disabled={availabilityUpdating}
-                                    className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'available'
-                                        ? 'btn-primary'
-                                        : 'btn-secondary'
-                                        }`}
-                                >
-                                    Available
-                                </button>
-                                <button
-                                    onClick={() => handleAvailabilityChange('busy')}
-                                    disabled={availabilityUpdating}
-                                    className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'busy'
-                                        ? 'btn-primary'
-                                        : 'btn-secondary'
-                                        }`}
-                                >
-                                    Busy
-                                </button>
-                            </div>
-                            <button
-                                onClick={handleRefresh}
-                                disabled={refreshing}
-                                className="btn-sm btn-secondary flex items-center rounded-full px-4"
-                            >
-                                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                                Refresh
-                            </button>
-                            <button
-                                onClick={() => navigate('/freelancer/profile')}
-                                className="btn-sm btn-secondary rounded-full px-4"
-                            >
-                                Profile
-                            </button>
-                            <div className="text-right">
-                                <p className="text-sm font-semibold text-slate-900">
-                                    {user?.profile.firstName} {user?.profile.lastName}
-                                </p>
-                                <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
-                            </div>
-                            <button
-                                onClick={handleLogout}
-                                className="btn btn-secondary flex items-center rounded-full"
-                            >
-                                <LogOut className="w-4 h-4 mr-2" />
-                                Logout
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Welcome Section */}
-                <div className="mb-8 relative overflow-hidden rounded-2xl border border-slate-100 shadow-lg bg-gradient-to-r from-primary-500 via-indigo-500 to-purple-500 text-white">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.25),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.18),transparent_30%)]" />
-                    <div className="relative p-8">
-                        <h2 className="text-3xl font-bold mb-2">
-                            Welcome back, {user?.profile.firstName}! 👋
-                        </h2>
-                        <p className="text-white/90 text-lg mb-4">
-                            Stay on track, showcase progress, and keep clients updated.
-                        </p>
-                        {stats.rating > 0 && (
-                            <div className="flex items-center flex-wrap gap-4 text-sm">
-                                <HeroBadge><Star className="w-5 h-5 mr-1 fill-yellow-400 text-yellow-400" />{stats.rating}/5.0 Rating ({stats.totalReviews} reviews)</HeroBadge>
-                                <HeroBadge><Target className="w-5 h-5 mr-1" />{stats.onTimeDeliveryRate}% On-Time Delivery</HeroBadge>
-                                <HeroBadge><Award className="w-5 h-5 mr-1" />Performance Score: {stats.performanceScore}/100</HeroBadge>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Stats Grid + Settings */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
-                    <StatCard
-                        title="Active Tasks"
-                        value={stats.activeTasks}
-                        icon={<Activity className="w-8 h-8 text-primary-600" />}
-                        color="bg-primary-50"
-                    />
-                    <StatCard
-                        title="Pending Review"
-                        value={stats.pendingTasks}
-                        icon={<Clock className="w-8 h-8 text-yellow-600" />}
-                        color="bg-yellow-50"
-                    />
-                    <StatCard
-                        title="Completed"
-                        value={stats.completedTasks}
-                        icon={<CheckCircle className="w-8 h-8 text-green-600" />}
-                        color="bg-green-50"
-                    />
-                    <StatCard
-                        title="Total Earned"
-                        value={formatCurrency(stats.totalEarnings)}
-                        icon={<DollarSign className="w-8 h-8 text-green-600" />}
-                        color="bg-green-50"
-                    />
-                    <StatCard
-                        title="Pending Payment"
-                        value={formatCurrency(stats.pendingEarnings)}
-                        icon={<DollarSign className="w-8 h-8 text-orange-600" />}
-                        color="bg-orange-50"
-                    />
-                    <StatCard
-                        title="Total Tasks"
-                        value={stats.totalTasks}
-                        icon={<Briefcase className="w-8 h-8 text-purple-600" />}
-                        color="bg-purple-50"
-                    />
-                    <div className="col-span-1 md:col-span-3 lg:col-span-2">
-                        <DashboardSettings
-                            preferences={preferences}
-                            togglePreference={togglePreference}
-                            title="Workspace Preferences"
-                            className="max-w-3xl"
-                        />
-                    </div>
-                </div>
-
-                {/* Tabs Navigation */}
-                <div className="mb-6">
-                    <div className="border-b border-gray-200">
-                        <nav className="-mb-px flex space-x-8">
-                            <button
-                                onClick={() => setActiveTab('myTasks')}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'myTasks'
-                                    ? 'border-primary-500 text-primary-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                            >
-                                <Briefcase className="w-5 h-5 inline-block mr-2" />
-                                My Tasks ({myTasks.length})
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('available')}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'available'
-                                    ? 'border-primary-500 text-primary-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                            >
-                                <Search className="w-5 h-5 inline-block mr-2" />
-                                Available Tasks ({availableTasks.length})
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('earnings')}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'earnings'
-                                    ? 'border-primary-500 text-primary-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                            >
-                                <DollarSign className="w-5 h-5 inline-block mr-2" />
-                                Earnings
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('reviews')}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'reviews'
-                                    ? 'border-primary-500 text-primary-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                            >
-                                <Star className="w-5 h-5 inline-block mr-2" />
-                                Reviews ({stats.totalReviews})
-                            </button>
-                        </nav>
-                    </div>
-                </div>
-
-                {/* Search and Filter */}
-                {(activeTab === 'myTasks' || activeTab === 'available') && (
-                    <div className="mb-6 flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                <input
-                                    type="text"
-                                    placeholder="Search tasks..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                />
-                            </div>
-                        </div>
-                        {activeTab === 'myTasks' && (
-                            <div className="sm:w-48">
-                                <select
-                                    value={filterStatus}
-                                    onChange={(e) => setFilterStatus(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="assigned">Assigned</option>
-                                    <option value="in_progress">In Progress</option>
-                                    <option value="submitted_work">Submitted</option>
-                                    <option value="completed">Completed</option>
-                                </select>
-                            </div>
-                        )}
-                        {activeTab === 'available' && (
-                            <label className="inline-flex items-center gap-2 text-sm text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
-                                <input
-                                    type="checkbox"
-                                    checked={matchSkills}
-                                    onChange={(e) => setMatchSkills(e.target.checked)}
-                                    className="accent-primary-600"
-                                />
-                                <span>Match my skills</span>
-                            </label>
-                        )}
-                    </div>
-                )}
-
-                {/* Tab Content */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                    {/* My Tasks Tab */}
-                    {activeTab === 'myTasks' && (
-                        <div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                                My Tasks ({getFilteredTasks(myTasks).length})
-                            </h3>
-                            {getFilteredTasks(myTasks).length === 0 ? (
-                                <EmptyState
-                                    icon={Briefcase}
-                                    title="No tasks found"
-                                    description={filterStatus !== 'all' || searchTerm
-                                        ? "Try adjusting your filters"
-                                        : "Accept tasks from the Available Tasks tab to get started"}
-                                />
-                            ) : (
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {getFilteredTasks(myTasks).map((task) => (
-                                        <TaskCard key={task.id} task={task} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Available Tasks Tab */}
-                    {activeTab === 'available' && (
-                        <div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                                Available Tasks ({getFilteredTasks(availableTasks).length})
-                            </h3>
-                            {getFilteredTasks(availableTasks).length === 0 ? (
-                                <EmptyState
-                                    icon={Search}
-                                    title="No available tasks"
-                                    description="Check back later for new opportunities"
-                                />
-                            ) : (
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {getFilteredTasks(availableTasks).map((task) => (
-                                        <TaskCard key={task.id} task={task} isAvailable={true} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Earnings Tab */}
-                    {activeTab === 'earnings' && (
-                        <div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                                Earnings History
-                            </h3>
-                            {earnings.length === 0 ? (
-                                <EmptyState
-                                    icon={DollarSign}
-                                    title="No earnings yet"
-                                    description="Complete tasks to start earning"
-                                />
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                            {earnings.map((payment) => (
-                                                <tr key={payment.id} className="hover:bg-gray-50">
-                                                    <td className="px-6 py-4 text-sm text-gray-900">{payment.task?.task_details?.title}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-600">
-                                                        {payment.client?.profile?.firstName} {payment.client?.profile?.lastName}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-sm font-medium text-green-600">
-                                                        {formatCurrency(payment.amounts?.freelancerPayout)}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`px-2 py-1 text-xs rounded-full ${payment.status === 'released' ? 'bg-green-100 text-green-800' :
-                                                            payment.status === 'escrowed' ? 'bg-yellow-100 text-yellow-800' :
-                                                                'bg-gray-100 text-gray-800'
-                                                            }`}>
-                                                            {payment.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-sm text-gray-600">
-                                                        {formatDate(payment.created_at)}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Reviews Tab */}
-                    {activeTab === 'reviews' && (
-                        <div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                                Client Reviews
-                            </h3>
-                            {reviews.length === 0 ? (
-                                <EmptyState
-                                    icon={Star}
-                                    title="No reviews yet"
-                                    description="Complete tasks to receive client reviews"
-                                />
-                            ) : (
-                                <div className="space-y-4">
-                                    {reviews.map((review) => (
-                                        <div key={review.id} className="border border-gray-200 rounded-lg p-5">
-                                            <div className="flex items-start justify-between mb-3">
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 mb-1">
-                                                        {review.task?.task_details?.title}
-                                                    </h4>
-                                                    <p className="text-sm text-gray-600">
-                                                        {review.reviewer?.profile?.firstName} {review.reviewer?.profile?.lastName}
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center">
-                                                    {[...Array(5)].map((_, i) => (
-                                                        <Star
-                                                            key={i}
-                                                            className={`w-5 h-5 ${i < review.rating
-                                                                ? 'text-yellow-400 fill-yellow-400'
-                                                                : 'text-gray-300'
-                                                                }`}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            {review.feedback && (
-                                                <p className="text-gray-700 text-sm mb-2">{review.feedback}</p>
-                                            )}
-                                            <p className="text-xs text-gray-500">
-                                                {formatDate(review.created_at)}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </main>
-
-            {/* Task Details Modal */}
-            <TaskDetailsModal
-                isOpen={showDetailsModal}
-                onClose={() => setShowDetailsModal(false)}
-                task={selectedTask}
-                onStartWorking={handleStartWorking}
-                onCancelTask={handleCancelTask}
-                onUpdateProgress={handleUpdateProgress}
-            />
-        </div>
-    );
+const formatDate = (value) => {
+  if (!value) return 'No date';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No date';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 };
 
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(Number(amount || 0));
+
+const getSafeStorageArray = (key) => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getDueBadge = (task) => {
+  const deadline = getTaskDeadline(task);
+  if (!deadline) return { label: 'No deadline', tone: 'muted' };
+
+  const due = new Date(deadline);
+  if (Number.isNaN(due.getTime())) return { label: 'No deadline', tone: 'muted' };
+
+  const now = new Date();
+  const days = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (days < 0) return { label: `${Math.abs(days)}d overdue`, tone: 'danger' };
+  if (days === 0) return { label: 'Due today', tone: 'warning' };
+  if (days <= 3) return { label: `Due in ${days}d`, tone: 'warning' };
+  return { label: `Due in ${days}d`, tone: 'ok' };
+};
+
+const badgeTone = (tone) => {
+  const tones = {
+    ok: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    warning: 'bg-amber-50 text-amber-700 border border-amber-200',
+    danger: 'bg-rose-50 text-rose-700 border border-rose-200',
+    muted: 'bg-slate-100 text-slate-600 border border-slate-200',
+  };
+  return tones[tone] || tones.muted;
+};
+
+const csvEscape = (value) => {
+  const stringValue = String(value ?? '');
+  return `"${stringValue.replace(/"/g, '""')}"`;
+};
+
+const FreelancerDashboard = () => {
+  const { user, logout, updateUser } = useAuth();
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [activeTab, setActiveTab] = useState('myTasks');
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const [stats, setStats] = useState({
+    activeTasks: 0,
+    completedTasks: 0,
+    pendingTasks: 0,
+    totalEarnings: 0,
+    pendingEarnings: 0,
+    performanceScore: 0,
+    rating: 0,
+    totalReviews: 0,
+    onTimeDeliveryRate: 0,
+    totalTasks: 0,
+  });
+
+  const [myTasks, setMyTasks] = useState([]);
+  const [availableTasks, setAvailableTasks] = useState([]);
+  const [earnings, setEarnings] = useState([]);
+  const [reviews, setReviews] = useState([]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [taskSort, setTaskSort] = useState('newest');
+  const [matchSkills, setMatchSkills] = useState(false);
+
+  const [pinnedTaskIds, setPinnedTaskIds] = useState([]);
+  const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
+
+  const { preferences, togglePreference, setPreference, resetPreferences } = usePreferences();
+
+  useEffect(() => {
+    setPinnedTaskIds(getSafeStorageArray(FREELANCER_PINNED_STORAGE_KEY));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(FREELANCER_PINNED_STORAGE_KEY, JSON.stringify(pinnedTaskIds));
+  }, [pinnedTaskIds]);
+
+  useEffect(() => {
+    setTaskSort(preferences.defaultTaskSort || 'newest');
+  }, [preferences.defaultTaskSort]);
+
+  const loadProgressCache = useCallback(() => {
+    try {
+      return JSON.parse(localStorage.getItem(LOCAL_PROGRESS_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const saveProgressCache = useCallback(
+    (taskId, metrics) => {
+      const cache = loadProgressCache();
+      cache[taskId] = metrics;
+      localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(cache));
+    },
+    [loadProgressCache],
+  );
+
+  const mergeProgressFromCache = useCallback(
+    (tasks) => {
+      const cache = loadProgressCache();
+      return (tasks || []).map((task) => {
+        const id = getTaskId(task);
+        if (!id) return task;
+
+        if (task.metrics || !cache[id]) {
+          return task;
+        }
+
+        return {
+          ...task,
+          metrics: cache[id],
+        };
+      });
+    },
+    [loadProgressCache],
+  );
+
+  const fetchDashboardData = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+
+      const [dashboardRes, myTasksRes, availableRes] = await Promise.all([
+        api.get('/freelancer/dashboard'),
+        api.get('/freelancer/my-tasks?limit=50'),
+        api.get('/freelancer/available-tasks?limit=50'),
+      ]);
+
+      if (dashboardRes.data.success) {
+        setStats(dashboardRes.data.data || {});
+      }
+
+      if (myTasksRes.data.success) {
+        setMyTasks(mergeProgressFromCache(myTasksRes.data.data.tasks || []));
+      }
+
+      if (availableRes.data.success) {
+        setAvailableTasks(mergeProgressFromCache(availableRes.data.data.tasks || []));
+      }
+
+      setError(null);
+    } catch (fetchError) {
+      const message = fetchError?.message || 'Failed to load dashboard';
+      setError(message);
+      if (!silent) {
+        toast.error('Failed to load freelancer workspace. Please refresh.');
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [mergeProgressFromCache]);
+
+  const fetchEarnings = useCallback(async () => {
+    try {
+      const response = await api.get('/freelancer/earnings?limit=80');
+      if (response.data.success) {
+        setEarnings(response.data.data.payments || []);
+      }
+    } catch (fetchError) {
+      toast.error(fetchError?.message || 'Failed to load earnings');
+    }
+  }, []);
+
+  const fetchReviews = useCallback(async () => {
+    try {
+      const response = await api.get('/freelancer/reviews?limit=80');
+      if (response.data.success) {
+        setReviews(response.data.data || []);
+      }
+    } catch (fetchError) {
+      toast.error(fetchError?.message || 'Failed to load reviews');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  useEffect(() => {
+    if (!preferences.autoRefresh) {
+      return undefined;
+    }
+
+    const seconds = Math.max(30, Number(preferences.autoRefreshSeconds || 120));
+    const timer = window.setInterval(() => {
+      fetchDashboardData({ silent: true });
+    }, seconds * 1000);
+
+    return () => window.clearInterval(timer);
+  }, [preferences.autoRefresh, preferences.autoRefreshSeconds, fetchDashboardData]);
+
+  useEffect(() => {
+    if (activeTab === 'earnings' && earnings.length === 0) {
+      fetchEarnings();
+    }
+    if (activeTab === 'reviews' && reviews.length === 0) {
+      fetchReviews();
+    }
+  }, [activeTab, earnings.length, reviews.length, fetchEarnings, fetchReviews]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData({ silent: false });
+    if (activeTab === 'earnings') await fetchEarnings();
+    if (activeTab === 'reviews') await fetchReviews();
+    setRefreshing(false);
+    toast.success('Freelancer workspace refreshed');
+  };
+
+  const handleAcceptTask = async (taskId) => {
+    try {
+      const response = await api.post(`/freelancer/tasks/${taskId}/accept`);
+      if (response.data.success) {
+        toast.success('Task accepted successfully');
+        await fetchDashboardData();
+        setActiveTab('myTasks');
+      }
+    } catch (acceptError) {
+      const message =
+        acceptError.response?.data?.error?.message ||
+        acceptError.response?.data?.message ||
+        'Failed to accept task';
+      toast.error(message);
+    }
+  };
+
+  const handleStartWorking = async (task) => {
+    try {
+      await api.put(`/freelancer/tasks/${getTaskId(task)}/start`);
+      toast.success('Task marked as in progress');
+      setShowDetailsModal(false);
+      await fetchDashboardData();
+    } catch (startError) {
+      toast.error(startError.response?.data?.message || 'Could not start task');
+    }
+  };
+
+  const handleCancelTask = async (task) => {
+    try {
+      await api.put(`/freelancer/tasks/${getTaskId(task)}/cancel`);
+      toast.success('Task returned to available pool');
+      setShowDetailsModal(false);
+      await fetchDashboardData();
+    } catch (cancelError) {
+      toast.error(cancelError.response?.data?.message || 'Could not cancel task');
+    }
+  };
+
+  const handleUpdateProgress = async (taskId, progressPayload) => {
+    try {
+      await api.put(`/freelancer/tasks/${taskId}/progress`, progressPayload);
+      toast.success('Progress updated');
+      saveProgressCache(taskId, {
+        ...(selectedTask?.metrics || {}),
+        ...progressPayload,
+        progressUpdatedAt: new Date().toISOString(),
+      });
+      await fetchDashboardData();
+    } catch (progressError) {
+      toast.error(progressError.response?.data?.message || 'Could not update progress');
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  const handleAvailabilityChange = async (availability) => {
+    try {
+      setAvailabilityUpdating(true);
+      const response = await api.put('/freelancer/profile', { availability });
+      if (response.data.success) {
+        toast.success(`Availability set to ${availability.replace('_', ' ')}`);
+        updateUser({
+          ...user,
+          freelancer_profile: response.data.data.freelancerProfile,
+        });
+      }
+    } catch (availabilityError) {
+      toast.error(availabilityError.response?.data?.message || 'Could not update availability');
+    } finally {
+      setAvailabilityUpdating(false);
+    }
+  };
+
+  const mySkills = (user?.freelancer_profile?.skills || []).map((skill) => skill.toLowerCase());
+
+  const togglePinTask = (taskId) => {
+    if (!preferences.quickActions.pinning || !taskId) return;
+
+    setPinnedTaskIds((prev) =>
+      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [taskId, ...prev],
+    );
+  };
+
+  const processTasks = useCallback(
+    (tasks, { allowStatusFilter = false } = {}) => {
+      let filtered = [...tasks];
+
+      if (allowStatusFilter && filterStatus !== 'all') {
+        filtered = filtered.filter((task) => task.status === filterStatus);
+      }
+
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase();
+        filtered = filtered.filter((task) => {
+          const title = getTaskTitle(task).toLowerCase();
+          const description = getTaskDescription(task).toLowerCase();
+          return title.includes(query) || description.includes(query);
+        });
+      }
+
+      if (!allowStatusFilter && matchSkills && mySkills.length > 0) {
+        filtered = filtered.filter((task) => {
+          const haystack = `${getTaskTitle(task)} ${getTaskDescription(task)}`.toLowerCase();
+          return mySkills.some((skill) => haystack.includes(skill));
+        });
+      }
+
+      const sorted = filtered.sort((left, right) => {
+        if (taskSort === 'newest') {
+          return new Date(getTaskCreatedAt(right) || 0) - new Date(getTaskCreatedAt(left) || 0);
+        }
+        if (taskSort === 'oldest') {
+          return new Date(getTaskCreatedAt(left) || 0) - new Date(getTaskCreatedAt(right) || 0);
+        }
+        if (taskSort === 'budget_high') {
+          return getTaskBudget(right) - getTaskBudget(left);
+        }
+        if (taskSort === 'budget_low') {
+          return getTaskBudget(left) - getTaskBudget(right);
+        }
+        if (taskSort === 'deadline_soon') {
+          const leftDeadline = new Date(getTaskDeadline(left) || '9999-12-31').getTime();
+          const rightDeadline = new Date(getTaskDeadline(right) || '9999-12-31').getTime();
+          return leftDeadline - rightDeadline;
+        }
+        return 0;
+      });
+
+      if (!preferences.quickActions.pinning || pinnedTaskIds.length === 0) {
+        return sorted;
+      }
+
+      return sorted.sort((left, right) => {
+        const leftPinned = pinnedTaskIds.includes(getTaskId(left));
+        const rightPinned = pinnedTaskIds.includes(getTaskId(right));
+        if (leftPinned === rightPinned) return 0;
+        return leftPinned ? -1 : 1;
+      });
+    },
+    [filterStatus, matchSkills, mySkills, taskSort, searchTerm, preferences.quickActions.pinning, pinnedTaskIds],
+  );
+
+  const filteredMyTasks = useMemo(() => processTasks(myTasks, { allowStatusFilter: true }), [myTasks, processTasks]);
+  const filteredAvailableTasks = useMemo(() => processTasks(availableTasks), [availableTasks, processTasks]);
+
+  const boardColumns = useMemo(
+    () => [
+      {
+        id: 'active',
+        title: 'Active',
+        matcher: (status) => [TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS].includes(status),
+      },
+      {
+        id: 'review',
+        title: 'Review',
+        matcher: (status) => [TASK_STATUS.SUBMITTED_WORK, TASK_STATUS.QA_REVIEW].includes(status),
+      },
+      {
+        id: 'done',
+        title: 'Done',
+        matcher: (status) => status === TASK_STATUS.COMPLETED,
+      },
+      {
+        id: 'other',
+        title: 'Other',
+        matcher: (status) => ![TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS, TASK_STATUS.SUBMITTED_WORK, TASK_STATUS.QA_REVIEW, TASK_STATUS.COMPLETED].includes(status),
+      },
+    ],
+    [],
+  );
+
+  const groupedMyTasks = useMemo(
+    () =>
+      boardColumns
+        .map((column) => ({
+          ...column,
+          tasks: filteredMyTasks.filter((task) => column.matcher(task.status)),
+        }))
+        .filter((column) => column.tasks.length > 0),
+    [boardColumns, filteredMyTasks],
+  );
+
+  const deadlineRailTasks = useMemo(
+    () =>
+      myTasks
+        .filter((task) => {
+          const due = getTaskDeadline(task);
+          if (!due) return false;
+          if ([TASK_STATUS.COMPLETED, TASK_STATUS.CANCELLED].includes(task.status)) return false;
+          return !Number.isNaN(new Date(due).getTime());
+        })
+        .sort((left, right) => new Date(getTaskDeadline(left)) - new Date(getTaskDeadline(right)))
+        .slice(0, 6),
+    [myTasks],
+  );
+
+  const earningsSummary = useMemo(() => {
+    const released = earnings
+      .filter((payment) => payment.status === 'released')
+      .reduce((sum, payment) => sum + Number(payment.amounts?.freelancerPayout || 0), 0);
+
+    const escrowed = earnings
+      .filter((payment) => payment.status === 'escrowed')
+      .reduce((sum, payment) => sum + Number(payment.amounts?.freelancerPayout || 0), 0);
+
+    const last7Days = earnings
+      .filter((payment) => {
+        if (payment.status !== 'released') return false;
+        const createdAt = new Date(payment.created_at || payment.createdAt || 0).getTime();
+        if (Number.isNaN(createdAt)) return false;
+        return Date.now() - createdAt <= 7 * 24 * 60 * 60 * 1000;
+      })
+      .reduce((sum, payment) => sum + Number(payment.amounts?.freelancerPayout || 0), 0);
+
+    return {
+      released,
+      escrowed,
+      last7Days,
+    };
+  }, [earnings]);
+
+  const goalsProgress = useMemo(() => {
+    const earningsGoal = Math.max(1, Number(preferences.goals.weeklyEarnings || 1));
+    const tasksGoal = Math.max(1, Number(preferences.goals.weeklyCompletedTasks || 1));
+
+    const earningsValue = earningsSummary.last7Days || Number(stats.totalEarnings || 0);
+    const completedValue = Number(stats.completedTasks || 0);
+
+    return {
+      earnings: {
+        value: earningsValue,
+        goal: earningsGoal,
+        progress: Math.min(100, Math.round((earningsValue / earningsGoal) * 100)),
+      },
+      completed: {
+        value: completedValue,
+        goal: tasksGoal,
+        progress: Math.min(100, Math.round((completedValue / tasksGoal) * 100)),
+      },
+    };
+  }, [preferences.goals.weeklyEarnings, preferences.goals.weeklyCompletedTasks, earningsSummary.last7Days, stats.totalEarnings, stats.completedTasks]);
+
+  const exportEarningsCsv = () => {
+    if (earnings.length === 0) {
+      toast.error('No earnings data to export');
+      return;
+    }
+
+    const header = ['Task', 'Client', 'Amount', 'Status', 'Date'];
+    const rows = earnings.map((payment) => [
+      payment.task?.task_details?.title || 'Untitled',
+      `${payment.client?.profile?.firstName || ''} ${payment.client?.profile?.lastName || ''}`.trim(),
+      Number(payment.amounts?.freelancerPayout || 0),
+      payment.status || '',
+      formatDate(payment.created_at || payment.createdAt),
+    ]);
+
+    const csv = [header, ...rows]
+      .map((row) => row.map((value) => csvEscape(value)).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tasknexus-freelancer-earnings-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    toast.success('Earnings CSV exported');
+  };
+
+  if (loading) {
+    return <Loading fullScreen={true} text="Loading freelancer workspace..." />;
+  }
+
+  if (error && !stats.totalTasks) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center px-4">
+        <div className="text-center max-w-lg bg-white/90 border border-slate-100 rounded-3xl p-8 shadow-xl">
+          <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Unable to load workspace</h2>
+          <p className="text-slate-600 mb-5">{error}</p>
+          <button onClick={handleRefresh} className="btn btn-primary">Try Again</button>
+        </div>
+      </div>
+    );
+  }
+
+  const taskLayout = preferences.taskLayout || 'list';
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+      <header className="backdrop-blur bg-white/80 shadow-sm sticky top-0 z-20 border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center font-bold">TN</div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">TaskNexus</h1>
+                <p className="text-xs sm:text-sm text-slate-500">Freelancer Workspace</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => handleAvailabilityChange('available')}
+                disabled={availabilityUpdating}
+                className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'available' ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                Available
+              </button>
+              <button
+                onClick={() => handleAvailabilityChange('busy')}
+                disabled={availabilityUpdating}
+                className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'busy' ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                Busy
+              </button>
+              <button onClick={handleRefresh} disabled={refreshing} className="btn-sm btn-secondary flex items-center rounded-full px-4">
+                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+              <button onClick={() => navigate('/freelancer/profile')} className="btn-sm btn-secondary rounded-full px-4">
+                Profile
+              </button>
+              <button onClick={handleLogout} className="btn btn-secondary flex items-center rounded-full">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {!preferences.focusMode && (
+          <section className="relative overflow-hidden rounded-2xl border border-slate-100 shadow-lg bg-gradient-to-r from-primary-500 via-indigo-500 to-cyan-500 text-white">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_38%),radial-gradient(circle_at_78%_0%,rgba(255,255,255,0.18),transparent_30%)]" />
+            <div className="relative p-8">
+              <h2 className="text-3xl font-bold mb-2">Welcome back, {user?.profile?.firstName || 'Freelancer'}</h2>
+              <p className="text-white/90">Run your workflow with board views, goals, smart filters, and progress controls.</p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+                <HeroBadge><Star className="w-4 h-4 mr-1" />{stats.rating || 0}/5 rating</HeroBadge>
+                <HeroBadge><Award className="w-4 h-4 mr-1" />{stats.onTimeDeliveryRate || 0}% on-time</HeroBadge>
+                <HeroBadge><Target className="w-4 h-4 mr-1" />{taskLayout} layout</HeroBadge>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
+          <StatCard title="Active Tasks" value={stats.activeTasks || 0} icon={<Activity className="w-8 h-8 text-primary-600" />} color="bg-primary-50" />
+          <StatCard title="Pending Review" value={stats.pendingTasks || 0} icon={<Clock className="w-8 h-8 text-amber-600" />} color="bg-amber-50" />
+          <StatCard title="Completed" value={stats.completedTasks || 0} icon={<CheckCircle className="w-8 h-8 text-emerald-600" />} color="bg-emerald-50" />
+          <StatCard title="Total Earned" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(stats.totalEarnings || 0)} icon={<DollarSign className="w-8 h-8 text-green-600" />} color="bg-green-50" />
+          <StatCard title="Pending Payout" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(stats.pendingEarnings || 0)} icon={<DollarSign className="w-8 h-8 text-orange-600" />} color="bg-orange-50" />
+          <StatCard title="Performance" value={stats.performanceScore || 0} icon={<Target className="w-8 h-8 text-violet-600" />} color="bg-violet-50" />
+        </section>
+
+        {preferences.showAdvancedStats && (
+          <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <InsightCard title="Weekly Earnings Goal" value={`${goalsProgress.earnings.progress}%`} subtitle={`${preferences.hideFinancials ? 'Hidden' : formatCurrency(goalsProgress.earnings.value)} / ${preferences.hideFinancials ? 'Hidden' : formatCurrency(goalsProgress.earnings.goal)}`} />
+            <InsightCard title="Completed Goal" value={`${goalsProgress.completed.progress}%`} subtitle={`${goalsProgress.completed.value} / ${goalsProgress.completed.goal} tasks`} />
+            <InsightCard title="Last 7 Days" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(earningsSummary.last7Days)} subtitle="Released payouts" />
+            <InsightCard title="Escrowed" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(earningsSummary.escrowed)} subtitle="Pending release" />
+          </section>
+        )}
+
+        {preferences.showDeadlineRail && deadlineRailTasks.length > 0 && (
+          <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm uppercase tracking-wide font-semibold text-slate-500 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary-600" />
+                Due Soon
+              </h3>
+              <p className="text-xs text-slate-500">Your nearest active deadlines.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {deadlineRailTasks.map((task) => {
+                const dueBadge = getDueBadge(task);
+                return (
+                  <button
+                    key={getTaskId(task)}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setShowDetailsModal(true);
+                    }}
+                    className="text-left rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-primary-200 hover:shadow-sm transition"
+                  >
+                    <p className="font-semibold text-slate-900 text-sm line-clamp-1">{getTaskTitle(task)}</p>
+                    <p className="text-xs text-slate-500 mt-1">{formatDate(getTaskDeadline(task))}</p>
+                    <span className={`mt-2 inline-flex px-2 py-1 rounded-full text-[11px] font-semibold ${badgeTone(dueBadge.tone)}`}>
+                      {dueBadge.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-5">
+          <DashboardSettings
+            preferences={preferences}
+            togglePreference={togglePreference}
+            setPreference={setPreference}
+            resetPreferences={resetPreferences}
+            title="Freelancer Workspace Settings"
+          />
+        </section>
+
+        <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <nav className="flex flex-wrap gap-2">
+              {[
+                { id: 'myTasks', label: `My Tasks (${myTasks.length})` },
+                { id: 'available', label: `Available (${availableTasks.length})` },
+                { id: 'earnings', label: 'Earnings' },
+                { id: 'reviews', label: `Reviews (${stats.totalReviews || 0})` },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border ${
+                    activeTab === tab.id
+                      ? 'bg-primary-50 text-primary-700 border-primary-200'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+            <div className="flex flex-wrap gap-2">
+              {['list', 'grid', 'board'].map((layout) => (
+                <button
+                  key={layout}
+                  type="button"
+                  onClick={() => setPreference('taskLayout', layout)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border ${
+                    taskLayout === layout
+                      ? 'bg-primary-50 text-primary-700 border-primary-200'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary-200'
+                  }`}
+                >
+                  {layout}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(activeTab === 'myTasks' || activeTab === 'available') && (
+            <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="relative md:col-span-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search tasks by title or description"
+                    className="input pl-9 py-2"
+                  />
+                </div>
+
+                {activeTab === 'myTasks' ? (
+                  <label className="block">
+                    <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Status</p>
+                    <select
+                      value={filterStatus}
+                      onChange={(event) => setFilterStatus(event.target.value)}
+                      className="input py-2"
+                    >
+                      {MY_TASK_FILTER_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={matchSkills}
+                      onChange={(event) => setMatchSkills(event.target.checked)}
+                      className="accent-primary-600"
+                    />
+                    <span>Match my skills</span>
+                  </label>
+                )}
+
+                <label className="block">
+                  <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Sort</p>
+                  <select value={taskSort} onChange={(event) => setTaskSort(event.target.value)} className="input py-2">
+                    {TASK_SORT_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div className="p-5">
+            {activeTab === 'myTasks' && (
+              filteredMyTasks.length === 0 ? (
+                <EmptyState icon={Briefcase} title="No tasks found" description="Try adjusting your filters or accept new work." />
+              ) : taskLayout === 'board' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {groupedMyTasks.map((column) => (
+                    <div key={column.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-semibold text-slate-700">{column.title}</h4>
+                        <span className="text-xs font-semibold text-slate-500">{column.tasks.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {column.tasks.map((task) => (
+                          <BoardTaskCard
+                            key={getTaskId(task)}
+                            task={task}
+                            onClick={() => {
+                              setSelectedTask(task);
+                              setShowDetailsModal(true);
+                            }}
+                            isPinned={pinnedTaskIds.includes(getTaskId(task))}
+                            onTogglePin={() => togglePinTask(getTaskId(task))}
+                            canPin={preferences.quickActions.pinning}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={taskLayout === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-4'}>
+                  {filteredMyTasks.map((task) => (
+                    <FreelancerTaskCard
+                      key={getTaskId(task)}
+                      task={task}
+                      onView={() => {
+                        setSelectedTask(task);
+                        setShowDetailsModal(true);
+                      }}
+                      isPinned={pinnedTaskIds.includes(getTaskId(task))}
+                      onTogglePin={() => togglePinTask(getTaskId(task))}
+                      canPin={preferences.quickActions.pinning}
+                      hideFinancials={preferences.hideFinancials}
+                      preferences={preferences}
+                    />
+                  ))}
+                </div>
+              )
+            )}
+
+            {activeTab === 'available' && (
+              filteredAvailableTasks.length === 0 ? (
+                <EmptyState icon={Search} title="No available tasks" description="Check back later for new opportunities." />
+              ) : (
+                <div className={taskLayout === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-4'}>
+                  {filteredAvailableTasks.map((task) => (
+                    <FreelancerTaskCard
+                      key={getTaskId(task)}
+                      task={task}
+                      onView={() => {
+                        setSelectedTask(task);
+                        setShowDetailsModal(true);
+                      }}
+                      isPinned={pinnedTaskIds.includes(getTaskId(task))}
+                      onTogglePin={() => togglePinTask(getTaskId(task))}
+                      canPin={preferences.quickActions.pinning}
+                      hideFinancials={preferences.hideFinancials}
+                      preferences={preferences}
+                      isAvailable={true}
+                      onAccept={() => handleAcceptTask(getTaskId(task))}
+                    />
+                  ))}
+                </div>
+              )
+            )}
+
+            {activeTab === 'earnings' && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-slate-900">Earnings Overview</h3>
+                  {preferences.quickActions.export && (
+                    <button onClick={exportEarningsCsv} className="btn btn-secondary">Export CSV</button>
+                  )}
+                </div>
+                {earnings.length === 0 ? (
+                  <EmptyState icon={DollarSign} title="No earnings yet" description="Complete tasks to start earning." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Task</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Client</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Amount</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {earnings.map((payment) => (
+                          <tr key={payment.id} className="hover:bg-slate-50/70">
+                            <td className="px-4 py-3 text-sm text-slate-900">{payment.task?.task_details?.title || 'Untitled task'}</td>
+                            <td className="px-4 py-3 text-sm text-slate-600">{payment.client?.profile?.firstName} {payment.client?.profile?.lastName}</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{preferences.hideFinancials ? 'Hidden' : formatCurrency(payment.amounts?.freelancerPayout)}</td>
+                            <td className="px-4 py-3 text-sm text-slate-600">{payment.status}</td>
+                            <td className="px-4 py-3 text-sm text-slate-600">{formatDate(payment.created_at || payment.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'reviews' && (
+              reviews.length === 0 ? (
+                <EmptyState icon={Star} title="No reviews yet" description="Complete more work to collect reviews." />
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="border border-slate-200 rounded-xl p-4 bg-white">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <p className="font-semibold text-slate-900">{review.task?.task_details?.title || 'Untitled task'}</p>
+                          <p className="text-sm text-slate-600">{review.reviewer?.profile?.firstName} {review.reviewer?.profile?.lastName}</p>
+                        </div>
+                        <div className="flex items-center">
+                          {[...Array(5)].map((_, idx) => (
+                            <Star key={idx} className={`w-4 h-4 ${idx < review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      {review.feedback && <p className="text-sm text-slate-700 mb-2">{review.feedback}</p>}
+                      <p className="text-xs text-slate-500">{formatDate(review.created_at || review.createdAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        </section>
+      </main>
+
+      <TaskDetailsModal
+        isOpen={showDetailsModal}
+        onClose={() => setShowDetailsModal(false)}
+        task={selectedTask}
+        onStartWorking={handleStartWorking}
+        onCancelTask={handleCancelTask}
+        onUpdateProgress={handleUpdateProgress}
+      />
+    </div>
+  );
+};
+
+const FreelancerTaskCard = ({
+  task,
+  onView,
+  isPinned,
+  onTogglePin,
+  canPin,
+  hideFinancials,
+  preferences,
+  isAvailable = false,
+  onAccept,
+}) => {
+  const compact = preferences?.compactCards;
+  const progress = task?.metrics?.progress ?? null;
+  const dueBadge = getDueBadge(task);
+
+  return (
+    <div className={`border border-slate-200 rounded-xl ${compact ? 'p-4' : 'p-5'} hover:shadow-lg transition bg-white`}>
+      <div className="flex justify-between items-start gap-3 mb-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-slate-900 line-clamp-1">{getTaskTitle(task)}</p>
+          <p className="text-sm text-slate-600 line-clamp-2 mt-1">{getTaskDescription(task)}</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          {!isAvailable && <StatusBadge status={task.status} />}
+          {canPin && (
+            <button onClick={onTogglePin} className="text-slate-400 hover:text-amber-500 transition" type="button">
+              <Star className={`w-4 h-4 ${isPinned ? 'fill-amber-400 text-amber-500' : ''}`} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-4">
+        <span className="inline-flex items-center"><DollarSign className="w-4 h-4 mr-1 text-emerald-600" />{hideFinancials ? 'Hidden' : formatCurrency(getTaskBudget(task))}</span>
+        <span className="inline-flex items-center"><Calendar className="w-4 h-4 mr-1 text-blue-600" />{formatDate(getTaskDeadline(task))}</span>
+        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${badgeTone(dueBadge.tone)}`}>{dueBadge.label}</span>
+        {progress !== null && <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-1 rounded-full">{progress}% complete</span>}
+      </div>
+
+      {progress !== null && preferences?.showProgressBars && (
+        <div className="mb-4">
+          <div className="w-full bg-slate-100 rounded-full h-2">
+            <div className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-cyan-500" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center gap-2">
+        <button onClick={onView} className="btn-sm btn-secondary flex items-center" type="button">
+          <Eye className="w-4 h-4 mr-1" />
+          View
+        </button>
+        {isAvailable && onAccept && (
+          <button onClick={onAccept} className="btn-sm btn-primary" type="button">
+            Accept Task
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const BoardTaskCard = ({ task, onClick, isPinned, onTogglePin, canPin }) => {
+  const dueBadge = getDueBadge(task);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-2">
+        <button type="button" onClick={onClick} className="text-left min-w-0">
+          <p className="text-sm font-semibold text-slate-900 line-clamp-1">{getTaskTitle(task)}</p>
+          <p className="text-xs text-slate-500 mt-1">{formatDate(getTaskDeadline(task))}</p>
+        </button>
+        {canPin && (
+          <button onClick={onTogglePin} type="button" className="text-slate-400 hover:text-amber-500">
+            <Star className={`w-4 h-4 ${isPinned ? 'fill-amber-400 text-amber-500' : ''}`} />
+          </button>
+        )}
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <StatusBadge status={task.status} />
+        <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${badgeTone(dueBadge.tone)}`}>{dueBadge.label}</span>
+      </div>
+    </div>
+  );
+};
+
+const InsightCard = ({ title, value, subtitle }) => (
+  <div className="rounded-xl border border-slate-100 bg-white/90 p-4 shadow-sm">
+    <p className="text-xs uppercase tracking-wide font-semibold text-slate-500">{title}</p>
+    <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
+    <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+  </div>
+);
+
 const HeroBadge = ({ children }) => (
-    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/25">
-        {children}
-    </span>
+  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30">
+    {children}
+  </span>
 );
 
 export default FreelancerDashboard;
-

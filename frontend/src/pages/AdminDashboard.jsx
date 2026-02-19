@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
-  LogOut, Users, Briefcase, DollarSign, Activity,
-  TrendingUp, AlertCircle, CheckCircle, Clock, RefreshCw,
-  UserCheck, FileText, Eye
+  LogOut, Users, Briefcase, DollarSign, Clock, RefreshCw,
+  FileText
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -80,9 +79,9 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white/85 backdrop-blur border-b border-slate-100 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div>
@@ -119,12 +118,10 @@ const AdminDashboard = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            Admin Control Center
-          </h2>
-          <p className="text-gray-600">
-            Manage tasks, users, and monitor platform performance
+        <div className="mb-8 rounded-2xl border border-slate-100 bg-gradient-to-r from-primary-600 to-cyan-600 p-6 text-white shadow-xl">
+          <h2 className="text-3xl font-bold mb-2">Admin Control Center</h2>
+          <p className="text-primary-100">
+            Manage tasks, users, and monitor platform performance in real time.
           </p>
         </div>
 
@@ -193,8 +190,8 @@ const AdminDashboard = () => {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-slate-100">
+                  <thead className="bg-slate-50/80">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Task
@@ -216,9 +213,9 @@ const AdminDashboard = () => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white/90 divide-y divide-slate-100">
                     {recentActivity.map((task) => (
-                      <tr key={task._id} className="hover:bg-gray-50">
+                      <tr key={task._id} className="hover:bg-slate-50/80">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
                             {task.taskDetails?.title || task.title || 'Untitled Task'}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, TrendingUp, Users, Briefcase, DollarSign,
-    Activity, Calendar, RefreshCw, BarChart3
+    Activity, RefreshCw, BarChart3
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -39,9 +39,9 @@ const AdminAnalytics = () => {
     const stats = analytics || {};
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
             {/* Header */}
-            <header className="bg-white shadow-sm sticky top-0 z-10">
+            <header className="bg-white/85 backdrop-blur border-b border-slate-100 sticky top-0 z-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center">
@@ -69,6 +69,11 @@ const AdminAnalytics = () => {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="mb-6 rounded-2xl border border-slate-100 bg-gradient-to-r from-primary-600 to-cyan-600 p-6 text-white shadow-xl">
+                    <h2 className="text-2xl font-bold">Platform Intelligence</h2>
+                    <p className="text-primary-100 text-sm mt-1">Track growth, performance, and marketplace health.</p>
+                </div>
+
                 {/* Key Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <MetricCard
@@ -103,7 +108,7 @@ const AdminAnalytics = () => {
 
                 {/* Task Statistics */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div className="bg-white rounded-lg shadow-sm p-6">
+                    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                             <BarChart3 className="w-5 h-5 mr-2" />
                             Task Distribution by Status
@@ -117,7 +122,7 @@ const AdminAnalytics = () => {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-lg shadow-sm p-6">
+                    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                             <Users className="w-5 h-5 mr-2" />
                             User Distribution
@@ -137,7 +142,7 @@ const AdminAnalytics = () => {
                 </div>
 
                 {/* Payment Statistics */}
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6 mb-8">
                     <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                         <DollarSign className="w-5 h-5 mr-2" />
                         Payment Overview
@@ -172,7 +177,7 @@ const AdminAnalytics = () => {
                 </div>
 
                 {/* Recent Growth */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
                     <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                         <TrendingUp className="w-5 h-5 mr-2" />
                         Growth Metrics
@@ -210,7 +215,7 @@ const AdminAnalytics = () => {
 };
 
 const MetricCard = ({ title, value, icon, color, trend }) => (
-    <div className="bg-white rounded-lg shadow-sm p-6">
+    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className={`p-3 rounded-lg ${color} w-fit mb-3`}>
             {icon}
         </div>

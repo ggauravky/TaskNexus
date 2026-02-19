@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { X, DollarSign, Calendar, User, Tag, Clock, MapPin, FileText, Activity } from 'lucide-react';
+import { X, DollarSign, Calendar, User, Tag, Clock, FileText, Activity } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 
 /**
@@ -33,8 +32,8 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white/95 rounded-2xl shadow-2xl border border-white/70 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
                 <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
                     <div className="flex-1">
@@ -142,7 +141,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                 <p className="text-sm text-gray-600">{task.freelancerId.email}</p>
                                 {task.freelancerId.freelancerProfile?.rating && (
                                     <p className="text-sm text-yellow-600 mt-1">
-                                        ⭐ {task.freelancerId.freelancerProfile.rating.toFixed(1)} rating
+                                        Rating: {task.freelancerId.freelancerProfile.rating.toFixed(1)}
                                     </p>
                                 )}
                             </div>
