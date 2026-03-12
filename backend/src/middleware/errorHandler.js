@@ -26,6 +26,10 @@ const errorHandler = (err, req, res, next) => {
     },
   };
 
+  if (err.details) {
+    errorResponse.error.details = err.details;
+  }
+
   // Mongoose validation error
   if (err.name === "ValidationError") {
     statusCode = 400;

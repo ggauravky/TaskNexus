@@ -73,7 +73,7 @@ const LandingPage = () => {
 
                         <div className="relative">
                             <div className="absolute -inset-6 bg-gradient-to-r from-primary-500/20 via-accent-500/10 to-blue-500/20 blur-3xl rounded-full" />
-                            <div className="relative glass border border-white/10 rounded-3xl p-6 shadow-2xl">
+                            <div className="relative glass-dark rounded-3xl p-6 shadow-2xl">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
                                         <p className="text-sm text-gray-300">Live Control Center</p>

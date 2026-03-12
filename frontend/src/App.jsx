@@ -49,7 +49,10 @@ function App() {
                 console.log('[Warmup] Backend health ping sent');
                 }
             } catch (err) {
-                console.warn('[Warmup] Health ping failed (likely cold start)', err?.message || err);
+                const isAbort = err?.name === 'AbortError' || controller.signal.aborted;
+                if (!isAbort) {
+                    console.warn('[Warmup] Health ping failed (likely cold start)', err?.message || err);
+                }
             }
         };
         warm();
@@ -58,7 +61,12 @@ function App() {
 
     return (
         <AuthProvider>
-            <Router>
+            <Router
+                future={{
+                    v7_startTransition: true,
+                    v7_relativeSplatPath: true,
+                }}
+            >
                 <div className="shell">
                     <Toaster
                         position="top-right"

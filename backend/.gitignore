@@ -37,3 +37,6 @@ coverage/
 # Build
 dist/
 build/
+
+# Local development fallback store
+.local-data/

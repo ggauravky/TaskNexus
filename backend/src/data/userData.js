@@ -1,107 +1,164 @@
 // backend/src/data/userData.js
-const supabase = require('../config/supabase');
-const bcrypt = require('bcrypt');
+const supabase = require("../config/supabase");
+const bcrypt = require("bcrypt");
+const logger = require("../utils/logger");
+const localUserStore = require("./localUserStore");
+const {
+  buildSupabaseError,
+  isSupabaseNetworkError,
+  isSupabaseNoRowsError,
+} = require("../utils/supabaseErrors");
+
+let localFallbackLogged = false;
+
+const isLocalFallbackEnabled = () =>
+  process.env.NODE_ENV !== "production" &&
+  process.env.DISABLE_LOCAL_AUTH_FALLBACK !== "true";
+
+const logLocalFallbackOnce = () => {
+  if (localFallbackLogged) return;
+
+  localFallbackLogged = true;
+  logger.warn(
+    "Supabase is unreachable. Using local auth fallback store for development."
+  );
+};
+
+const runQuery = async (queryFactory, action, options = {}) => {
+  try {
+    const { data, error } = await queryFactory();
+    if (error) {
+      if (options.allowNoRows && isSupabaseNoRowsError(error)) {
+        return null;
+      }
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (isLocalFallbackEnabled() && isSupabaseNetworkError(error)) {
+      logLocalFallbackOnce();
+      return options.fallbackAction();
+    }
+
+    if (options.allowNoRows && isSupabaseNoRowsError(error)) {
+      return null;
+    }
+
+    throw buildSupabaseError(error, action, {
+      allowNoRows: options.allowNoRows,
+    });
+  }
+};
 
 const createUser = async (userData) => {
-  const { email, password, role, profile, freelancerProfile, clientProfile } = userData;
+  const { email, password, role, profile, freelancerProfile, clientProfile } =
+    userData;
 
   const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  const { data, error } = await supabase
-    .from('users')
-    .insert([
-      {
-        email,
-        password: hashedPassword,
-        role,
-        profile,
-        freelancer_profile: freelancerProfile,
-        client_profile: clientProfile,
-      },
-    ])
-    .select();
+  const payload = {
+    email,
+    password: hashedPassword,
+    role,
+    profile,
+    freelancer_profile: freelancerProfile,
+    client_profile: clientProfile,
+  };
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  const data = await runQuery(
+    () => supabase.from("users").insert([payload]).select(),
+    "creating user",
+    {
+      fallbackAction: () =>
+        localUserStore.createUser({
+          email,
+          password: hashedPassword,
+          role,
+          profile,
+          freelancerProfile,
+          clientProfile,
+        }),
+    }
+  );
 
-  return data[0];
-};
-
-const findUserByEmail = async (email) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('email', email)
-    .single();
-
-  if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-    throw new Error(error.message);
+  if (Array.isArray(data)) {
+    return data[0];
   }
 
   return data;
 };
 
-const findUserById = async (id) => {
-    const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-        throw new Error(error.message);
+const findUserByEmail = async (email) => {
+  return runQuery(
+    () => supabase.from("users").select("*").eq("email", email).single(),
+    "finding user by email",
+    {
+      allowNoRows: true,
+      fallbackAction: () => localUserStore.findUserByEmail(email),
     }
+  );
+};
 
-    return data;
+const findUserById = async (id) => {
+  return runQuery(
+    () => supabase.from("users").select("*").eq("id", id).single(),
+    "finding user by id",
+    {
+      allowNoRows: true,
+      fallbackAction: () => localUserStore.findUserById(id),
+    }
+  );
 };
 
 const findUsers = async (filters) => {
-    let query = supabase.from('users').select('*');
+  const query = () => {
+    let builtQuery = supabase.from("users").select("*");
 
     if (filters) {
-        for (const [key, value] of Object.entries(filters)) {
-            if (key.includes('->')) {
-                const [jsonbField, property] = key.split('->');
-                if (Array.isArray(value)) {
-                    query = query.contains(jsonbField, value);
-                } else {
-                    query = query.eq(`${jsonbField}->>${property}`, value);
-                }
-            } else {
-                query = query.eq(key, value);
-            }
+      for (const [key, value] of Object.entries(filters)) {
+        if (key.includes("->")) {
+          const [jsonbField, property] = key.split("->");
+          if (Array.isArray(value)) {
+            builtQuery = builtQuery.contains(jsonbField, value);
+          } else {
+            builtQuery = builtQuery.eq(`${jsonbField}->>${property}`, value);
+          }
+        } else if (Array.isArray(value)) {
+          builtQuery = builtQuery.in(key, value);
+        } else {
+          builtQuery = builtQuery.eq(key, value);
         }
+      }
     }
 
-    const { data, error } = await query;
+    return builtQuery;
+  };
 
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data;
-}
+  return runQuery(query, "finding users", {
+    fallbackAction: () => localUserStore.findUsers(filters),
+  });
+};
 
 const updateUser = async (id, updates) => {
-    const { data, error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', id)
-        .select();
-
-    if (error) {
-        throw new Error(error.message);
+  const data = await runQuery(
+    () => supabase.from("users").update(updates).eq("id", id).select(),
+    "updating user",
+    {
+      fallbackAction: () => localUserStore.updateUser(id, updates),
     }
+  );
 
+  if (Array.isArray(data)) {
     return data[0];
+  }
+
+  return data;
 };
 
 const comparePassword = async (candidatePassword, userPassword) => {
-    return await bcrypt.compare(candidatePassword, userPassword);
+  return bcrypt.compare(candidatePassword, userPassword);
 };
-
 
 module.exports = {
   createUser,

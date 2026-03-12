@@ -1,150 +1,185 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { LogIn, ShieldCheck, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  Clock3,
+  Eye,
+  EyeOff,
+  Layers3,
+  Loader2,
+  LogIn,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
-/**
- * Login Page with elevated visual design
- */
-const Login = () => {
-    const navigate = useNavigate();
-    const { login } = useAuth();
-
-    const [formData, setFormData] = useState({
-        email: '',
-        password: ''
-    });
-    const [loading, setLoading] = useState(false);
-
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-
-        const result = await login(formData);
-
-        if (result.success) {
-            // Navigate based on role
-            const roleRoutes = {
-                client: '/client/dashboard',
-                freelancer: '/freelancer/dashboard',
-                admin: '/admin/dashboard'
-            };
-            navigate(roleRoutes[result.user.role] || '/');
-        }
-
-        setLoading(false);
-    };
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-[#0b1021] via-[#0f172a] to-[#1b1f38] text-white relative overflow-hidden">
-            <div className="absolute inset-0 opacity-30 hero-grid" />
-            <div className="absolute -top-32 -left-24 h-96 w-96 bg-primary-500 blur-3xl opacity-30" />
-            <div className="absolute bottom-0 right-0 h-96 w-96 bg-accent-500 blur-3xl opacity-25" />
-
-            <div className="relative max-w-6xl mx-auto px-6 py-16 grid lg:grid-cols-2 gap-10 items-center">
-                {/* Left content */}
-                <div className="space-y-6">
-                    <Link to="/" className="inline-flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center shadow-glass">
-                            <Sparkles className="w-6 h-6 text-primary-100" />
-                        </div>
-                        <div>
-                            <p className="text-xl font-semibold">TaskNexus</p>
-                            <p className="text-sm text-gray-300">Managed task delivery</p>
-                        </div>
-                    </Link>
-
-                    <h1 className="text-4xl font-bold leading-tight font-display">
-                        Welcome back. Jump into your control center.
-                    </h1>
-                    <p className="text-gray-200 max-w-xl">
-                        Sign in to track tasks, collaborate, and ship work faster with automated QA and visibility baked into every step.
-                    </p>
-
-                    <div className="grid sm:grid-cols-2 gap-3">
-                        <SellingPoint icon={<ShieldCheck className="w-5 h-5" />} text="Secure SSO-ready auth" />
-                        <SellingPoint icon={<CheckCircle2 className="w-5 h-5" />} text="Role-based dashboards" />
-                        <SellingPoint icon={<Sparkles className="w-5 h-5" />} text="QA & delivery insights" />
-                        <SellingPoint icon={<ArrowRight className="w-5 h-5" />} text="Jump back into work" />
-                    </div>
-                </div>
-
-                {/* Form card */}
-                <div className="card glass border-white/15 shadow-glass">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <p className="text-sm text-gray-300">Sign in</p>
-                            <h2 className="text-2xl font-bold text-white">Access your workspace</h2>
-                        </div>
-                        <Link to="/register" className="btn btn-secondary text-xs">
-                            Create account
-                        </Link>
-                    </div>
-
-                    <form className="space-y-5" onSubmit={handleSubmit}>
-                        <div className="space-y-3">
-                            <label className="label text-white/80">Email</label>
-                            <input
-                                id="email"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
-                                required
-                                className="input bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                                placeholder="you@company.com"
-                                value={formData.email}
-                                onChange={handleChange}
-                            />
-                        </div>
-
-                        <div className="space-y-3">
-                            <label className="label text-white/80">Password</label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                autoComplete="current-password"
-                                required
-                                className="input bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                                placeholder="••••••••"
-                                value={formData.password}
-                                onChange={handleChange}
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="btn btn-primary w-full py-3 flex items-center justify-center"
-                        >
-                            <LogIn className="h-5 w-5 mr-2" />
-                            {loading ? 'Signing in...' : 'Sign in'}
-                        </button>
-
-                        <div className="text-center text-sm text-gray-300">
-                            <Link to="/" className="hover:text-white transition-colors">
-                                ← Back to home
-                            </Link>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    );
+const ROLE_ROUTES = {
+  client: "/client/dashboard",
+  freelancer: "/freelancer/dashboard",
+  admin: "/admin/dashboard",
 };
 
-const SellingPoint = ({ icon, text }) => (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-200">
-        {icon}
-        {text}
+const Login = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
+    if (formError) {
+      setFormError("");
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setFormError("");
+    setLoading(true);
+
+    const payload = {
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+    };
+
+    const result = await login(payload);
+
+    if (!result.success) {
+      setFormError(result.error || "Unable to sign in right now.");
+      setLoading(false);
+      return;
+    }
+
+    navigate(ROLE_ROUTES[result.user.role] || "/");
+  };
+
+  return (
+    <div className="auth-shell">
+      <div className="auth-orb auth-orb-one" />
+      <div className="auth-orb auth-orb-two" />
+      <div className="auth-orb auth-orb-three" />
+
+      <div className="auth-wrapper">
+        <section className="auth-brand-panel">
+          <Link to="/" className="auth-brand">
+            <span className="auth-brand-icon">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="auth-brand-title">TaskNexus</span>
+              <span className="auth-brand-subtitle">Managed delivery platform</span>
+            </span>
+          </Link>
+
+          <h1 className="auth-title">Sign in and get back to shipping work</h1>
+          <p className="auth-copy">
+            Review progress, manage active tasks, and keep communication tight between
+            client requests and freelancer delivery.
+          </p>
+
+          <div className="auth-benefits">
+            <Feature icon={<ShieldCheck className="h-4 w-4" />} text="Secure token-based auth" />
+            <Feature icon={<Layers3 className="h-4 w-4" />} text="Role-aware workspaces" />
+            <Feature icon={<Clock3 className="h-4 w-4" />} text="Live task timeline visibility" />
+          </div>
+        </section>
+
+        <section className="auth-form-panel">
+          <div className="auth-card">
+            <div className="auth-card-header">
+              <div>
+                <p className="auth-kicker">Welcome back</p>
+                <h2 className="auth-heading">Login to your account</h2>
+              </div>
+              <Link to="/register" className="btn btn-secondary btn-sm">
+                Create account
+              </Link>
+            </div>
+
+            {formError && <div className="auth-alert">{formError}</div>}
+
+            <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+              <div>
+                <label htmlFor="email" className="label auth-label">
+                  Work email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className="input auth-input"
+                  placeholder="you@company.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="label auth-label">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    className="input auth-input pr-11"
+                    placeholder="********"
+                    value={formData.password}
+                    onChange={handleChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="auth-input-toggle"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn btn-primary w-full py-3 inline-flex items-center justify-center gap-2"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                <span>{loading ? "Signing in..." : "Sign in"}</span>
+              </button>
+            </form>
+
+            <Link to="/" className="auth-back-link">
+              <ArrowLeft className="h-4 w-4" />
+              Back to home
+            </Link>
+          </div>
+        </section>
+      </div>
     </div>
+  );
+};
+
+const Feature = ({ icon, text }) => (
+  <div className="auth-feature">
+    <span className="auth-feature-icon">{icon}</span>
+    <span>{text}</span>
+  </div>
 );
 
 export default Login;

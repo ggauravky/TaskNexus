@@ -20,29 +20,84 @@ exports.getDashboard = async (req, res, next) => {
     const clientId = req.user.id;
 
     const allTasks = await taskData.findTasks({ client_id: clientId });
-
-    const taskStats = {
-      total: allTasks.length,
-      completed: allTasks.filter((t) => t.status === TASK_STATUS.COMPLETED).length,
-      inProgress: allTasks.filter((t) => t.status === TASK_STATUS.IN_PROGRESS).length,
-    };
-
     const payments = await paymentData.findPayments({ client_id: clientId });
 
-    const financialStats = {
-      totalSpent: payments
-        .filter((p) => p.status === PAYMENT_STATUS.RELEASED)
-        .reduce((sum, p) => sum + (p.amounts?.taskBudget || 0), 0),
-    };
+    const totalTasks = allTasks.length;
+    const completedTasks = allTasks.filter(
+      (task) => task.status === TASK_STATUS.COMPLETED
+    ).length;
+    const activeTasks = allTasks.filter((task) =>
+      [
+        TASK_STATUS.SUBMITTED,
+        TASK_STATUS.UNDER_REVIEW,
+        TASK_STATUS.ASSIGNED,
+        TASK_STATUS.IN_PROGRESS,
+        TASK_STATUS.SUBMITTED_WORK,
+        TASK_STATUS.QA_REVIEW,
+        TASK_STATUS.REVISION_REQUESTED,
+        TASK_STATUS.DELIVERED,
+        TASK_STATUS.CLIENT_REVISION,
+      ].includes(task.status)
+    ).length;
+    const pendingReview = allTasks.filter((task) =>
+      [
+        TASK_STATUS.SUBMITTED,
+        TASK_STATUS.UNDER_REVIEW,
+        TASK_STATUS.SUBMITTED_WORK,
+        TASK_STATUS.QA_REVIEW,
+        TASK_STATUS.REVISION_REQUESTED,
+        TASK_STATUS.CLIENT_REVISION,
+      ].includes(task.status)
+    ).length;
+
+    const totalSpent = payments
+      .filter((payment) => payment.status === PAYMENT_STATUS.RELEASED)
+      .reduce((sum, payment) => sum + (payment.amounts?.taskBudget || 0), 0);
+
+    const completedWithWorkflow = allTasks.filter(
+      (task) =>
+        task.status === TASK_STATUS.COMPLETED &&
+        task.workflow?.submittedAt &&
+        task.workflow?.completedAt
+    );
+
+    const avgCompletionTime =
+      completedWithWorkflow.length === 0
+        ? 0
+        : Math.round(
+            completedWithWorkflow.reduce((sum, task) => {
+              const submittedAt = new Date(task.workflow.submittedAt).getTime();
+              const completedAt = new Date(task.workflow.completedAt).getTime();
+              if (Number.isNaN(submittedAt) || Number.isNaN(completedAt)) return sum;
+              const days = Math.max(
+                0,
+                Math.round((completedAt - submittedAt) / (1000 * 60 * 60 * 24))
+              );
+              return sum + days;
+            }, 0) / completedWithWorkflow.length
+          );
 
     const recentTasks = allTasks.slice(0, 5);
 
     res.status(200).json({
       success: true,
       data: {
-        taskStats,
-        financialStats,
+        totalTasks,
+        activeTasks,
+        completedTasks,
+        pendingReview,
+        totalSpent,
+        avgCompletionTime,
         recentTasks,
+        // Preserve nested fields for compatibility with older clients.
+        taskStats: {
+          total: totalTasks,
+          completed: completedTasks,
+          inProgress: activeTasks,
+        },
+        financialStats: {
+          totalSpent,
+        },
       },
     });
   } catch (error) {
