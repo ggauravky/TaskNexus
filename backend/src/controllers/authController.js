@@ -4,6 +4,35 @@ const { generateTokens, verifyRefreshToken } = require("../config/jwt");
 const { sanitizeUser } = require("../utils/helpers");
 const logger = require("../utils/logger");
 const { ERROR_CODES } = require("../config/constants");
+const emailService = require("../services/email/emailService");
+
+const sendLoginEmailInBackground = (user, req, wasFirstLogin) => {
+  setImmediate(async () => {
+    try {
+      await emailService.sendLoginEmail(user, { wasFirstLogin });
+    } catch (error) {
+      logger.warn("Login email delivery failed", {
+        userId: user.id,
+        email: user.email,
+        wasFirstLogin,
+        message: error.message,
+      });
+
+      await auditLogData.log({
+        user_id: user.id,
+        action: "USER_LOGIN_EMAIL_FAILED",
+        resource: "user",
+        resource_id: user.id,
+        changes: {
+          wasFirstLogin,
+          message: error.message,
+        },
+        ip_address: req.ip,
+        user_agent: req.headers["user-agent"],
+      });
+    }
+  });
+};
 
 /**
  * Register new user
@@ -121,12 +150,19 @@ const login = async (req, res, next) => {
 
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+    const wasFirstLogin = !user.last_login;
+    const loginTimestamp = new Date().toISOString();
 
     // Save refresh token and last login
-    await userData.updateUser(user.id, { 
+    const updatedUser =
+      (await userData.updateUser(user.id, {
         refresh_token: refreshToken,
-        last_login: new Date(),
-    });
+        last_login: loginTimestamp,
+      })) || {
+        ...user,
+        refresh_token: refreshToken,
+        last_login: loginTimestamp,
+      };
 
     // Log audit
     await auditLogData.log({
@@ -151,11 +187,13 @@ const login = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {
-        user: sanitizeUser(user),
+        user: sanitizeUser(updatedUser),
         accessToken,
       },
       message: "Login successful",
     });
+
+    sendLoginEmailInBackground(updatedUser, req, wasFirstLogin);
   } catch (error) {
     next(error);
   }

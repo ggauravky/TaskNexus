@@ -8,6 +8,7 @@ const NotificationService = require("../services/notificationService");
 const { TASK_STATUS } = require("../config/constants");
 const userData = require("../data/userData");
 const realtimeHub = require("../services/realtimeHub");
+const performanceService = require("../services/performanceService");
 
 /**
  * @desc    Get freelancer dashboard overview
@@ -47,11 +48,9 @@ exports.getDashboard = async (req, res, next) => {
             ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
             : 0;
 
-    // TODO: Implement performance score calculation
-    const performanceScore = 85;
-
-    // TODO: Implement on-time delivery rate calculation
-    const onTimeDeliveryRate = 95;
+    const perfStats = await performanceService.calculatePerformanceMetrics(freelancerId);
+    const performanceScore = perfStats.performanceScore;
+    const onTimeDeliveryRate = perfStats.onTimeDeliveryRate;
 
     res.status(200).json({
       success: true,

@@ -1,104 +1,94 @@
 // backend/src/data/notificationData.js
 const supabase = require('../config/supabase');
+const localNotificationStore = require("./localNotificationStore");
+const { createSupabaseRunner } = require("./supabaseFallbackRunner");
+
+const runQuery = createSupabaseRunner("notification");
 
 const createNotification = async (notificationData) => {
-    const { data, error } = await supabase
-        .from('notifications')
-        .insert([notificationData])
-        .select();
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data[0];
+    const data = await runQuery(
+        () => supabase.from('notifications').insert([notificationData]).select(),
+        "creating notification",
+        {
+            fallbackAction: () => localNotificationStore.createNotification(notificationData),
+        }
+    );
+    return Array.isArray(data) ? data[0] : data;
 };
 
 const findNotifications = async (filters) => {
-    let query = supabase.from('notifications').select('*');
+    const queryFactory = () => {
+        let query = supabase.from('notifications').select('*');
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    query = query.in(key, value);
+                } else {
+                    query = query.eq(key, value);
+                }
+            });
+        }
+        return query;
+    };
 
-    if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                query = query.in(key, value);
-            } else {
-                query = query.eq(key, value);
-            }
-        });
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data;
-}
+    return runQuery(queryFactory, "finding notifications", {
+        fallbackAction: () => localNotificationStore.findNotifications(filters),
+    });
+};
 
 const updateNotification = async (id, updates) => {
-    const { data, error } = await supabase
-        .from('notifications')
-        .update(updates)
-        .eq('id', id)
-        .select();
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data[0];
-}
+    const data = await runQuery(
+        () => supabase.from('notifications').update(updates).eq('id', id).select(),
+        "updating notification",
+        {
+            fallbackAction: () => localNotificationStore.updateNotification(id, updates),
+        }
+    );
+    return Array.isArray(data) ? data[0] : data;
+};
 
 const updateManyNotifications = async (filters, updates) => {
-    let query = supabase.from('notifications').update(updates);
+    const queryFactory = () => {
+        let query = supabase.from('notifications').update(updates);
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                query = query.eq(key, value);
+            });
+        }
+        return query.select();
+    };
 
-    if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-            query = query.eq(key, value);
-        });
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data;
-}
+    return runQuery(queryFactory, "updating multiple notifications", {
+        fallbackAction: () => localNotificationStore.updateManyNotifications(filters, updates),
+    });
+};
 
 const deleteNotification = async (id) => {
-    const { data, error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
+    const data = await runQuery(
+        () => supabase.from('notifications').delete().eq('id', id).select(),
+        "deleting notification",
+        {
+            fallbackAction: () => localNotificationStore.deleteNotification(id),
+        }
+    );
     return data;
-}
+};
 
 const deleteManyNotifications = async (filters) => {
-    let query = supabase.from('notifications').delete();
+    const queryFactory = () => {
+        let query = supabase.from('notifications').delete();
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                query = query.eq(key, value);
+            });
+        }
+        return query.select();
+    };
 
-    if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-            query = query.eq(key, value);
-        });
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data;
-}
-
+    return runQuery(queryFactory, "deleting multiple notifications", {
+        fallbackAction: () => localNotificationStore.deleteManyNotifications(filters),
+    });
+};
 
 module.exports = {
     createNotification,

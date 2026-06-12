@@ -108,8 +108,21 @@ const findPaymentById = async (id) => {
   );
 };
 
+const updatePayment = async (id, updates) => {
+  const data = await runQuery(
+    () => supabase.from("payments").update(updates).eq("id", id).select(),
+    "updating payment",
+    {
+      fallbackAction: () => localPaymentStore.updatePayment(id, updates),
+    }
+  );
+
+  return Array.isArray(data) ? data[0] : data;
+};
+
 module.exports = {
   createPayment,
   findPayments,
   findPaymentById,
+  updatePayment,
 };

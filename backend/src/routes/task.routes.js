@@ -137,7 +137,15 @@ router.get(
 
 router.post(
   "/:id/comments",
-  [param("id").isUUID().withMessage("Invalid task ID")],
+  [
+    param("id").isUUID().withMessage("Invalid task ID"),
+    body("body")
+      .optional({ checkFalsy: true })
+      .trim()
+      .isLength({ max: 5000 })
+      .withMessage("Comment body must be under 5000 characters")
+      .escape(),
+  ],
   validate,
   commentAttachmentUpload.array("attachments", 5),
   taskController.addTaskComment,

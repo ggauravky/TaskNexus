@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import api from "../../services/api";
 import toast from "react-hot-toast";
+import { useAuth } from "../../context/AuthContext";
 
 const TAB_IDS = {
   COMMENTS: "comments",
@@ -34,7 +35,16 @@ const formatDateTime = (value) => {
 const getTaskId = (task) => task?.id || task?._id || null;
 
 const TaskCollaborationPanel = ({ task }) => {
+  const { user } = useAuth();
   const taskId = getTaskId(task);
+
+  const canCollaborate = useMemo(() => {
+    if (!user) return false;
+    if (user.role === "admin") return true;
+    if (user.role === "client") return task?.client_id === user.id;
+    if (user.role === "freelancer") return task?.freelancer_id === user.id;
+    return false;
+  }, [user, task]);
 
   const [activeTab, setActiveTab] = useState(TAB_IDS.COMMENTS);
   const [loading, setLoading] = useState(false);
@@ -244,60 +254,66 @@ const TaskCollaborationPanel = ({ task }) => {
         <>
           {activeTab === TAB_IDS.COMMENTS && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/80">
-                <textarea
-                  rows={3}
-                  value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
-                  className="input"
-                  placeholder="Write an update and mention people with @username"
-                />
-                {mentionSuggestions.length > 0 && (
-                  <div className="mt-2 rounded-md border border-slate-200 bg-white">
-                    {mentionSuggestions.map((participant) => (
-                      <button
-                        key={participant.id}
-                        type="button"
-                        onClick={() => insertMention(participant)}
-                        className="block w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
-                      >
-                        {participant.displayName}
-                        <span className="text-xs text-slate-500 ml-2">
-                          @{String(participant.email || "").split("@")[0]}
-                        </span>
-                      </button>
-                    ))}
+              {canCollaborate && (
+                <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/80">
+                  <textarea
+                    rows={3}
+                    maxLength={5000}
+                    value={commentBody}
+                    onChange={(event) => setCommentBody(event.target.value)}
+                    className="input"
+                    placeholder="Write an update and mention people with @username"
+                  />
+                  <div className="text-right text-[10px] text-slate-400 mt-0.5">
+                    {commentBody.length}/5000
                   </div>
-                )}
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-                    <Paperclip className="w-4 h-4" />
-                    Attach files
-                    <input
-                      type="file"
-                      multiple
-                      onChange={(event) =>
-                        setCommentFiles(Array.from(event.target.files || []))
-                      }
-                      className="hidden"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={submitComment}
-                    disabled={submittingComment}
-                    className="btn-sm btn-primary inline-flex items-center"
-                  >
-                    <Send className="w-4 h-4 mr-1" />
-                    {submittingComment ? "Posting..." : "Post"}
-                  </button>
+                  {mentionSuggestions.length > 0 && (
+                    <div className="mt-2 rounded-md border border-slate-200 bg-white">
+                      {mentionSuggestions.map((participant) => (
+                        <button
+                          key={participant.id}
+                          type="button"
+                          onClick={() => insertMention(participant)}
+                          className="block w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
+                        >
+                          {participant.displayName}
+                          <span className="text-xs text-slate-500 ml-2">
+                            @{String(participant.email || "").split("@")[0]}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+                      <Paperclip className="w-4 h-4" />
+                      Attach files
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(event) =>
+                          setCommentFiles(Array.from(event.target.files || []))
+                        }
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={submitComment}
+                      disabled={submittingComment}
+                      className="btn-sm btn-primary inline-flex items-center"
+                    >
+                      <Send className="w-4 h-4 mr-1" />
+                      {submittingComment ? "Posting..." : "Post"}
+                    </button>
+                  </div>
+                  {commentFiles.length > 0 && (
+                    <div className="mt-2 text-xs text-slate-600">
+                      {commentFiles.length} attachment(s) selected
+                    </div>
+                  )}
                 </div>
-                {commentFiles.length > 0 && (
-                  <div className="mt-2 text-xs text-slate-600">
-                    {commentFiles.length} attachment(s) selected
-                  </div>
-                )}
-              </div>
+              )}
 
               {comments.length === 0 ? (
                 <p className="text-sm text-slate-500">No comments yet.</p>
@@ -361,46 +377,48 @@ const TaskCollaborationPanel = ({ task }) => {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                  <input
-                    value={newSubtask.title}
-                    onChange={(event) =>
-                      setNewSubtask((prev) => ({ ...prev, title: event.target.value }))
-                    }
-                    className="input md:col-span-2"
-                    placeholder="Add milestone title"
-                  />
-                  <input
-                    type="date"
-                    value={newSubtask.dueDate}
-                    onChange={(event) =>
-                      setNewSubtask((prev) => ({ ...prev, dueDate: event.target.value }))
-                    }
-                    className="input"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={newSubtask.weight}
-                    onChange={(event) =>
-                      setNewSubtask((prev) => ({ ...prev, weight: Number(event.target.value || 0) }))
-                    }
-                    className="input"
-                    placeholder="Weight %"
-                  />
+              {canCollaborate && (
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <input
+                      value={newSubtask.title}
+                      onChange={(event) =>
+                        setNewSubtask((prev) => ({ ...prev, title: event.target.value }))
+                      }
+                      className="input md:col-span-2"
+                      placeholder="Add milestone title"
+                    />
+                    <input
+                      type="date"
+                      value={newSubtask.dueDate}
+                      onChange={(event) =>
+                        setNewSubtask((prev) => ({ ...prev, dueDate: event.target.value }))
+                      }
+                      className="input"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={newSubtask.weight}
+                      onChange={(event) =>
+                        setNewSubtask((prev) => ({ ...prev, weight: Number(event.target.value || 0) }))
+                      }
+                      className="input"
+                      placeholder="Weight %"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={createSubtask}
+                    disabled={creatingSubtask}
+                    className="btn-sm btn-primary mt-3 inline-flex items-center"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    {creatingSubtask ? "Adding..." : "Add milestone"}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={createSubtask}
-                  disabled={creatingSubtask}
-                  className="btn-sm btn-primary mt-3 inline-flex items-center"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  {creatingSubtask ? "Adding..." : "Add milestone"}
-                </button>
-              </div>
+              )}
 
               {subtasks.length === 0 ? (
                 <p className="text-sm text-slate-500">No milestones yet.</p>
@@ -431,24 +449,38 @@ const TaskCollaborationPanel = ({ task }) => {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleSubtask(subtask)}
-                            className={`px-2 py-1 text-xs rounded-full border ${
-                              subtask.completed
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-slate-50 text-slate-600 border-slate-200"
-                            }`}
-                          >
-                            {subtask.completed ? "Completed" : "Mark done"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteSubtask(subtask.id)}
-                            className="text-rose-600 hover:text-rose-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canCollaborate ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleSubtask(subtask)}
+                              className={`px-2 py-1 text-xs rounded-full border ${
+                                subtask.completed
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-slate-50 text-slate-600 border-slate-200"
+                              }`}
+                            >
+                              {subtask.completed ? "Completed" : "Mark done"}
+                            </button>
+                          ) : (
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full border ${
+                                subtask.completed
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-slate-50 text-slate-600 border-slate-200"
+                              }`}
+                            >
+                              {subtask.completed ? "Completed" : "Pending"}
+                            </span>
+                          )}
+                          {canCollaborate && (
+                            <button
+                              type="button"
+                              onClick={() => deleteSubtask(subtask.id)}
+                              className="text-rose-600 hover:text-rose-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

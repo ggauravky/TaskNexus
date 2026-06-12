@@ -72,8 +72,24 @@ const findPaymentById = async (id) => {
   return payments.find((payment) => payment.id === id) || null;
 };
 
+const updatePayment = async (id, updates) => {
+  const payments = readPayments();
+  const index = payments.findIndex((p) => p.id === id);
+  if (index === -1) return null;
+
+  payments[index] = {
+    ...payments[index],
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+
+  writePayments(payments);
+  return payments[index];
+};
+
 module.exports = {
   createPayment,
   findPayments,
   findPaymentById,
+  updatePayment,
 };

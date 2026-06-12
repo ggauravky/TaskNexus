@@ -15,7 +15,7 @@ const getActorLabel = (user) => {
   return fullName || user?.email || "Unknown user";
 };
 
-const ensureTaskAccess = (task, user) => {
+const ensureTaskAccess = (task, user, isWrite = false) => {
   if (!task) {
     const error = new Error("Task not found");
     error.statusCode = 404;
@@ -26,10 +26,31 @@ const ensureTaskAccess = (task, user) => {
 
   const isClientOwner = task.client_id === user.id;
   const isAssignedFreelancer = task.freelancer_id === user.id;
-  if (!isClientOwner && !isAssignedFreelancer) {
-    const error = new Error("Not authorized to access this task");
-    error.statusCode = 403;
-    throw error;
+
+  if (user.role === "client") {
+    if (!isClientOwner) {
+      const error = new Error("Not authorized to access this task");
+      error.statusCode = 403;
+      throw error;
+    }
+    return;
+  }
+
+  if (user.role === "freelancer") {
+    if (task.freelancer_id) {
+      if (!isAssignedFreelancer) {
+        const error = new Error("Not authorized to access this task");
+        error.statusCode = 403;
+        throw error;
+      }
+    } else {
+      // Unassigned task: read is allowed, write is forbidden
+      if (isWrite) {
+        const error = new Error("Not authorized to modify an unassigned task");
+        error.statusCode = 403;
+        throw error;
+      }
+    }
   }
 };
 

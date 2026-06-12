@@ -1,93 +1,79 @@
 // backend/src/data/submissionData.js
 const supabase = require('../config/supabase');
+const localSubmissionStore = require("./localSubmissionStore");
+const { createSupabaseRunner } = require("./supabaseFallbackRunner");
+
+const runQuery = createSupabaseRunner("submission");
 
 const createSubmission = async (submissionData) => {
-    const { data, error } = await supabase
-        .from('submissions')
-        .insert([submissionData])
-        .select();
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data[0];
+    const data = await runQuery(
+        () => supabase.from('submissions').insert([submissionData]).select(),
+        "creating submission",
+        {
+            fallbackAction: () => localSubmissionStore.createSubmission(submissionData),
+        }
+    );
+    return Array.isArray(data) ? data[0] : data;
 };
 
 const findSubmissions = async (filters) => {
-    let query = supabase.from('submissions').select('*');
+    const queryFactory = () => {
+        let query = supabase.from('submissions').select('*');
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (key.includes('->>')) {
+                    const [column, jsonPath] = key.split('->>');
+                    query = query.filter(`${column}->>${jsonPath}`, 'eq', value);
+                    return;
+                }
+                if (key.includes('->')) {
+                    const [column, jsonPath] = key.split('->');
+                    query = query.filter(`${column}->${jsonPath}`, 'eq', value);
+                    return;
+                }
+                if (Array.isArray(value)) {
+                    query = query.in(key, value);
+                } else {
+                    query = query.eq(key, value);
+                }
+            });
+        }
+        return query;
+    };
 
-    if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-            if (key.includes('->>')) {
-                const [column, jsonPath] = key.split('->>');
-                query = query.filter(`${column}->>${jsonPath}`, 'eq', value);
-                return;
-            }
-
-            if (key.includes('->')) {
-                const [column, jsonPath] = key.split('->');
-                query = query.filter(`${column}->${jsonPath}`, 'eq', value);
-                return;
-            }
-
-            if (Array.isArray(value)) {
-                query = query.in(key, value);
-            } else {
-                query = query.eq(key, value);
-            }
-        });
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data;
+    return runQuery(queryFactory, "finding submissions", {
+        fallbackAction: () => localSubmissionStore.findSubmissions(filters),
+    });
 };
 
 const findSubmissionById = async (id) => {
-    const { data, error } = await supabase
-        .from('submissions')
-        .select('*, task:tasks(*)')
-        .eq('id', id)
-        .single();
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-        throw new Error(error.message);
-    }
-
-    return data;
+    return runQuery(
+        () => supabase.from('submissions').select('*, task:tasks(*)').eq('id', id).single(),
+        "finding submission by id",
+        {
+            allowNoRows: true,
+            fallbackAction: () => localSubmissionStore.findSubmissionById(id),
+        }
+    );
 };
 
 const updateSubmission = async (id, updates) => {
-    const { data, error } = await supabase
-        .from('submissions')
-        .update(updates)
-        .eq('id', id)
-        .select();
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data[0];
+    const data = await runQuery(
+        () => supabase.from('submissions').update(updates).eq('id', id).select(),
+        "updating submission",
+        {
+            fallbackAction: () => localSubmissionStore.updateSubmission(id, updates),
+        }
+    );
+    return Array.isArray(data) ? data[0] : data;
 };
 
 const getRevisionCount = async (taskId) => {
-    const { count, error } = await supabase
-        .from('submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('task_id', taskId)
-        .eq('submission_type', 'revision');
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return count;
+    const submissions = await findSubmissions({
+        task_id: taskId,
+        submission_type: 'revision'
+    });
+    return submissions ? submissions.length : 0;
 };
 
 module.exports = {

@@ -1,55 +1,37 @@
 // backend/src/data/auditLogData.js
 const supabase = require("../config/supabase");
-const logger = require("../utils/logger");
-const { isSupabaseNetworkError } = require("../utils/supabaseErrors");
+const localAuditLogStore = require("./localAuditLogStore");
+const { createSupabaseRunner } = require("./supabaseFallbackRunner");
+
+const runQuery = createSupabaseRunner("audit log");
 
 const log = async (logData) => {
   const { user_id, action, resource, resource_id, changes, ip_address, user_agent } =
     logData;
 
-  try {
-    const { data, error } = await supabase.from("audit_logs").insert([
-      {
-        user_id,
-        action,
-        resource,
-        resource_id,
-        changes,
-        ip_address,
-        user_agent,
-      },
-    ]);
+  const payload = {
+    user_id,
+    action,
+    resource,
+    resource_id,
+    changes,
+    ip_address,
+    user_agent,
+  };
 
-    if (error) {
-      logger.warn("Audit log insert failed", {
-        action,
-        resource,
-        message: error.message,
-      });
-      return null;
+  const data = await runQuery(
+    () => supabase.from("audit_logs").insert([payload]).select(),
+    "creating audit log",
+    {
+      fallbackAction: () => localAuditLogStore.log(payload),
     }
+  );
 
-    return data;
-  } catch (error) {
-    if (isSupabaseNetworkError(error)) {
-      logger.warn("Audit logging skipped due Supabase connectivity issue", {
-        action,
-        resource,
-        message: error.message,
-      });
-      return null;
-    }
-
-    logger.error("Unexpected audit log failure", {
-      action,
-      resource,
-      message: error.message,
-    });
-    return null;
-  }
+  return Array.isArray(data) ? data[0] : data;
 };
 
 const findAuditLogs = async (filters) => {
+  const queryFactory = () => {
     let query = supabase.from("audit_logs").select("*");
 
     if (filters) {
@@ -58,14 +40,13 @@ const findAuditLogs = async (filters) => {
         });
     }
 
-    const { data, error } = await query;
+    return query;
+  };
 
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data;
-}
+  return runQuery(queryFactory, "finding audit logs", {
+    fallbackAction: () => localAuditLogStore.findAuditLogs(filters),
+  });
+};
 
 module.exports = {
   log,

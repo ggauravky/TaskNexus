@@ -484,7 +484,7 @@ exports.getTaskComments = async (req, res, next) => {
 exports.addTaskComment = async (req, res, next) => {
   try {
     const task = await taskData.findTaskById(req.params.id);
-    collaborationService.ensureTaskAccess(task, req.user);
+    collaborationService.ensureTaskAccess(task, req.user, true);
 
     const body = String(req.body?.body || "").trim();
     if (!body && (!req.files || req.files.length === 0)) {
@@ -567,7 +567,7 @@ exports.getSubtasks = async (req, res, next) => {
 exports.createSubtask = async (req, res, next) => {
   try {
     const task = await taskData.findTaskById(req.params.id);
-    collaborationService.ensureTaskAccess(task, req.user);
+    collaborationService.ensureTaskAccess(task, req.user, true);
 
     const result = await collaborationService.addSubtask({
       task,
@@ -593,7 +593,7 @@ exports.createSubtask = async (req, res, next) => {
 exports.updateSubtask = async (req, res, next) => {
   try {
     const task = await taskData.findTaskById(req.params.id);
-    collaborationService.ensureTaskAccess(task, req.user);
+    collaborationService.ensureTaskAccess(task, req.user, true);
 
     const result = await collaborationService.updateSubtask({
       task,
@@ -620,7 +620,7 @@ exports.updateSubtask = async (req, res, next) => {
 exports.deleteSubtask = async (req, res, next) => {
   try {
     const task = await taskData.findTaskById(req.params.id);
-    collaborationService.ensureTaskAccess(task, req.user);
+    collaborationService.ensureTaskAccess(task, req.user, true);
 
     const result = await collaborationService.deleteSubtask({
       task,

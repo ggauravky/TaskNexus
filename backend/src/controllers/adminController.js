@@ -375,17 +375,37 @@ exports.getStatistics = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Resolve dispute
- * @route   POST /api/admin/disputes/:id/resolve
- * @access  Private (Admin)
- */
 exports.resolveDispute = async (req, res, next) => {
   try {
     const { resolution, refundClient, payFreelancer, notes } = req.body;
 
-    // Implementation would depend on having a Dispute model
-    // This is a placeholder for the dispute resolution logic
+    // Resolve dispute logic by updating payment status
+    const payments = await paymentData.findPayments({ task_id: req.params.id });
+
+    if (payments && payments.length > 0) {
+      const payment = payments[0];
+      let newStatus = payment.status;
+      const escrow = { ...(payment.escrow || {}) };
+
+      if (resolution === "refund_client" || refundClient === true || refundClient === "true") {
+        newStatus = "refunded";
+        escrow.releasedAt = new Date().toISOString();
+      } else if (resolution === "pay_freelancer" || payFreelancer === true || payFreelancer === "true") {
+        newStatus = "released";
+        escrow.releasedAt = new Date().toISOString();
+      }
+
+      await paymentData.updatePayment(payment.id, {
+        status: newStatus,
+        escrow,
+        refund: {
+          refundedAt: new Date().toISOString(),
+          reason: notes || resolution,
+        },
+      });
+
+      logger.info(`Resolved payment status for dispute on task ${req.params.id} to ${newStatus}`);
+    }
 
     await auditLogData.log({
       user_id: req.user.id,

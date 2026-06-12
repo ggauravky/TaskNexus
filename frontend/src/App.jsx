@@ -10,6 +10,9 @@ import { API_URL } from './utils/constants';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import BlogPage from './pages/BlogPage';
+import ServicesPage from './pages/ServicesPage';
+import SupportJarPage from './pages/SupportJarPage';
 import AdminLogin from './pages/AdminLogin';
 import ClientDashboard from './pages/ClientDashboard';
 import FreelancerDashboard from './pages/FreelancerDashboard';
@@ -116,6 +119,9 @@ function AppRoutes() {
             <Route path="/register" element={
                 isAuthenticated ? <Navigate to={getDashboardRoute(user?.role)} /> : <Register />
             } />
+            <Route path="/blog" element={<BlogPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/support-jar" element={<SupportJarPage />} />
             <Route path="/admin/login" element={
                 isAuthenticated && user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <AdminLogin />
             } />

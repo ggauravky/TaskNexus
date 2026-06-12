@@ -106,6 +106,9 @@ export const NOTIFICATION_TYPES = {
 export const ROUTES = {
   // Public
   HOME: "/",
+  BLOG: "/blog",
+  SERVICES: "/services",
+  SUPPORT_JAR: "/support-jar",
   LOGIN: "/login",
   REGISTER: "/register",
 
