@@ -133,8 +133,8 @@ const SupportJarPage = () => {
             <Field label="Email" name="email" type="email" value={formData.email} onChange={handleChange} required />
           </div>
 
-          <div>
-            <label className="label">Suggested amounts</label>
+          <fieldset>
+            <legend className="label">Suggested amounts</legend>
             <div className="flex flex-wrap gap-2">
               {presetAmounts.map((amount) => (
                 <button
@@ -151,7 +151,7 @@ const SupportJarPage = () => {
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
             <Field

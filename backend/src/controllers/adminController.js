@@ -7,6 +7,8 @@ const reviewData = require("../data/reviewData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 const AssignmentService = require("../services/assignmentService");
+const taskService = require("../services/taskService");
+const { sanitizeUser } = require("../utils/helpers");
 
 /**
  * @desc    Get admin dashboard overview
@@ -25,6 +27,10 @@ exports.getDashboard = async (req, res, next) => {
     const totalTasks = tasks.length;
 
     const recentTasks = tasks.slice(0, 10);
+    const statusCounts = tasks.reduce((counts, task) => {
+      counts[task.status] = (counts[task.status] || 0) + 1;
+      return counts;
+    }, {});
 
     const platformRevenue = payments
         .filter((p) => p.status === "released")
@@ -40,6 +46,10 @@ exports.getDashboard = async (req, res, next) => {
         },
         tasks: {
           total: totalTasks,
+          byStatus: Object.entries(statusCounts).map(([status, count]) => ({
+            status,
+            count,
+          })),
         },
         platformRevenue,
         recentTasks,
@@ -96,7 +106,7 @@ exports.updateUserStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
 
-    if (!["active", "suspended", "banned"].includes(status)) {
+    if (!["active", "suspended", "blocked"].includes(status)) {
       return res.status(400).json({
         success: false,
         message: "Invalid status",
@@ -204,17 +214,18 @@ exports.reviewTask = async (req, res, next) => {
         data: updatedTask,
       });
     } else {
-        const updatedTask = await taskData.updateTask(task.id, {
-            status: "rejected",
-            cancellation_reason: reason || "Task does not meet platform guidelines",
-        });
+      const rejectionReason = reason || "Task does not meet platform guidelines";
+      await taskService.transitionTo(task.id, "cancelled");
+      const updatedTask = await taskData.updateTask(task.id, {
+        cancellation_reason: rejectionReason,
+      });
 
       await NotificationService.create({
         recipient_id: task.client_id,
         type: "task_rejected",
         content: {
             title: "Task Rejected",
-            message: `Your task "${task.task_details.title}" has been rejected. Reason: ${reason}`,
+            message: `Your task "${task.task_details.title}" has been rejected. Reason: ${rejectionReason}`,
         },
         related_task_id: task.id,
       });
@@ -238,6 +249,33 @@ exports.reviewTask = async (req, res, next) => {
 
   } catch (error) {
     logger.error("Error reviewing task:", error);
+    next(error);
+  }
+};
+
+exports.getTasks = async (req, res, next) => {
+  try {
+    const tasks = await taskData.findTasks({});
+    const userIds = [
+      ...new Set(
+        tasks.flatMap((task) => [task.client_id, task.freelancer_id]).filter(Boolean),
+      ),
+    ];
+    const users = await Promise.all(userIds.map((id) => userData.findUserById(id)));
+    const usersById = new Map(
+      users.filter(Boolean).map((user) => [user.id, sanitizeUser(user)]),
+    );
+
+    res.status(200).json({
+      success: true,
+      data: tasks.map((task) => ({
+        ...task,
+        client: usersById.get(task.client_id) || null,
+        freelancer: usersById.get(task.freelancer_id) || null,
+      })),
+    });
+  } catch (error) {
+    logger.error("Error fetching admin tasks:", error);
     next(error);
   }
 };
@@ -349,24 +387,78 @@ exports.getStatistics = async (req, res, next) => {
     const users = await userData.findUsers({});
     const payments = await paymentData.findPayments({});
 
+    const reviews = await reviewData.findReviews({});
     const taskCount = tasks.length;
-    const userCount = users.length;
-    const totalRevenue = payments
-        .filter((p) => p.status === "released")
-        .reduce((sum, p) => sum + (p.amounts?.platformFee || 0), 0);
+    const statusCounts = tasks.reduce((counts, task) => {
+      counts[task.status] = (counts[task.status] || 0) + 1;
+      return counts;
+    }, {});
+    const roleCounts = users.reduce((counts, user) => {
+      counts[user.role] = (counts[user.role] || 0) + 1;
+      return counts;
+    }, {});
+    const releasedPayments = payments.filter((payment) => payment.status === "released");
+    const pendingPayments = payments.filter((payment) =>
+      ["pending", "escrowed"].includes(payment.status),
+    );
+    const sumPaymentAmount = (items) =>
+      items.reduce(
+        (sum, payment) => sum + Number(payment.amounts?.total || payment.amount || 0),
+        0,
+      );
+    const platformRevenue = releasedPayments.reduce(
+      (sum, payment) => sum + Number(payment.amounts?.platformFee || 0),
+      0,
+    );
+    const completedTasks = tasks.filter((task) => task.status === "completed");
+    const completionDurations = completedTasks
+      .map((task) => {
+        const start = new Date(task.created_at);
+        const end = new Date(task.updated_at);
+        return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
+          ? null
+          : (end - start) / 86400000;
+      })
+      .filter((value) => value !== null && value >= 0);
+    const ratings = reviews
+      .map((review) => Number(review.rating))
+      .filter((rating) => Number.isFinite(rating) && rating > 0);
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
 
     res.status(200).json({
       success: true,
       data: {
-        tasks: {
-            count: taskCount,
+        totalRevenue: platformRevenue,
+        platformRevenue,
+        activeUsers: users.filter((user) => user.status === "active").length,
+        totalUsers: users.length,
+        totalTasks: taskCount,
+        completionRate: taskCount ? (completedTasks.length / taskCount) * 100 : 0,
+        tasksByStatus: statusCounts,
+        usersByRole: {
+          clients: roleCounts.client || 0,
+          freelancers: roleCounts.freelancer || 0,
+          admins: roleCounts.admin || 0,
         },
-        users: {
-            count: userCount,
+        paymentStats: {
+          completed: sumPaymentAmount(releasedPayments),
+          completedCount: releasedPayments.length,
+          pending: sumPaymentAmount(pendingPayments),
+          pendingCount: pendingPayments.length,
         },
-        revenue: {
-            total: totalRevenue,
+        growth: {
+          newUsers: users.filter((user) => new Date(user.created_at) >= monthStart).length,
+          newTasks: tasks.filter((task) => new Date(task.created_at) >= monthStart).length,
         },
+        averageCompletionTime: completionDurations.length
+          ? completionDurations.reduce((sum, value) => sum + value, 0) /
+            completionDurations.length
+          : 0,
+        satisfactionRate: ratings.length
+          ? (ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length / 5) * 100
+          : 0,
       },
     });
   } catch (error) {

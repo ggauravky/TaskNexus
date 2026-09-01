@@ -1,6 +1,6 @@
 const { body, param, query } = require("express-validator");
 const {
-  USER_ROLES,
+  PUBLIC_REGISTRATION_ROLES,
   TASK_TYPES,
   TASK_PRIORITY,
 } = require("../config/constants");
@@ -20,7 +20,9 @@ const registerValidation = [
     .withMessage("Password must be at least 8 characters")
     .trim(),
 
-  body("role").isIn(Object.values(USER_ROLES)).withMessage("Invalid role"),
+  body("role")
+    .isIn(PUBLIC_REGISTRATION_ROLES)
+    .withMessage("Role must be client or freelancer"),
 
   body("profile.firstName")
     .trim()

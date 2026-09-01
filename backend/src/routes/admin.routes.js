@@ -21,7 +21,7 @@ router.patch(
   [
     param("id").isUUID().withMessage("Invalid user ID"),
     body("status")
-      .isIn(["active", "suspended", "banned"])
+      .isIn(["active", "suspended", "blocked"])
       .withMessage("Invalid status"),
   ],
   validate,
@@ -29,6 +29,8 @@ router.patch(
 );
 
 // Task management
+router.get("/tasks", adminController.getTasks);
+
 router.post(
   "/tasks/:id/review",
   [

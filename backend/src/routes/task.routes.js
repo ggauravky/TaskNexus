@@ -9,7 +9,11 @@ const {
 } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
 const { body, query, param } = require("express-validator");
-const { commentAttachmentUpload } = require("../middleware/upload");
+const {
+  commentAttachmentUpload,
+  validateUploadedFiles,
+} = require("../middleware/upload");
+const { taskCreationLimiter } = require("../middleware/rateLimiter");
 
 // Validation rules
 const createTaskValidation = [
@@ -86,6 +90,7 @@ router.get("/", taskController.getTasks);
 router.post(
   "/",
   requireClient,
+  taskCreationLimiter,
   createTaskValidation,
   validate,
   taskController.createTask,
@@ -147,8 +152,22 @@ router.post(
       .escape(),
   ],
   validate,
+  taskController.requireTaskWriteAccess,
   commentAttachmentUpload.array("attachments", 5),
+  validateUploadedFiles,
   taskController.addTaskComment,
+);
+
+router.get(
+  "/:id/attachments/:filename",
+  [
+    param("id").isUUID().withMessage("Invalid task ID"),
+    param("filename")
+      .matches(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,120}$/)
+      .withMessage("Invalid attachment filename"),
+  ],
+  validate,
+  taskController.downloadTaskAttachment,
 );
 
 router.get(

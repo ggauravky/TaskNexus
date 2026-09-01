@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -23,7 +23,42 @@ import AdminTasks from './pages/AdminTasks';
 import AdminUsers from './pages/AdminUsers';
 import AdminAnalytics from './pages/AdminAnalytics';
 import NotFound from './pages/NotFound';
-import TestPage from './pages/TestPage';
+import Loading from './components/common/Loading';
+
+const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
+
+const PUBLIC_METADATA = {
+    '/': { title: 'TaskNexus', description: 'A focused workspace for organizing tasks, tracking progress, and collaborating around delivery.' },
+    '/login': { title: 'Login | TaskNexus', description: 'Sign in to your TaskNexus workspace.' },
+    '/register': { title: 'Create Account | TaskNexus', description: 'Create a TaskNexus client or freelancer account.' },
+    '/services': { title: 'Services | TaskNexus', description: 'Explore the services currently available through TaskNexus.' },
+    '/blog': { title: 'Blog | TaskNexus', description: 'Practical notes on better work, delivery, and collaboration.' },
+    '/support-jar': { title: 'Support Jar | TaskNexus', description: 'Support the ongoing development of TaskNexus.' },
+    '/admin/login': { title: 'Admin Login | TaskNexus', description: 'Restricted TaskNexus administrator access.', noindex: true },
+};
+
+const RouteMetadata = () => {
+    const { pathname } = useLocation();
+
+    useEffect(() => {
+        const isPrivate = /^(\/client|\/freelancer|\/admin)(\/|$)/.test(pathname);
+        const metadata = PUBLIC_METADATA[pathname] || {
+            title: isPrivate ? 'Workspace | TaskNexus' : 'Page Not Found | TaskNexus',
+            description: 'TaskNexus workspace.',
+            noindex: true,
+        };
+
+        document.title = metadata.title;
+        const description = document.querySelector('meta[name="description"]');
+        const robots = document.querySelector('meta[name="robots"]');
+        const canonical = document.querySelector('link[rel="canonical"]');
+        if (description) description.setAttribute('content', metadata.description);
+        if (robots) robots.setAttribute('content', metadata.noindex || isPrivate ? 'noindex, nofollow' : 'index, follow');
+        if (canonical) canonical.setAttribute('href', `${SITE_URL}${pathname === '/' ? '/' : pathname}`);
+    }, [pathname]);
+
+    return null;
+};
 
 /**
  * Main App Component
@@ -71,6 +106,7 @@ function App() {
                 }}
             >
                 <div className="shell">
+                    <RouteMetadata />
                     <Toaster
                         position="top-right"
                         toastOptions={{
@@ -105,7 +141,11 @@ function App() {
  * Application Routes
  */
 function AppRoutes() {
-    const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated, user, loading } = useAuth();
+
+    if (loading) {
+        return <Loading fullScreen={true} text="Checking your session..." />;
+    }
 
     return (
         <Routes>
@@ -125,11 +165,6 @@ function AppRoutes() {
             <Route path="/admin/login" element={
                 isAuthenticated && user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <AdminLogin />
             } />
-
-            {/* Test Route - for debugging */}
-            <Route path="/test" element={<TestPage />} />
-            <Route path="/client/test" element={<ClientDashboard />} />
-            <Route path="/freelancer/test" element={<FreelancerDashboard />} />
 
             {/* Client Routes */}
             <Route path="/client/dashboard" element={

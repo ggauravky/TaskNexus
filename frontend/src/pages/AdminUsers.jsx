@@ -200,7 +200,7 @@ const AdminUsers = () => {
                                     </tr>
                                 ) : (
                                     filteredUsers.map((user) => (
-                                        <tr key={user._id} className="hover:bg-slate-50/80">
+                                        <tr key={user.id} className="hover:bg-slate-50/80">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
                                                     <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
@@ -241,7 +241,7 @@ const AdminUsers = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <button
-                                                    onClick={() => handleToggleStatus(user._id, user.status || 'active')}
+                                                    onClick={() => handleToggleStatus(user.id, user.status || 'active')}
                                                     className={`${user.status === 'active' ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'
                                                         }`}
                                                 >

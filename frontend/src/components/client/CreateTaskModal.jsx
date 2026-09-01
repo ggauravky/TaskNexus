@@ -2,6 +2,7 @@
 import { X, DollarSign, Calendar, FileText, Tag, Clock } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import Dialog from '../common/Dialog';
 
 const defaultFormData = {
   title: '',
@@ -175,13 +176,13 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
   const minDate = tomorrow.toISOString().split('T')[0];
 
   return (
-    <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white/95 rounded-2xl border border-white/70 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <Dialog onClose={handleClose} titleId="create-task-title" panelClassName="max-w-2xl">
         <div className="sticky top-0 bg-white/95 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-900">Create New Task</h2>
+          <h2 id="create-task-title" className="text-2xl font-bold text-gray-900">Create New Task</h2>
           <button
             type="button"
             onClick={handleClose}
+            aria-label="Close create task dialog"
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="w-6 h-6" />
@@ -190,11 +191,12 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Task Title *</label>
+            <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-2">Task Title *</label>
             <div className="relative">
               <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
+                id="task-title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
@@ -207,9 +209,10 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+            <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
             <textarea
               name="description"
+              id="task-description"
               value={formData.description}
               onChange={handleChange}
               placeholder="Describe your task in detail..."
@@ -224,11 +227,12 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+              <label htmlFor="task-category" className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
               <div className="relative">
                 <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <select
                   name="category"
+                  id="task-category"
                   value={formData.category}
                   onChange={handleChange}
                   className="input pl-10"
@@ -245,11 +249,12 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Experience Level *</label>
+              <label htmlFor="task-experience" className="block text-sm font-medium text-gray-700 mb-2">Experience Level *</label>
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <select
                   name="experienceLevel"
+                  id="task-experience"
                   value={formData.experienceLevel}
                   onChange={handleChange}
                   className="input pl-10"
@@ -267,11 +272,12 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Budget (USD) *</label>
+              <label htmlFor="task-budget" className="block text-sm font-medium text-gray-700 mb-2">Budget (USD) *</label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="number"
+                  id="task-budget"
                   name="budget"
                   value={formData.budget}
                   onChange={handleChange}
@@ -287,11 +293,12 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Deadline *</label>
+              <label htmlFor="task-deadline" className="block text-sm font-medium text-gray-700 mb-2">Deadline *</label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="date"
+                  id="task-deadline"
                   name="deadline"
                   value={formData.deadline}
                   onChange={handleChange}
@@ -304,13 +311,14 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Skills Required (Optional)</label>
+            <label htmlFor="task-skills" className="block text-sm font-medium text-gray-700 mb-2">Skills Required (Optional)</label>
             <input
               type="text"
+              id="task-skills"
               name="skillsRequired"
               value={formData.skillsRequired}
               onChange={handleChange}
-              placeholder="e.g., React, Node.js, MongoDB"
+              placeholder="e.g., React, Node.js, PostgreSQL"
               className="input"
             />
             <p className="text-xs text-gray-500 mt-1">Separate multiple skills with commas</p>
@@ -334,8 +342,7 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Dialog>
   );
 };
 

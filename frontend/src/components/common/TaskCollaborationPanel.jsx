@@ -217,6 +217,24 @@ const TaskCollaborationPanel = ({ task }) => {
     }
   };
 
+  const downloadAttachment = async (file) => {
+    try {
+      const url = new URL(file.url, window.location.origin);
+      const apiPath = url.pathname.replace(/^\/api/, "");
+      const response = await api.get(apiPath, { responseType: "blob" });
+      const objectUrl = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = file.originalName || "attachment";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to download attachment");
+    }
+  };
+
   if (!taskId) {
     return null;
   }
@@ -225,7 +243,7 @@ const TaskCollaborationPanel = ({ task }) => {
     <section className="border-t border-gray-200 pt-6">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Collaboration</h3>
-        <div className="flex items-center gap-2">
+        <div role="tablist" aria-label="Task collaboration sections" className="flex items-center gap-2 overflow-x-auto">
           {[
             { id: TAB_IDS.COMMENTS, icon: MessageSquare, label: `Comments (${comments.length})` },
             { id: TAB_IDS.MILESTONES, icon: CheckSquare, label: `Milestones (${subtasks.length})` },
@@ -234,6 +252,10 @@ const TaskCollaborationPanel = ({ task }) => {
             <button
               key={tab.id}
               type="button"
+              role="tab"
+              id={`collaboration-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls={`collaboration-panel-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-full border inline-flex items-center gap-1 ${
                 activeTab === tab.id
@@ -253,10 +275,12 @@ const TaskCollaborationPanel = ({ task }) => {
       ) : (
         <>
           {activeTab === TAB_IDS.COMMENTS && (
-            <div className="space-y-4">
+            <div role="tabpanel" id="collaboration-panel-comments" aria-labelledby="collaboration-tab-comments" className="space-y-4">
               {canCollaborate && (
                 <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/80">
+                  <label htmlFor="task-comment" className="sr-only">Comment</label>
                   <textarea
+                    id="task-comment"
                     rows={3}
                     maxLength={5000}
                     value={commentBody}
@@ -342,16 +366,15 @@ const TaskCollaborationPanel = ({ task }) => {
                         comment.attachments.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {comment.attachments.map((file) => (
-                              <a
+                              <button
                                 key={file.id}
-                                href={file.url}
-                                target="_blank"
-                                rel="noreferrer"
+                                type="button"
+                                onClick={() => downloadAttachment(file)}
                                 className="text-xs px-2 py-1 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100"
                               >
                                 <Paperclip className="w-3 h-3 inline mr-1" />
                                 {file.originalName}
-                              </a>
+                              </button>
                             ))}
                           </div>
                         )}
@@ -363,7 +386,7 @@ const TaskCollaborationPanel = ({ task }) => {
           )}
 
           {activeTab === TAB_IDS.MILESTONES && (
-            <div className="space-y-4">
+            <div role="tabpanel" id="collaboration-panel-milestones" aria-labelledby="collaboration-tab-milestones" className="space-y-4">
               <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-slate-900">Milestone progress</p>
@@ -380,7 +403,9 @@ const TaskCollaborationPanel = ({ task }) => {
               {canCollaborate && (
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <label htmlFor="milestone-title" className="sr-only">Milestone title</label>
                     <input
+                      id="milestone-title"
                       value={newSubtask.title}
                       onChange={(event) =>
                         setNewSubtask((prev) => ({ ...prev, title: event.target.value }))
@@ -388,7 +413,9 @@ const TaskCollaborationPanel = ({ task }) => {
                       className="input md:col-span-2"
                       placeholder="Add milestone title"
                     />
+                    <label htmlFor="milestone-date" className="sr-only">Milestone due date</label>
                     <input
+                      id="milestone-date"
                       type="date"
                       value={newSubtask.dueDate}
                       onChange={(event) =>
@@ -396,7 +423,9 @@ const TaskCollaborationPanel = ({ task }) => {
                       }
                       className="input"
                     />
+                    <label htmlFor="milestone-weight" className="sr-only">Milestone weight percentage</label>
                     <input
+                      id="milestone-weight"
                       type="number"
                       min="0"
                       max="100"
@@ -445,13 +474,14 @@ const TaskCollaborationPanel = ({ task }) => {
                           <p className="text-xs text-slate-500 mt-1">
                             <Clock className="w-3 h-3 inline mr-1" />
                             Due: {subtask.dueDate ? formatDateTime(subtask.dueDate) : "No date"}
-                            {" · "}Weight: {Number(subtask.weight || 0)}%
+                            {", "}Weight: {Number(subtask.weight || 0)}%
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           {canCollaborate ? (
                             <button
                               type="button"
+                              aria-label={`Delete milestone ${subtask.title}`}
                               onClick={() => toggleSubtask(subtask)}
                               className={`px-2 py-1 text-xs rounded-full border ${
                                 subtask.completed
@@ -490,7 +520,7 @@ const TaskCollaborationPanel = ({ task }) => {
           )}
 
           {activeTab === TAB_IDS.ACTIVITY && (
-            <div className="space-y-2">
+            <div role="tabpanel" id="collaboration-panel-activity" aria-labelledby="collaboration-tab-activity" className="space-y-2">
               {activity.length === 0 ? (
                 <p className="text-sm text-slate-500">No activity yet.</p>
               ) : (

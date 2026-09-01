@@ -78,7 +78,7 @@ const Login = () => {
             </span>
             <span>
               <span className="auth-brand-title">TaskNexus</span>
-              <span className="auth-brand-subtitle">Managed delivery platform</span>
+              <span className="auth-brand-subtitle">Focused task workspace</span>
             </span>
           </Link>
 
@@ -107,7 +107,7 @@ const Login = () => {
               </Link>
             </div>
 
-            {formError && <div className="auth-alert">{formError}</div>}
+            {formError && <div id="login-error" role="alert" className="auth-alert">{formError}</div>}
 
             <form className="space-y-4" onSubmit={handleSubmit} noValidate>
               <div>
@@ -120,6 +120,7 @@ const Login = () => {
                   type="email"
                   autoComplete="email"
                   required
+                  aria-describedby={formError ? "login-error" : undefined}
                   className="input auth-input"
                   placeholder="you@company.com"
                   value={formData.email}
@@ -138,6 +139,7 @@ const Login = () => {
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
+                    aria-describedby={formError ? "login-error" : undefined}
                     className="input auth-input pr-11"
                     placeholder="********"
                     value={formData.password}

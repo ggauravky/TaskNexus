@@ -8,6 +8,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import Loading from '../components/common/Loading';
 import StatusBadge from '../components/common/StatusBadge';
+import Dialog from '../components/common/Dialog';
 
 const AdminTasks = () => {
     const navigate = useNavigate();
@@ -32,7 +33,7 @@ const AdminTasks = () => {
 
         if (searchTerm) {
             filtered = filtered.filter(task =>
-                task.taskDetails?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                task.task_details?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 task.client?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 task.freelancer?.email?.toLowerCase().includes(searchTerm.toLowerCase())
             );
@@ -61,9 +62,9 @@ const AdminTasks = () => {
         setShowDetailsModal(true);
     };
 
-    const handleUpdateStatus = async (taskId, newStatus) => {
+    const handleReview = async (taskId, action) => {
         try {
-            const response = await api.patch(`/admin/tasks/${taskId}/status`, { status: newStatus });
+            const response = await api.post(`/admin/tasks/${taskId}/review`, { action });
             if (response.data.success) {
                 toast.success('Task status updated!');
                 fetchTasks();
@@ -200,13 +201,13 @@ const AdminTasks = () => {
                                     </tr>
                                 ) : (
                                     filteredTasks.map((task) => (
-                                        <tr key={task._id} className="hover:bg-slate-50/80">
+                                        <tr key={task.id} className="hover:bg-slate-50/80">
                                             <td className="px-6 py-4">
                                                 <div className="text-sm font-medium text-gray-900">
-                                                    {task.taskDetails?.title || 'Untitled Task'}
+                                                    {task.task_details?.title || 'Untitled Task'}
                                                 </div>
                                                 <div className="text-xs text-gray-500 line-clamp-1">
-                                                    {task.taskDetails?.description}
+                                                    {task.task_details?.description}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -228,13 +229,13 @@ const AdminTasks = () => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                ${(task.taskDetails?.budget || 0).toLocaleString()}
+                                                ${(task.task_details?.budget || 0).toLocaleString()}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <StatusBadge status={task.status} />
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {new Date(task.taskDetails?.deadline).toLocaleDateString()}
+                                                {new Date(task.task_details?.deadline).toLocaleDateString()}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                                 <button
@@ -258,7 +259,7 @@ const AdminTasks = () => {
                 <TaskDetailsModal
                     task={selectedTask}
                     onClose={() => setShowDetailsModal(false)}
-                    onUpdateStatus={handleUpdateStatus}
+                    onReview={handleReview}
                 />
             )}
         </div>
@@ -272,49 +273,48 @@ const StatCard = ({ title, value, color }) => (
     </div>
 );
 
-const TaskDetailsModal = ({ task, onClose, onUpdateStatus }) => {
+const TaskDetailsModal = ({ task, onClose, onReview }) => {
     return (
-        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white/95 rounded-2xl border border-white/70 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <Dialog onClose={onClose} titleId="admin-task-details-title" panelClassName="max-w-2xl">
                 <div className="p-6">
                     <div className="flex justify-between items-start mb-6">
-                        <h2 className="text-2xl font-bold text-gray-900">Task Details</h2>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <h2 id="admin-task-details-title" className="text-2xl font-bold text-gray-900">Task Details</h2>
+                        <button onClick={onClose} aria-label="Close task details dialog" className="text-gray-400 hover:text-gray-600">
                             <X className="w-6 h-6" />
                         </button>
                     </div>
 
                     <div className="space-y-4">
                         <div>
-                            <label className="text-sm font-medium text-gray-700">Title</label>
-                            <p className="text-gray-900">{task.taskDetails?.title}</p>
+                            <p className="text-sm font-medium text-gray-700">Title</p>
+                            <p className="text-gray-900">{task.task_details?.title}</p>
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium text-gray-700">Description</label>
-                            <p className="text-gray-900">{task.taskDetails?.description}</p>
+                            <p className="text-sm font-medium text-gray-700">Description</p>
+                            <p className="text-gray-900">{task.task_details?.description}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-sm font-medium text-gray-700">Budget</label>
-                                <p className="text-gray-900">${task.taskDetails?.budget.toLocaleString()}</p>
+                                <p className="text-sm font-medium text-gray-700">Budget</p>
+                                <p className="text-gray-900">${task.task_details?.budget?.toLocaleString()}</p>
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-gray-700">Deadline</label>
-                                <p className="text-gray-900">{new Date(task.taskDetails?.deadline).toLocaleDateString()}</p>
+                                <p className="text-sm font-medium text-gray-700">Deadline</p>
+                                <p className="text-gray-900">{new Date(task.task_details?.deadline).toLocaleDateString()}</p>
                             </div>
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium text-gray-700">Status</label>
+                            <p className="text-sm font-medium text-gray-700">Status</p>
                             <div className="mt-1">
                                 <StatusBadge status={task.status} />
                             </div>
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium text-gray-700">Client</label>
+                            <p className="text-sm font-medium text-gray-700">Client</p>
                             <p className="text-gray-900">
                                 {task.client?.profile?.firstName} {task.client?.profile?.lastName} ({task.client?.email})
                             </p>
@@ -322,7 +322,7 @@ const TaskDetailsModal = ({ task, onClose, onUpdateStatus }) => {
 
                         {task.freelancer && (
                             <div>
-                                <label className="text-sm font-medium text-gray-700">Freelancer</label>
+                                <p className="text-sm font-medium text-gray-700">Freelancer</p>
                                 <p className="text-gray-900">
                                     {task.freelancer?.profile?.firstName} {task.freelancer?.profile?.lastName} ({task.freelancer?.email})
                                 </p>
@@ -330,14 +330,22 @@ const TaskDetailsModal = ({ task, onClose, onUpdateStatus }) => {
                         )}
 
                         <div className="flex gap-2 pt-4">
-                            {task.status === 'under_review' && (
-                                <button
-                                    onClick={() => onUpdateStatus(task._id, 'assigned')}
-                                    className="btn btn-primary flex-1"
-                                >
-                                    <CheckCircle className="w-4 h-4 mr-2" />
-                                    Approve & Assign
-                                </button>
+                            {task.status === 'submitted' && (
+                                <>
+                                    <button
+                                        onClick={() => onReview(task.id, 'approve')}
+                                        className="btn btn-primary flex-1"
+                                    >
+                                        <CheckCircle className="w-4 h-4 mr-2" />
+                                        Approve
+                                    </button>
+                                    <button
+                                        onClick={() => onReview(task.id, 'reject')}
+                                        className="btn btn-danger flex-1"
+                                    >
+                                        Reject
+                                    </button>
+                                </>
                             )}
                             <button onClick={onClose} className="btn btn-secondary flex-1">
                                 Close
@@ -345,8 +353,7 @@ const TaskDetailsModal = ({ task, onClose, onUpdateStatus }) => {
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+        </Dialog>
     );
 };
 

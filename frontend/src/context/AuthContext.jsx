@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import authService from '../services/authService';
-import { LOCAL_STORAGE_KEYS } from '../utils/constants';
+import { clearAccessToken, setAccessToken } from '../services/api';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
@@ -18,27 +18,42 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    // Initialize auth state from localStorage
+    // Reconcile authentication with the server before rendering protected routes.
     useEffect(() => {
-        const initAuth = () => {
-            try {
-                const storedUser = localStorage.getItem(LOCAL_STORAGE_KEYS.USER);
-                const storedToken = localStorage.getItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
+        let active = true;
 
-                if (storedUser && storedToken) {
-                    setUser(JSON.parse(storedUser));
-                    setIsAuthenticated(true);
-                }
-            } catch (error) {
-                console.error('Error initializing auth:', error);
-                localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
-                localStorage.removeItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
-            } finally {
-                setLoading(false);
+        const clearAuthState = () => {
+            clearAccessToken();
+            if (active) {
+                setUser(null);
+                setIsAuthenticated(false);
             }
         };
 
+        const initAuth = async () => {
+            try {
+                const response = await authService.getCurrentUser();
+                if (active && response?.data?.user) {
+                    setUser(response.data.user);
+                    setIsAuthenticated(true);
+                }
+            } catch (error) {
+                clearAuthState();
+            } finally {
+                if (active) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        const handleExpiredSession = () => clearAuthState();
+        window.addEventListener('tasknexus:auth-expired', handleExpiredSession);
         initAuth();
+
+        return () => {
+            active = false;
+            window.removeEventListener('tasknexus:auth-expired', handleExpiredSession);
+        };
     }, []);
 
     /**
@@ -49,13 +64,9 @@ export const AuthProvider = ({ children }) => {
             const response = await authService.login(credentials);
             const { user, accessToken } = response.data;
 
-            // Store in state
+            setAccessToken(accessToken);
             setUser(user);
             setIsAuthenticated(true);
-
-            // Store in localStorage
-            localStorage.setItem(LOCAL_STORAGE_KEYS.USER, JSON.stringify(user));
-            localStorage.setItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN, accessToken);
 
             toast.success(response.message || 'Login successful');
 
@@ -75,13 +86,9 @@ export const AuthProvider = ({ children }) => {
             const response = await authService.register(userData);
             const { user, accessToken } = response.data;
 
-            // Store in state
+            setAccessToken(accessToken);
             setUser(user);
             setIsAuthenticated(true);
-
-            // Store in localStorage
-            localStorage.setItem(LOCAL_STORAGE_KEYS.USER, JSON.stringify(user));
-            localStorage.setItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN, accessToken);
 
             toast.success(response.message || 'Registration successful');
 
@@ -107,7 +114,7 @@ export const AuthProvider = ({ children }) => {
     /**
      * Logout user
      */
-    const logout = async () => {
+    const logout = async ({ silent = false } = {}) => {
         try {
             await authService.logout();
         } catch (error) {
@@ -117,20 +124,17 @@ export const AuthProvider = ({ children }) => {
             setUser(null);
             setIsAuthenticated(false);
 
-            // Clear localStorage
-            localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
-            localStorage.removeItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
+            clearAccessToken();
 
-            toast.success('Logged out successfully');
+            if (!silent) toast.success('Logged out successfully');
         }
     };
 
     /**
-     * Update user in state and localStorage
+     * Update the current in-memory user state.
      */
     const updateUser = (updatedUser) => {
         setUser(updatedUser);
-        localStorage.setItem(LOCAL_STORAGE_KEYS.USER, JSON.stringify(updatedUser));
     };
 
     const value = {

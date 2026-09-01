@@ -6,11 +6,12 @@ const { ERROR_CODES } = require("../config/constants");
  * Catches all errors and sends appropriate response
  */
 const errorHandler = (err, req, res, next) => {
+  const safeUrl = String(req.originalUrl || req.path || "").split("?")[0];
   // Log error
   logger.error("Error:", {
     message: err.message,
     stack: err.stack,
-    url: req.originalUrl,
+    url: safeUrl,
     method: req.method,
     ip: req.ip,
     userId: req.userId,
@@ -28,39 +29,6 @@ const errorHandler = (err, req, res, next) => {
 
   if (err.details) {
     errorResponse.error.details = err.details;
-  }
-
-  // Mongoose validation error
-  if (err.name === "ValidationError") {
-    statusCode = 400;
-    const errors = Object.values(err.errors).map((e) => ({
-      field: e.path,
-      message: e.message,
-    }));
-    errorResponse.error = {
-      code: ERROR_CODES.VALIDATION_ERROR,
-      message: "Validation failed",
-      details: errors,
-    };
-  }
-
-  // Mongoose duplicate key error
-  if (err.code === 11000) {
-    statusCode = 400;
-    const field = Object.keys(err.keyPattern)[0];
-    errorResponse.error = {
-      code: ERROR_CODES.DUPLICATE_ERROR,
-      message: `${field} already exists`,
-    };
-  }
-
-  // Mongoose cast error (invalid ObjectId)
-  if (err.name === "CastError") {
-    statusCode = 400;
-    errorResponse.error = {
-      code: ERROR_CODES.VALIDATION_ERROR,
-      message: "Invalid ID format",
-    };
   }
 
   // JWT errors
@@ -99,7 +67,7 @@ const notFound = (req, res, next) => {
     success: false,
     error: {
       code: ERROR_CODES.NOT_FOUND,
-      message: `Route ${req.originalUrl} not found`,
+      message: `Route ${String(req.originalUrl || req.path || "").split("?")[0]} not found`,
     },
   });
 };

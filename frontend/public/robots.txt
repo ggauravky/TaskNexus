@@ -1,5 +1,8 @@
 # Robots policy for TaskNexus
 User-agent: *
 Allow: /
+Disallow: /client/
+Disallow: /freelancer/
+Disallow: /admin/
 
-Sitemap: https://task-nexus-official.vercel.app/sitemap.xml
+Sitemap: https://tasknexus.vercel.app/sitemap.xml

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Calendar, DollarSign, User, FileText, CheckCircle, RefreshCw } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import TaskCollaborationPanel from '../common/TaskCollaborationPanel';
+import Dialog from '../common/Dialog';
 
 /**
  * Task Details Modal for Freelancer
@@ -76,20 +77,11 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
     };
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm transition-opacity"
-                onClick={onClose}
-            />
-
-            {/* Modal */}
-            <div className="flex min-h-screen items-center justify-center p-4">
-                <div className="relative bg-white/95 rounded-2xl shadow-2xl border border-white/70 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <Dialog onClose={onClose} titleId="freelancer-task-details-title" panelClassName="max-w-3xl">
                     {/* Header */}
                     <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-start z-10">
                         <div className="flex-1">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                            <h2 id="freelancer-task-details-title" className="text-2xl font-bold text-gray-900 mb-2">
                                 {title}
                             </h2>
                             <div className="flex items-center gap-3">
@@ -103,6 +95,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
                         </div>
                         <button
                             onClick={onClose}
+                            aria-label="Close task details dialog"
                             className="text-gray-400 hover:text-gray-600 transition-colors ml-4"
                         >
                             <X className="w-6 h-6" />
@@ -331,9 +324,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
                             )}
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
+        </Dialog>
     );
 };
 

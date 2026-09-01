@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { API_URL, LOCAL_STORAGE_KEYS } from "../utils/constants";
+import { API_URL } from "../utils/constants";
+import { getAccessToken } from "../services/api";
 
 const DEFAULT_EVENTS = [
   "connected",
@@ -31,7 +32,7 @@ const getRealtimeBaseUrl = () => {
 export const useRealtimeEvents = (onEvent, events = DEFAULT_EVENTS) => {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [lastEvent, setLastEvent] = useState(null);
-  const eventSourceRef = useRef(null);
+  const connectionRef = useRef(null);
   const callbackRef = useRef(onEvent);
 
   callbackRef.current = onEvent;
@@ -42,59 +43,97 @@ export const useRealtimeEvents = (onEvent, events = DEFAULT_EVENTS) => {
   );
 
   useEffect(() => {
-    const token = localStorage.getItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
+    const token = getAccessToken();
     if (!token) {
       setConnectionStatus("disconnected");
       return undefined;
     }
 
+    let stopped = false;
     const base = getRealtimeBaseUrl();
-    const streamUrl = `${base}/api/realtime/stream?token=${encodeURIComponent(token)}`;
-    const source = new EventSource(streamUrl);
-    eventSourceRef.current = source;
+    const streamUrl = `${base}/api/realtime/stream`;
+    const controller = new AbortController();
+    connectionRef.current = controller;
 
-    source.onopen = () => {
-      setConnectionStatus("connected");
+    const publishEvent = (eventName, rawData) => {
+      if (eventName === "ping" || !subscribedEvents.includes(eventName)) return;
+
+      let payload = null;
+      try {
+        payload = rawData ? JSON.parse(rawData) : null;
+      } catch {
+        payload = null;
+      }
+
+      const normalized = { type: eventName || "message", payload };
+      setLastEvent(normalized);
+      if (typeof callbackRef.current === "function") {
+        callbackRef.current(normalized);
+      }
     };
 
-    source.onerror = () => {
-      setConnectionStatus("reconnecting");
-    };
-
-    const listeners = subscribedEvents.map((eventName) => {
-      const handler = (event) => {
-        if (eventName === "ping") {
-          return;
-        }
-
-        let payload = null;
+    const connect = async () => {
+      while (!stopped) {
         try {
-          payload = event?.data ? JSON.parse(event.data) : null;
-        } catch {
-          payload = null;
+          const currentToken = getAccessToken();
+          if (!currentToken) {
+            setConnectionStatus("disconnected");
+            return;
+          }
+
+          const response = await fetch(streamUrl, {
+            method: "GET",
+            headers: {
+              Accept: "text/event-stream",
+              Authorization: `Bearer ${currentToken}`,
+            },
+            credentials: "include",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+
+          if (!response.ok || !response.body) {
+            throw new Error(`Realtime connection failed (${response.status})`);
+          }
+
+          setConnectionStatus("connected");
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (!stopped) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const frames = buffer.split(/\r?\n\r?\n/);
+            buffer = frames.pop() || "";
+
+            frames.forEach((frame) => {
+              let eventName = "message";
+              const dataLines = [];
+              frame.split(/\r?\n/).forEach((line) => {
+                if (line.startsWith("event:")) eventName = line.slice(6).trim();
+                if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+              });
+              publishEvent(eventName, dataLines.join("\n"));
+            });
+          }
+        } catch (error) {
+          if (stopped || error?.name === "AbortError") return;
+          setConnectionStatus("reconnecting");
         }
 
-        const normalized = {
-          type: event.type || "message",
-          payload,
-        };
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    };
 
-        setLastEvent(normalized);
-        if (typeof callbackRef.current === "function") {
-          callbackRef.current(normalized);
-        }
-      };
-
-      source.addEventListener(eventName, handler);
-      return { eventName, handler };
-    });
+    connect();
 
     return () => {
-      listeners.forEach(({ eventName, handler }) => {
-        source.removeEventListener(eventName, handler);
-      });
-      source.close();
-      eventSourceRef.current = null;
+      stopped = true;
+      controller.abort();
+      connectionRef.current = null;
       setConnectionStatus("disconnected");
     };
   }, [subscribedEvents]);

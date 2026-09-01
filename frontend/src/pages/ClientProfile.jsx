@@ -222,11 +222,12 @@ const StatPill = ({ icon: Icon, label, value }) => (
 
 const InputField = ({ label, name, value, onChange, icon: Icon, type = 'text' }) => (
   <div>
-    <p className="text-sm font-medium text-slate-700 mb-1">{label}</p>
+    <label htmlFor={`client-profile-${name}`} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
     <div className="relative">
       {Icon && <Icon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />}
       <input
         type={type}
+        id={`client-profile-${name}`}
         name={name}
         value={value}
         onChange={onChange}

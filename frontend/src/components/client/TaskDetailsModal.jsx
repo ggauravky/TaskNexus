@@ -1,6 +1,7 @@
 import { X, DollarSign, Calendar, User, Tag, Clock, FileText, Activity } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import TaskCollaborationPanel from '../common/TaskCollaborationPanel';
+import Dialog from '../common/Dialog';
 
 /**
  * Task Details Modal Component
@@ -33,18 +34,18 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white/95 rounded-2xl shadow-2xl border border-white/70 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <Dialog onClose={onClose} titleId="client-task-details-title" panelClassName="max-w-3xl">
                 {/* Header */}
                 <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
                     <div className="flex-1">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                        <h2 id="client-task-details-title" className="text-2xl font-bold text-gray-900 mb-2">
                             {title}
                         </h2>
                         <StatusBadge status={task.status} />
                     </div>
                     <button
                         onClick={onClose}
+                        aria-label="Close task details dialog"
                         className="text-gray-400 hover:text-gray-600 transition-colors ml-4"
                     >
                         <X className="w-6 h-6" />
@@ -213,8 +214,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                         Close
                     </button>
                 </div>
-            </div>
-        </div>
+        </Dialog>
     );
 };
 

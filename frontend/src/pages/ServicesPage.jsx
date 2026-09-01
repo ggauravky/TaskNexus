@@ -238,8 +238,9 @@ const ServicesPage = () => {
             />
 
             <div>
-              <label className="label">Notes</label>
+              <label htmlFor="service-notes" className="label">Notes</label>
               <textarea
+                id="service-notes"
                 name="notes"
                 rows="5"
                 value={formData.notes}

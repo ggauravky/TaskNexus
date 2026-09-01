@@ -6,6 +6,36 @@ const logger = require("../utils/logger");
 const { ERROR_CODES } = require("../config/constants");
 const emailService = require("../services/email/emailService");
 
+const refreshCookieOptions = () => {
+  const isProduction = process.env.NODE_ENV === "production";
+  const configuredSameSite = String(
+    process.env.REFRESH_COOKIE_SAME_SITE || (isProduction ? "none" : "lax"),
+  ).toLowerCase();
+  const allowedSameSiteValues = new Set(["strict", "lax", "none"]);
+
+  return {
+    httpOnly: true,
+    secure: isProduction || configuredSameSite === "none",
+    sameSite: allowedSameSiteValues.has(configuredSameSite)
+      ? configuredSameSite
+      : isProduction
+        ? "none"
+        : "lax",
+    path: "/api/auth",
+  };
+};
+
+const setRefreshCookie = (res, token) => {
+  res.cookie("refreshToken", token, {
+    ...refreshCookieOptions(),
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+};
+
+const clearRefreshCookie = (res) => {
+  res.clearCookie("refreshToken", refreshCookieOptions());
+};
+
 const sendLoginEmailInBackground = (user, req, wasFirstLogin) => {
   setImmediate(async () => {
     try {
@@ -82,12 +112,7 @@ const register = async (req, res, next) => {
     logger.info(`New user registered: ${email} with role: ${role}`);
 
     // Set refresh token in httpOnly cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    setRefreshCookie(res, refreshToken);
 
     res.status(201).json({
       success: true,
@@ -177,12 +202,7 @@ const login = async (req, res, next) => {
     logger.info(`User logged in: ${email}`);
 
     // Set refresh token in httpOnly cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    setRefreshCookie(res, refreshToken);
 
     res.status(200).json({
       success: true,
@@ -255,12 +275,7 @@ const refreshToken = async (req, res, next) => {
     await userData.updateUser(user.id, { refresh_token: newRefreshToken });
 
     // Set new refresh token in cookie
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    setRefreshCookie(res, newRefreshToken);
 
     res.status(200).json({
       success: true,
@@ -277,25 +292,38 @@ const refreshToken = async (req, res, next) => {
 /**
  * Logout user
  * @route POST /api/auth/logout
- * @access Private
+ * @access Public (refresh cookie identifies the session when available)
  */
 const logout = async (req, res, next) => {
   try {
-    // Clear refresh token from database
-    await userData.updateUser(req.userId, { refresh_token: null });
+    const token = req.cookies?.refreshToken;
+    let userId = null;
 
-    // Log audit
-    await auditLogData.log({
-      user_id: req.userId,
-      action: "USER_LOGOUT",
-      resource: "user",
-      resource_id: req.userId,
-      ip_address: req.ip,
-      user_agent: req.headers["user-agent"],
-    });
+    if (token) {
+      try {
+        const decoded = verifyRefreshToken(token);
+        const user = await userData.findUserById(decoded.userId);
+        if (user?.refresh_token === token) {
+          userId = user.id;
+          await userData.updateUser(user.id, { refresh_token: null });
+        }
+      } catch (error) {
+        logger.info("Logout received an expired or invalid refresh session");
+      }
+    }
 
-    // Clear cookie
-    res.clearCookie("refreshToken");
+    if (userId) {
+      await auditLogData.log({
+        user_id: userId,
+        action: "USER_LOGOUT",
+        resource: "user",
+        resource_id: userId,
+        ip_address: req.ip,
+        user_agent: req.headers["user-agent"],
+      });
+    }
+
+    clearRefreshCookie(res);
 
     res.status(200).json({
       success: true,

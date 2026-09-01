@@ -1,5 +1,6 @@
 const userData = require("../data/userData");
 const taskData = require("../data/taskData");
+const taskService = require("./taskService");
 const {
   ASSIGNMENT_WEIGHTS,
   USER_ROLES,

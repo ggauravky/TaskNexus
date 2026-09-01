@@ -5,7 +5,7 @@
   "display": "standalone",
   "background_color": "#0b1224",
   "theme_color": "#2563eb",
-  "description": "Managed task outsourcing platform for clients and freelancers.",
+  "description": "A focused workspace for task progress and collaboration.",
   "icons": [
     {
       "src": "/icons/icon.svg",

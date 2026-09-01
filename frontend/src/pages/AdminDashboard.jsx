@@ -62,8 +62,10 @@ const AdminDashboard = () => {
   // Calculate stats from dashboard data
   const stats = dashboardData ? {
     totalTasks: dashboardData.tasks?.total || 0,
-    pendingReview: dashboardData.tasks?.byStatus?.find(s => s._id === 'under_review')?.count || 0,
-    activeTasks: dashboardData.tasks?.byStatus?.find(s => ['assigned', 'in_progress'].includes(s._id))?.count || 0,
+    pendingReview: dashboardData.tasks?.byStatus?.find(s => s.status === 'submitted')?.count || 0,
+    activeTasks: dashboardData.tasks?.byStatus
+      ?.filter(s => ['assigned', 'in_progress'].includes(s.status))
+      .reduce((sum, item) => sum + item.count, 0) || 0,
     totalUsers: dashboardData.users?.total || 0,
     totalRevenue: dashboardData.platformRevenue || 0,
     totalClients: dashboardData.users?.clients || 0,
@@ -215,10 +217,10 @@ const AdminDashboard = () => {
                   </thead>
                   <tbody className="bg-white/90 divide-y divide-slate-100">
                     {recentActivity.map((task) => (
-                      <tr key={task._id} className="hover:bg-slate-50/80">
+                      <tr key={task.id} className="hover:bg-slate-50/80">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
-                            {task.taskDetails?.title || task.title || 'Untitled Task'}
+                            {task.task_details?.title || task.title || 'Untitled Task'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -240,7 +242,7 @@ const AdminDashboard = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ${(task.taskDetails?.budget || task.budget || 0).toLocaleString()}
+                          ${(task.task_details?.budget || task.budget || 0).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge status={task.status} />

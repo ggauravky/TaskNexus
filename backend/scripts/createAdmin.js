@@ -1,56 +1,49 @@
-const mongoose = require("mongoose");
-const User = require("../src/models/User");
 require("dotenv").config();
 
-async function createAdmin() {
-  try {
-    console.log("🔄 Connecting to database...");
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log("✅ Connected to MongoDB");
+const required = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "ADMIN_EMAIL", "ADMIN_PASSWORD"];
+const missing = required.filter((name) => !process.env[name]);
 
-    // Check if admin already exists
-    const existingAdmin = await User.findOne({ email: "admin@tasknexus.com" });
-
-    if (existingAdmin) {
-      console.log("⚠️  Admin user already exists!");
-      console.log("Email:", existingAdmin.email);
-      console.log("Role:", existingAdmin.role);
-
-      // Update to admin role if not already
-      if (existingAdmin.role !== "admin") {
-        existingAdmin.role = "admin";
-        await existingAdmin.save();
-        console.log("✅ Updated user role to admin");
-      }
-    } else {
-      console.log("🔄 Creating admin user...");
-
-      const admin = await User.create({
-        email: "admin@tasknexus.com",
-        password: "Admin@123456",
-        role: "admin",
-        profile: {
-          firstName: "Admin",
-          lastName: "User",
-          phone: "+1234567890",
-        },
-        isEmailVerified: true,
-      });
-
-      console.log("✅ Admin user created successfully!");
-      console.log("📧 Email: admin@tasknexus.com");
-      console.log("🔑 Password: Admin@123456");
-      console.log("👤 Role:", admin.role);
-    }
-
-    console.log(
-      "\n🎉 You can now login to admin portal at: http://localhost:5173/admin/login",
-    );
-    process.exit(0);
-  } catch (error) {
-    console.error("❌ Error:", error.message);
-    process.exit(1);
-  }
+if (missing.length > 0) {
+  console.error(`Missing required environment variables: ${missing.join(", ")}`);
+  process.exit(1);
 }
 
-createAdmin();
+if (process.env.ADMIN_PASSWORD.length < 12) {
+  console.error("ADMIN_PASSWORD must be at least 12 characters long.");
+  process.exit(1);
+}
+
+const userData = require("../src/data/userData");
+
+const createAdmin = async () => {
+  const email = process.env.ADMIN_EMAIL.trim().toLowerCase();
+  const existingUser = await userData.findUserByEmail(email);
+
+  if (existingUser) {
+    if (existingUser.role !== "admin") {
+      throw new Error(
+        "That email already belongs to a non-admin account. Refusing to elevate it automatically.",
+      );
+    }
+
+    console.log(`Admin account already exists: ${email}`);
+    return;
+  }
+
+  await userData.createUser({
+    email,
+    password: process.env.ADMIN_PASSWORD,
+    role: "admin",
+    profile: {
+      firstName: process.env.ADMIN_FIRST_NAME || "TaskNexus",
+      lastName: process.env.ADMIN_LAST_NAME || "Administrator",
+    },
+  });
+
+  console.log(`Admin account created: ${email}`);
+};
+
+createAdmin().catch((error) => {
+  console.error(`Admin provisioning failed: ${error.message}`);
+  process.exitCode = 1;
+});

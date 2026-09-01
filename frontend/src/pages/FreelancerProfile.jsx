@@ -267,8 +267,9 @@ const FreelancerProfile = () => {
                         <div className="space-y-4">
                             <SectionTitle icon={FileText} title="Story & Skills" />
                             <div className="grid grid-cols-1 gap-4">
-                                <Label title="Bio" />
+                                <Label title="Bio" htmlFor="freelancer-bio" />
                                 <textarea
+                                    id="freelancer-bio"
                                     name="bio"
                                     value={form.bio}
                                     onChange={handleChange}
@@ -278,8 +279,9 @@ const FreelancerProfile = () => {
                                 />
                             </div>
                             <div className="grid grid-cols-1 gap-2">
-                                <Label title="Skills (comma separated)" />
+                                <Label title="Skills (comma separated)" htmlFor="freelancer-skills" />
                                 <textarea
+                                    id="freelancer-skills"
                                     name="skills"
                                     value={form.skills}
                                     onChange={handleChange}
@@ -375,8 +377,8 @@ const FreelancerProfile = () => {
     );
 };
 
-const Label = ({ title }) => (
-    <p className="text-sm font-medium text-gray-700 mb-1">{title}</p>
+const Label = ({ title, htmlFor }) => (
+    <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">{title}</label>
 );
 
 const DollarSignIcon = (props) => (
@@ -387,11 +389,12 @@ const DollarSignIcon = (props) => (
 
 const InputField = ({ label, name, value, onChange, icon: Icon, type = 'text' }) => (
     <div>
-        <Label title={label} />
+        <Label title={label} htmlFor={`freelancer-profile-${name}`} />
         <div className="relative">
             {Icon && <Icon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />}
             <input
                 type={type}
+                id={`freelancer-profile-${name}`}
                 name={name}
                 value={value}
                 onChange={onChange}
@@ -404,10 +407,11 @@ const InputField = ({ label, name, value, onChange, icon: Icon, type = 'text' })
 
 const SelectField = ({ label, name, value, onChange, options, icon: Icon }) => (
     <div>
-        <Label title={label} />
+        <Label title={label} htmlFor={`freelancer-profile-${name}`} />
         <div className="relative">
             {Icon && <Icon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />}
             <select
+                id={`freelancer-profile-${name}`}
                 name={name}
                 value={value}
                 onChange={onChange}

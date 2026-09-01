@@ -74,8 +74,8 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["'Space Grotesk'", "'Inter'", "system-ui", "-apple-system", "sans-serif"],
-        display: ["'Clash Display'", "'Space Grotesk'", "Inter", "system-ui", "sans-serif"],
+        sans: ["ui-sans-serif", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "sans-serif"],
+        display: ["ui-sans-serif", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "sans-serif"],
       },
       keyframes: {
         "fade-in": {

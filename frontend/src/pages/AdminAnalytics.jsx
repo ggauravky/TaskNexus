@@ -81,28 +81,24 @@ const AdminAnalytics = () => {
                         value={`$${(stats.totalRevenue || 0).toLocaleString()}`}
                         icon={<DollarSign className="w-8 h-8 text-green-600" />}
                         color="bg-green-50"
-                        trend="+12.5%"
                     />
                     <MetricCard
                         title="Active Users"
                         value={stats.activeUsers || 0}
                         icon={<Users className="w-8 h-8 text-blue-600" />}
                         color="bg-blue-50"
-                        trend="+8.2%"
                     />
                     <MetricCard
                         title="Total Tasks"
                         value={stats.totalTasks || 0}
                         icon={<Briefcase className="w-8 h-8 text-purple-600" />}
                         color="bg-purple-50"
-                        trend="+15.3%"
                     />
                     <MetricCard
                         title="Completion Rate"
                         value={`${(stats.completionRate || 0).toFixed(1)}%`}
                         icon={<Activity className="w-8 h-8 text-orange-600" />}
                         color="bg-orange-50"
-                        trend="+3.1%"
                     />
                 </div>
 
@@ -171,7 +167,7 @@ const AdminAnalytics = () => {
                             <p className="text-3xl font-bold text-purple-600">
                                 ${(stats.platformRevenue || 0).toLocaleString()}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">10% commission</p>
+                            <p className="text-xs text-gray-500 mt-1">Recorded platform fees</p>
                         </div>
                     </div>
                 </div>
@@ -186,26 +182,18 @@ const AdminAnalytics = () => {
                         <GrowthMetric
                             label="New Users (This Month)"
                             value={stats.growth?.newUsers || 0}
-                            change="+23%"
-                            positive={true}
                         />
                         <GrowthMetric
                             label="New Tasks (This Month)"
                             value={stats.growth?.newTasks || 0}
-                            change="+18%"
-                            positive={true}
                         />
                         <GrowthMetric
                             label="Task Completion Time (Avg)"
                             value={`${stats.averageCompletionTime || 0} days`}
-                            change="-5%"
-                            positive={true}
                         />
                         <GrowthMetric
                             label="User Satisfaction Rate"
                             value={`${(stats.satisfactionRate || 0).toFixed(1)}%`}
-                            change="+2%"
-                            positive={true}
                         />
                     </div>
                 </div>
@@ -214,15 +202,14 @@ const AdminAnalytics = () => {
     );
 };
 
-const MetricCard = ({ title, value, icon, color, trend }) => (
+const MetricCard = ({ title, value, icon, color }) => (
     <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className={`p-3 rounded-lg ${color} w-fit mb-3`}>
             {icon}
         </div>
         <p className="text-sm text-gray-600 mb-1">{title}</p>
-        <div className="flex items-end justify-between">
+        <div>
             <p className="text-2xl font-bold text-gray-900">{value}</p>
-            <span className="text-sm font-medium text-green-600">{trend}</span>
         </div>
     </div>
 );
@@ -257,14 +244,11 @@ const UserBar = ({ label, count, total, color }) => {
     );
 };
 
-const GrowthMetric = ({ label, value, change, positive }) => (
+const GrowthMetric = ({ label, value }) => (
     <div className="p-4 border border-gray-200 rounded-lg">
         <p className="text-sm text-gray-600 mb-2">{label}</p>
-        <div className="flex items-end justify-between">
+        <div>
             <p className="text-2xl font-bold text-gray-900">{value}</p>
-            <span className={`text-sm font-medium ${positive ? 'text-green-600' : 'text-red-600'}`}>
-                {change}
-            </span>
         </div>
     </div>
 );

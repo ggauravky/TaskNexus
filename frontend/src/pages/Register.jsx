@@ -16,7 +16,6 @@ import { USER_ROLES } from "../utils/constants";
 const ROLE_ROUTES = {
   [USER_ROLES.CLIENT]: "/client/dashboard",
   [USER_ROLES.FREELANCER]: "/freelancer/dashboard",
-  [USER_ROLES.ADMIN]: "/admin/dashboard",
 };
 
 const Register = () => {
@@ -156,7 +155,7 @@ const Register = () => {
             </span>
             <span>
               <span className="auth-brand-title">TaskNexus</span>
-              <span className="auth-brand-subtitle">Managed delivery platform</span>
+              <span className="auth-brand-subtitle">Focused task workspace</span>
             </span>
           </Link>
 
@@ -167,7 +166,7 @@ const Register = () => {
           </p>
 
           <div className="auth-benefits">
-            <Feature text="Structured task delivery and QA handoff" />
+            <Feature text="Structured task briefs and progress updates" />
             <Feature text="Role-specific dashboards and permissions" />
             <Feature text="Secure access with refresh-token sessions" />
           </div>
@@ -185,7 +184,7 @@ const Register = () => {
               </Link>
             </div>
 
-            {formError && <div className="auth-alert">{formError}</div>}
+            {formError && <div id="register-error" role="alert" className="auth-alert">{formError}</div>}
 
             <form className="space-y-4" onSubmit={handleSubmit} noValidate>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

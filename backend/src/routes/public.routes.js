@@ -8,22 +8,26 @@ const {
 } = require("../utils/validators");
 
 const router = express.Router();
+const { publicFormLimiter } = require("../middleware/rateLimiter");
 
 router.get("/services/catalog", publicController.getServicesCatalog);
 router.post(
   "/newsletter/subscribe",
+  publicFormLimiter,
   newsletterSubscribeValidation,
   validate,
   publicController.subscribeNewsletter
 );
 router.post(
   "/services/book",
+  publicFormLimiter,
   serviceBookingValidation,
   validate,
   publicController.bookService
 );
 router.post(
   "/support-jar",
+  publicFormLimiter,
   supportJarValidation,
   validate,
   publicController.contributeSupportJar

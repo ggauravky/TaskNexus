@@ -100,15 +100,14 @@ const findMentionedUsers = (body, participants) => {
   return mentioned;
 };
 
-const buildAttachmentMeta = (files, req) => {
-  const host = `${req.protocol}://${req.get("host")}`;
+const buildAttachmentMeta = (files, taskId) => {
   return toArray(files).map((file) => ({
     id: createId("att"),
     originalName: file.originalname,
     filename: file.filename,
     size: file.size,
     mimeType: file.mimetype,
-    url: `${host}/uploads/comments/${file.filename}`,
+    url: `/api/tasks/${taskId}/attachments/${file.filename}`,
     uploadedAt: new Date().toISOString(),
   }));
 };
@@ -183,7 +182,7 @@ const addTaskComment = async ({ task, actor, body, files = [], req }) => {
     (participant) => participant.id !== actor.id,
   );
 
-  const attachments = buildAttachmentMeta(files, req);
+  const attachments = buildAttachmentMeta(files, task.id);
   const comment = {
     id: createId("cmt"),
     taskId: task.id,
@@ -255,7 +254,15 @@ const addTaskComment = async ({ task, actor, body, files = [], req }) => {
 
 const listTaskComments = async (task) => {
   const { comments } = getCollaborationState(task);
-  return comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  return comments
+    .map((comment) => ({
+      ...comment,
+      attachments: toArray(comment.attachments).map((attachment) => ({
+        ...attachment,
+        url: `/api/tasks/${task.id}/attachments/${attachment.filename}`,
+      })),
+    }))
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 };
 
 const listTaskActivity = async (task) => {

@@ -1,6 +1,5 @@
 require("dotenv").config();
 const app = require("./src/app");
-const connectDB = require("./src/config/database");
 const logger = require("./src/utils/logger");
 const fs = require("fs");
 const path = require("path");
@@ -9,8 +8,11 @@ const path = require("path");
 const createDirectories = () => {
   const dirs = [
     path.join(__dirname, "logs"),
-    path.join(__dirname, "uploads"),
-    path.join(__dirname, "uploads", "comments"),
+    path.resolve(process.env.UPLOAD_PATH || path.join(__dirname, "uploads")),
+    path.join(
+      path.resolve(process.env.UPLOAD_PATH || path.join(__dirname, "uploads")),
+      "comments",
+    ),
   ];
 
   dirs.forEach((dir) => {

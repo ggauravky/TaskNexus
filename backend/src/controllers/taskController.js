@@ -7,6 +7,9 @@ const taskService = require("../services/taskService");
 const realtimeHub = require("../services/realtimeHub");
 const collaborationService = require("../services/collaborationService");
 const { TASK_STATUS } = require("../config/constants");
+const fs = require("fs");
+const path = require("path");
+const { commentsDir } = require("../middleware/upload");
 
 /**
  * @desc    Create a new task (Client only)
@@ -29,7 +32,7 @@ exports.createTask = async (req, res, next) => {
 
     const task = await taskData.createTask({
       client_id: req.user.id,
-      status: TASK_STATUS.UNDER_REVIEW,
+      status: TASK_STATUS.SUBMITTED,
       task_details: {
         title: title.trim(),
         type: taskType,
@@ -476,6 +479,17 @@ exports.getTaskComments = async (req, res, next) => {
   }
 };
 
+exports.requireTaskWriteAccess = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user, true);
+    req.task = task;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * @desc    Add comment with mentions and attachments
  * @route   POST /api/tasks/:id/comments
@@ -483,8 +497,8 @@ exports.getTaskComments = async (req, res, next) => {
  */
 exports.addTaskComment = async (req, res, next) => {
   try {
-    const task = await taskData.findTaskById(req.params.id);
-    collaborationService.ensureTaskAccess(task, req.user, true);
+    const task = req.task || (await taskData.findTaskById(req.params.id));
+    if (!req.task) collaborationService.ensureTaskAccess(task, req.user, true);
 
     const body = String(req.body?.body || "").trim();
     if (!body && (!req.files || req.files.length === 0)) {
@@ -507,6 +521,39 @@ exports.addTaskComment = async (req, res, next) => {
       message: "Comment added",
       data: result,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.downloadTaskAttachment = async (req, res, next) => {
+  try {
+    const task = await taskData.findTaskById(req.params.id);
+    collaborationService.ensureTaskAccess(task, req.user);
+
+    const comments = await collaborationService.listTaskComments(task);
+    const attachment = comments
+      .flatMap((comment) => comment.attachments || [])
+      .find((file) => file.filename === req.params.filename);
+
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: "Attachment not found" });
+    }
+
+    const filePath = path.join(commentsDir, path.basename(attachment.filename));
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: "Attachment file is unavailable",
+      });
+    }
+
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.download(
+      filePath,
+      path.basename(attachment.originalName || attachment.filename),
+    );
   } catch (error) {
     next(error);
   }

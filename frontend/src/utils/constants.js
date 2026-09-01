@@ -135,7 +135,3 @@ export const ROUTES = {
   ADMIN_SETTINGS: "/admin/settings",
 };
 
-export const LOCAL_STORAGE_KEYS = {
-  ACCESS_TOKEN: "tasknexus_access_token",
-  USER: "tasknexus_user",
-};

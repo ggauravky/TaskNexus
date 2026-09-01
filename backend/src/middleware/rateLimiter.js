@@ -54,8 +54,23 @@ const taskCreationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const publicFormLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    error: {
+      code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+      message: "Too many form submissions, please try again later",
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
   taskCreationLimiter,
+  publicFormLimiter,
 };

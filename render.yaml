@@ -17,7 +17,9 @@ services:
       - key: CLIENT_URL
         value: https://tasknexus.vercel.app
       - key: ALLOWED_ORIGINS
-        value: https://tasknexus.vercel.app,http://localhost:5173
+        value: https://tasknexus.vercel.app
+      - key: REFRESH_COOKIE_SAME_SITE
+        value: none
       - key: UPLOAD_PATH
         value: /opt/render/project/src/uploads
       - key: JWT_ACCESS_SECRET

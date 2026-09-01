@@ -9,6 +9,11 @@ const USER_ROLES = {
   ADMIN: "admin",
 };
 
+const PUBLIC_REGISTRATION_ROLES = [
+  USER_ROLES.CLIENT,
+  USER_ROLES.FREELANCER,
+];
+
 const USER_STATUS = {
   ACTIVE: "active",
   SUSPENDED: "suspended",
@@ -192,6 +197,7 @@ const ERROR_CODES = {
 
 module.exports = {
   USER_ROLES,
+  PUBLIC_REGISTRATION_ROLES,
   USER_STATUS,
   TASK_STATUS,
   TASK_TYPES,

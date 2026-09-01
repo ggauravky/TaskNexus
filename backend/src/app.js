@@ -4,7 +4,6 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
-const path = require("path");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
 const { apiLimiter } = require("./middleware/rateLimiter");
 const logger = require("./utils/logger");
@@ -26,7 +25,7 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// CORS configuration with strict allowlist + optional Vercel preview support
+// CORS configuration with an exact origin allowlist
 const normalizeOrigin = (origin) => (origin ? origin.replace(/\/$/, "") : origin);
 const parseAllowedOrigins = () =>
   (process.env.ALLOWED_ORIGINS || "")
@@ -35,7 +34,6 @@ const parseAllowedOrigins = () =>
     .filter(Boolean);
 
 const allowedOrigins = parseAllowedOrigins();
-const allowVercelPreview = process.env.ALLOW_VERCEL_PREVIEW === "true";
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -46,16 +44,6 @@ const corsOptions = {
 
     // Exact allowlist match
     if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
-
-    // Optional: allow any vercel.app preview when enabled
-    if (allowVercelPreview) {
-      try {
-        const hostname = new URL(origin).hostname;
-        if (hostname.endsWith(".vercel.app")) return callback(null, true);
-      } catch (e) {
-        return callback(new Error("Invalid Origin"));
-      }
-    }
 
     return callback(new Error("Not allowed by CORS"));
   },
@@ -71,13 +59,24 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Cookie parser
 app.use(cookieParser());
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Logging middleware
+const safeRequestFormat = (tokens, req, res) => {
+  const pathOnly = req.originalUrl.split("?")[0];
+  return [
+    tokens.method(req, res),
+    pathOnly,
+    tokens.status(req, res),
+    tokens.res(req, res, "content-length"),
+    "-",
+    `${tokens["response-time"](req, res)} ms`,
+  ].join(" ");
+};
+
 if (process.env.NODE_ENV === "development") {
-  app.use(morgan("dev"));
+  app.use(morgan(safeRequestFormat));
 } else {
-  app.use(morgan("combined", { stream: logger.stream }));
+  app.use(morgan(safeRequestFormat, { stream: logger.stream }));
 }
 
 // Rate limiting (exclude SSE stream endpoint)
