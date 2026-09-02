@@ -1,4 +1,4 @@
-const { body, param, query } = require("express-validator");
+const { body, param } = require("express-validator");
 const {
   PUBLIC_REGISTRATION_ROLES,
   TASK_TYPES,

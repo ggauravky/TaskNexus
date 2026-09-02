@@ -32,7 +32,7 @@ const formatDateTime = (value) => {
   });
 };
 
-const getTaskId = (task) => task?.id || task?._id || null;
+const getTaskId = (task) => task?.id || null;
 
 const TaskCollaborationPanel = ({ task }) => {
   const { user } = useAuth();

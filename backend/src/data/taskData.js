@@ -128,6 +128,36 @@ const findTasks = async (filters) => {
   });
 };
 
+const listTasks = async ({ filters = {}, page, limit, sortBy, sortOrder, search }) => {
+  const queryFactory = async () => {
+    let query = supabase.from("tasks").select("*", { count: "exact" });
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value === null) query = query.is(key, null);
+      else if (Array.isArray(value)) query = query.in(key, value);
+      else if (key.includes("->>")) query = query.filter(key, "eq", value);
+      else query = query.eq(key, value);
+    });
+    if (search) query = query.ilike("task_details->>title", `%${search}%`);
+    const from = (page - 1) * limit;
+    const result = await query
+      .order(sortBy, { ascending: sortOrder === "asc" })
+      .range(from, from + limit - 1);
+    return result;
+  };
+
+  try {
+    const { data, error, count } = await queryFactory();
+    if (error) throw error;
+    return { items: data || [], total: count || 0, page, limit };
+  } catch (error) {
+    if (isLocalFallbackEnabled() && isSupabaseNetworkError(error)) {
+      logLocalFallbackOnce();
+      return localTaskStore.listTasks({ filters, page, limit, sortBy, sortOrder, search });
+    }
+    throw buildSupabaseError(error, "listing tasks");
+  }
+};
+
 const updateTask = async (id, updates) => {
   const data = await runQuery(
     () => supabase.from("tasks").update(updates).eq("id", id).select(),
@@ -144,9 +174,46 @@ const updateTask = async (id, updates) => {
   return data;
 };
 
+const updateTaskIfStatus = async (id, expectedStatus, updates) => {
+  return runQuery(
+    () =>
+      supabase
+        .from("tasks")
+        .update(updates)
+        .eq("id", id)
+        .eq("status", expectedStatus)
+        .select()
+        .maybeSingle(),
+    "transitioning task",
+    {
+      allowNoRows: true,
+      fallbackAction: () =>
+        localTaskStore.updateTaskIfStatus(id, expectedStatus, updates),
+    },
+  );
+};
+
+const acceptTaskAtomically = async (id, freelancerId) => {
+  const data = await runQuery(
+    () =>
+      supabase.rpc("accept_task", {
+        p_task_id: id,
+        p_freelancer_id: freelancerId,
+      }),
+    "accepting task",
+    {
+      fallbackAction: () => localTaskStore.acceptTaskAtomically(id, freelancerId),
+    },
+  );
+  return Array.isArray(data) ? data[0] || null : data;
+};
+
 module.exports = {
   createTask,
   findTaskById,
   findTasks,
+  listTasks,
   updateTask,
+  updateTaskIfStatus,
+  acceptTaskAtomically,
 };

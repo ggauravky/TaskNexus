@@ -1,6 +1,11 @@
-require("dotenv").config();
+require("../src/config/loadEnv");
 
-const required = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "ADMIN_EMAIL", "ADMIN_PASSWORD"];
+const required = [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "ADMIN_EMAIL",
+  "ADMIN_PASSWORD",
+];
 const missing = required.filter((name) => !process.env[name]);
 
 if (missing.length > 0) {

@@ -83,10 +83,10 @@ const ServicesPage = () => {
         serviceSlug: previous.serviceSlug,
         timezone: previous.timezone,
       }));
-      toast.success("Booking confirmed. We also prepared the confirmation email flow.");
+      toast.success("Service request recorded. Check your email for the request summary.");
     } catch (error) {
       const message =
-        error.response?.data?.error?.message || "Unable to confirm your booking right now.";
+        error.response?.data?.error?.message || "Unable to record your service request right now.";
       toast.error(message);
     } finally {
       setSubmitting(false);
@@ -96,27 +96,27 @@ const ServicesPage = () => {
   return (
     <PublicSiteLayout
       eyebrow="Services"
-      title="Book a focused session without the usual back-and-forth."
-      subtitle="Choose a TaskNexus service, lock the date and time you prefer, and we will generate a confirmation email plus PDF with your booking and session details."
+      title="Request a focused session without the usual back-and-forth."
+      subtitle="Choose a TaskNexus service and share your preferred date and time. We record the request and email a summary; availability is confirmed separately."
       heroAside={
         <div className="space-y-5 text-white">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200">
             <CalendarClock className="h-4 w-4" />
-            Booking flow
+            Request flow
           </div>
-          <h2 className="text-2xl font-semibold">Immediate confirmation</h2>
+          <h2 className="text-2xl font-semibold">Immediate request summary</h2>
           <ul className="space-y-3 text-sm leading-7 text-slate-200">
             <li className="flex gap-3">
               <ShieldCheck className="mt-1 h-4 w-4 text-cyan-200" />
-              <span>Your booking is confirmed right after submission.</span>
+              <span>Your preferred timing is recorded right after submission.</span>
             </li>
             <li className="flex gap-3">
               <Sparkles className="mt-1 h-4 w-4 text-cyan-200" />
-              <span>You receive a branded confirmation email with an attached PDF.</span>
+              <span>You receive an email and PDF summarizing the request.</span>
             </li>
             <li className="flex gap-3">
               <CheckCircle2 className="mt-1 h-4 w-4 text-cyan-200" />
-              <span>Session ID, time, and service details are captured automatically.</span>
+              <span>No payment is collected; final availability is confirmed separately.</span>
             </li>
           </ul>
         </div>
@@ -182,13 +182,13 @@ const ServicesPage = () => {
           <form className="public-form-card space-y-4" onSubmit={handleSubmit}>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Booking form
+                Service request
               </p>
               <h2 className="mt-2 text-2xl font-semibold text-slate-900">
                 {selectedService?.name || "Choose a service"}
               </h2>
               <p className="mt-2 text-sm leading-7 text-slate-600">
-                Pick the service, give your preferred timing, and we will confirm the session immediately.
+                Pick the service and preferred timing. This records a request, not a guaranteed appointment.
               </p>
             </div>
 
@@ -251,7 +251,7 @@ const ServicesPage = () => {
             </div>
 
             <button type="submit" disabled={submitting} className="btn btn-primary w-full">
-              {submitting ? "Confirming booking..." : selectedService?.ctaLabel || "Book service"}
+              {submitting ? "Recording request..." : selectedService?.ctaLabel || "Request service"}
             </button>
           </form>
 
@@ -260,15 +260,15 @@ const ServicesPage = () => {
               <div className="flex items-center gap-2 text-emerald-700">
                 <CheckCircle2 className="h-5 w-5" />
                 <p className="text-sm font-semibold uppercase tracking-[0.14em]">
-                  Booking confirmed
+                  Request recorded
                 </p>
               </div>
               <h3 className="mt-3 text-xl font-semibold text-slate-900">
                 {confirmation.serviceName}
               </h3>
               <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                <Detail label="Booking ID" value={confirmation.bookingId} />
-                <Detail label="Session ID" value={confirmation.sessionId} />
+                <Detail label="Request ID" value={confirmation.bookingId} />
+                <Detail label="Session reference" value={confirmation.sessionId} />
                 <Detail label="Preferred date" value={confirmation.preferredDate} />
                 <Detail
                   label="Preferred time"

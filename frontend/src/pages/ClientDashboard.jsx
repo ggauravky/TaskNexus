@@ -84,7 +84,7 @@ const TASK_SORT_OPTIONS = [
   { id: 'deadline_soon', label: 'Nearest deadline' },
 ];
 
-const getTaskId = (task) => task?.id || task?._id || '';
+const getTaskId = (task) => task?.id || '';
 const getTaskTitle = (task) => task?.task_details?.title || task?.title || 'Untitled Task';
 const getTaskDescription = (task) => task?.task_details?.description || task?.description || 'No description';
 const getTaskBudget = (task) => Number(task?.task_details?.budget ?? task?.budget ?? 0);
@@ -231,7 +231,7 @@ const ClientDashboard = () => {
 
       const [dashboardRes, tasksRes] = await Promise.all([
         api.get('/client/dashboard'),
-        api.get('/client/tasks?limit=8&sort=-createdAt'),
+        api.get('/client/tasks?limit=8&sortBy=created_at&sortOrder=desc'),
       ]);
 
       if (dashboardRes.data.success) {
@@ -239,7 +239,7 @@ const ClientDashboard = () => {
       }
 
       if (tasksRes.data.success) {
-        setRecentTasks(tasksRes.data.data || []);
+        setRecentTasks(tasksRes.data.data?.tasks || []);
       }
 
       setError(null);
@@ -257,10 +257,10 @@ const ClientDashboard = () => {
   const fetchAllTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/client/tasks?limit=200&sort=-createdAt');
+      const response = await api.get('/client/tasks?limit=100&sortBy=created_at&sortOrder=desc');
 
       if (response.data.success) {
-        setAllTasks(response.data.data || []);
+        setAllTasks(response.data.data?.tasks || []);
         setViewAllTasks(true);
       }
     } catch (fetchError) {

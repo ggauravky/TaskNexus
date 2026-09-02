@@ -47,7 +47,7 @@ const AdminTasks = () => {
             setLoading(true);
             const response = await api.get('/admin/tasks');
             if (response.data.success) {
-                setTasks(response.data.data || []);
+                setTasks(response.data.data?.tasks || []);
             }
         } catch (error) {
             console.error('Error fetching tasks:', error);

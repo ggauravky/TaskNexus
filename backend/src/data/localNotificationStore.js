@@ -25,6 +25,14 @@ const findNotifications = async (filters) => {
   return applyFilters(notifications, filters);
 };
 
+const listNotifications = async ({ filters, page, limit }) => {
+  const notifications = applyFilters(readCollection(FILE_PATH), filters)
+    .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)));
+  const total = notifications.length;
+  const start = (page - 1) * limit;
+  return { items: notifications.slice(start, start + limit), total, page, limit };
+};
+
 const updateNotification = async (id, updates) => {
   const notifications = readCollection(FILE_PATH);
   const index = notifications.findIndex((n) => n.id === id);
@@ -84,6 +92,7 @@ const deleteManyNotifications = async (filters) => {
 module.exports = {
   createNotification,
   findNotifications,
+  listNotifications,
   updateNotification,
   updateManyNotifications,
   deleteNotification,

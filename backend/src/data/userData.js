@@ -140,6 +140,28 @@ const findUsers = async (filters) => {
   });
 };
 
+const listUsers = async ({ filters = {}, page, limit, sortBy, sortOrder, search }) => {
+  try {
+    let query = supabase.from("users").select("*", { count: "exact" });
+    Object.entries(filters).forEach(([key, value]) => {
+      query = Array.isArray(value) ? query.in(key, value) : query.eq(key, value);
+    });
+    if (search) query = query.ilike("email", `%${search}%`);
+    const from = (page - 1) * limit;
+    const { data, error, count } = await query
+      .order(sortBy, { ascending: sortOrder === "asc" })
+      .range(from, from + limit - 1);
+    if (error) throw error;
+    return { items: data || [], total: count || 0, page, limit };
+  } catch (error) {
+    if (isLocalFallbackEnabled() && isSupabaseNetworkError(error)) {
+      logLocalFallbackOnce();
+      return localUserStore.listUsers({ filters, page, limit, sortBy, sortOrder, search });
+    }
+    throw buildSupabaseError(error, "listing users");
+  }
+};
+
 const updateUser = async (id, updates) => {
   const data = await runQuery(
     () => supabase.from("users").update(updates).eq("id", id).select(),
@@ -165,6 +187,7 @@ module.exports = {
   findUserByEmail,
   findUserById,
   findUsers,
+  listUsers,
   updateUser,
   comparePassword,
 };

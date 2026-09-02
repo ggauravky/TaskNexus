@@ -186,7 +186,7 @@ const bookService = async (req, res, next) => {
       preferred_time: req.body.preferredTime,
       timezone: trim(req.body.timezone),
       notes: trim(req.body.notes) || null,
-      status: "confirmed",
+      status: "requested",
       email_status: "pending",
       brevo_message_ids: null,
     });
@@ -234,7 +234,7 @@ const bookService = async (req, res, next) => {
         emailStatus,
         emailResults,
       },
-      message: "Service booking confirmed",
+      message: "Service request recorded",
     });
   } catch (error) {
     next(error);
@@ -295,7 +295,7 @@ const contributeSupportJar = async (req, res, next) => {
         emailStatus,
         emailResults,
       },
-      message: "Support contribution recorded",
+      message: "Support pledge recorded; no payment was processed",
     });
   } catch (error) {
     next(error);

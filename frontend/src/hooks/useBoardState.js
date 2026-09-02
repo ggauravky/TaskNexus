@@ -235,8 +235,8 @@ export const useBoardState = ({ boardKey, role, enabled = true }) => {
 
     const indexMap = new Map(preferred.map((taskId, index) => [taskId, index]));
     return [...list].sort((left, right) => {
-      const leftId = left?.id || left?._id;
-      const rightId = right?.id || right?._id;
+      const leftId = left?.id;
+      const rightId = right?.id;
       const leftOrder = indexMap.has(leftId) ? indexMap.get(leftId) : Number.MAX_SAFE_INTEGER;
       const rightOrder = indexMap.has(rightId) ? indexMap.get(rightId) : Number.MAX_SAFE_INTEGER;
       if (leftOrder === rightOrder) return 0;

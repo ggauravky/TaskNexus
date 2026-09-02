@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("./config/loadEnv");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -7,6 +7,7 @@ const cookieParser = require("cookie-parser");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
 const { apiLimiter } = require("./middleware/rateLimiter");
 const logger = require("./utils/logger");
+const requestContext = require("./middleware/requestContext");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
@@ -59,11 +60,13 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Cookie parser
 app.use(cookieParser());
+app.use(requestContext);
 
 // Logging middleware
 const safeRequestFormat = (tokens, req, res) => {
   const pathOnly = req.originalUrl.split("?")[0];
   return [
+    req.requestId,
     tokens.method(req, res),
     pathOnly,
     tokens.status(req, res),
@@ -89,12 +92,7 @@ app.use("/api/", (req, res, next) => {
 
 // Health check route
 app.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "TaskNexus API is running",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-  });
+  res.status(200).json({ status: "ok" });
 });
 
 // API routes

@@ -1,6 +1,9 @@
 const notificationData = require("../data/notificationData");
 const userData = require("../data/userData");
 const logger = require("../utils/logger");
+const { parseListQuery } = require("../utils/queryOptions");
+const { paginationMeta } = require("../utils/apiResponse");
+const { serializeNotification } = require("../serializers");
 
 /**
  * @desc    Get all notifications for current user
@@ -17,13 +20,22 @@ exports.getNotifications = async (req, res, next) => {
       filters.status = "unread";
     }
 
-    const notifications = await notificationData.findNotifications(filters);
-    const unreadCount = notifications.filter(n => n.status === 'unread').length;
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["created_at"],
+      defaultSort: "created_at",
+    });
+    const [result, unread] = await Promise.all([
+      notificationData.listNotifications({ filters, ...options }),
+      notificationData.findNotifications({ recipient_id: req.user.id, status: "unread" }),
+    ]);
 
     res.status(200).json({
       success: true,
-      data: notifications,
-      unreadCount,
+      data: {
+        notifications: result.items.map(serializeNotification),
+        unreadCount: unread.length,
+      },
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching notifications:", error);

@@ -71,7 +71,8 @@ const formatCurrency = (amount, currency = "USD") => {
  * Sanitize user object for response
  */
 const sanitizeUser = (user) => {
-  const userObj = user.toObject ? user.toObject() : user;
+  const source = user.toObject ? user.toObject() : user;
+  const userObj = { ...source };
   delete userObj.password;
   delete userObj.refresh_token;
   delete userObj.password_reset_token;

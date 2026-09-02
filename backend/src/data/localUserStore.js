@@ -104,6 +104,24 @@ const findUsers = async (filters) => {
   return applyFilters(users, filters);
 };
 
+const listUsers = async ({ filters = {}, page, limit, sortBy, sortOrder, search }) => {
+  let users = applyFilters(readUsers(), filters);
+  if (search) {
+    const needle = search.toLowerCase();
+    users = users.filter((user) => {
+      const name = `${user.profile?.firstName || ""} ${user.profile?.lastName || ""}`.toLowerCase();
+      return user.email.toLowerCase().includes(needle) || name.includes(needle);
+    });
+  }
+  users.sort((left, right) => {
+    const result = String(left[sortBy] || "").localeCompare(String(right[sortBy] || ""));
+    return sortOrder === "asc" ? result : -result;
+  });
+  const total = users.length;
+  const start = (page - 1) * limit;
+  return { items: users.slice(start, start + limit), total, page, limit };
+};
+
 const updateUser = async (id, updates) => {
   const users = readUsers();
   const userIndex = users.findIndex((user) => user.id === id);
@@ -132,5 +150,6 @@ module.exports = {
   findUserByEmail,
   findUserById,
   findUsers,
+  listUsers,
   updateUser,
 };

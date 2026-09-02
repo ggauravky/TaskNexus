@@ -6,7 +6,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import { USER_ROLES } from './utils/constants';
 import { API_URL } from './utils/constants';
 
-// Page imports (placeholders - to be created)
+// Page imports
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -82,15 +82,11 @@ function App() {
                     return res.ok;
                 };
 
-                const ok = (await doPing(healthUrl)) || (await doPing(apiHealthUrl));
-                if (ok) {
-                console.log('[Warmup] Backend health ping sent');
-                }
+                const ok = await doPing(healthUrl);
+                if (!ok) await doPing(apiHealthUrl);
             } catch (err) {
                 const isAbort = err?.name === 'AbortError' || controller.signal.aborted;
-                if (!isAbort) {
-                    console.warn('[Warmup] Health ping failed (likely cold start)', err?.message || err);
-                }
+                if (isAbort) return;
             }
         };
         warm();

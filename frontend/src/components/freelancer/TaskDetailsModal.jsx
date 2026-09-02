@@ -20,7 +20,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
     const description = details.description || task?.description || 'No description provided';
     const skillsRequired = details.skillsRequired || task?.skillsRequired;
     const experienceLevel = details.experienceLevel || task?.experienceLevel;
-    const taskId = task?.task_id || task?.taskId || task?.id || task?._id;
+    const taskId = task?.task_id || task?.id;
     const createdAt = task?.created_at || task?.createdAt;
 
     const formatDate = (date) => {
@@ -72,7 +72,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task, onStartWorking, onCancelTask,
     const handleSaveProgress = async () => {
         if (!onUpdateProgress) return;
         setSaving(true);
-        await onUpdateProgress(task.id || task._id, { progress, stage, note });
+        await onUpdateProgress(task.id, { progress, stage, note });
         setSaving(false);
     };
 

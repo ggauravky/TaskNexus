@@ -2,13 +2,16 @@ const taskData = require("../data/taskData");
 const userData = require("../data/userData");
 const paymentData = require("../data/paymentData");
 const auditLogData = require("../data/auditLogData");
-const submissionData = require("../data/submissionData");
 const reviewData = require("../data/reviewData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 const AssignmentService = require("../services/assignmentService");
 const taskService = require("../services/taskService");
 const { sanitizeUser } = require("../utils/helpers");
+const { parseListQuery } = require("../utils/queryOptions");
+const { paginationMeta } = require("../utils/apiResponse");
+const { serializeTask } = require("../serializers");
+const { serializeUser } = require("../serializers");
 
 /**
  * @desc    Get admin dashboard overview
@@ -68,7 +71,7 @@ exports.getDashboard = async (req, res, next) => {
  */
 exports.getUsers = async (req, res, next) => {
   try {
-    const { role, status, search } = req.query;
+    const { role, status } = req.query;
 
     const filters = {};
 
@@ -80,16 +83,16 @@ exports.getUsers = async (req, res, next) => {
       filters.status = status;
     }
     
-    // Search is not implemented in the new data layer yet
-    if (search) {
-        console.warn("Search functionality is not implemented yet");
-    }
-
-    const users = await userData.findUsers(filters);
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["created_at", "updated_at", "email", "role", "status"],
+      defaultSort: "created_at",
+    });
+    const result = await userData.listUsers({ filters, ...options });
 
     res.status(200).json({
       success: true,
-      data: users,
+      data: { users: result.items.map(serializeUser) },
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching users:", error);
@@ -255,7 +258,14 @@ exports.reviewTask = async (req, res, next) => {
 
 exports.getTasks = async (req, res, next) => {
   try {
-    const tasks = await taskData.findTasks({});
+    const filters = {};
+    if (req.query.status) filters.status = req.query.status;
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["created_at", "updated_at", "status", "priority"],
+      defaultSort: "updated_at",
+    });
+    const result = await taskData.listTasks({ filters, ...options });
+    const tasks = result.items;
     const userIds = [
       ...new Set(
         tasks.flatMap((task) => [task.client_id, task.freelancer_id]).filter(Boolean),
@@ -268,11 +278,12 @@ exports.getTasks = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: tasks.map((task) => ({
+      data: { tasks: tasks.map((task) => serializeTask({
         ...task,
         client: usersById.get(task.client_id) || null,
         freelancer: usersById.get(task.freelancer_id) || null,
-      })),
+      })) },
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching admin tasks:", error);

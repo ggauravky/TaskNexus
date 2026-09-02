@@ -9,6 +9,11 @@ const { TASK_STATUS } = require("../config/constants");
 const userData = require("../data/userData");
 const realtimeHub = require("../services/realtimeHub");
 const performanceService = require("../services/performanceService");
+const taskService = require("../services/taskService");
+const { errors } = require("../utils/appError");
+const { parseListQuery } = require("../utils/queryOptions");
+const { paginationMeta } = require("../utils/apiResponse");
+const { serializeTask } = require("../serializers");
 
 /**
  * @desc    Get freelancer dashboard overview
@@ -80,40 +85,28 @@ exports.getDashboard = async (req, res, next) => {
  */
 exports.getAvailableTasks = async (req, res, next) => {
   try {
-    const { category, minBudget, maxBudget } = req.query;
+    const { category } = req.query;
 
-    // Show any task that is unassigned and not cancelled/completed
-    const filters = { freelancer_id: null };
+    // Only administrator-approved, unassigned tasks can be offered.
+    const filters = {
+      freelancer_id: null,
+      status: TASK_STATUS.UNDER_REVIEW,
+    };
 
     if (category) {
       filters["task_details->>type"] = category;
     }
 
-    if (minBudget || maxBudget) {
-        console.warn("Budget filter is not implemented yet");
-    }
-
-    const tasks = await taskData.findTasks(filters);
-
-    // Include tasks that are newly created (null status) or in submitted/under_review
-    const allowedStatuses = new Set([
-      TASK_STATUS.SUBMITTED,
-      TASK_STATUS.UNDER_REVIEW,
-      null,
-      undefined,
-    ]);
-
-    const filteredTasks = tasks.filter(
-      (t) =>
-        allowedStatuses.has(t.status ?? null) &&
-        ![TASK_STATUS.CANCELLED, TASK_STATUS.COMPLETED, TASK_STATUS.DISPUTED].includes(
-          t.status,
-        ),
-    );
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["created_at", "updated_at", "priority"],
+      defaultSort: "updated_at",
+    });
+    const result = await taskData.listTasks({ filters, ...options });
 
     res.status(200).json({
       success: true,
-      data: { tasks: filteredTasks },
+      data: { tasks: result.items.map(serializeTask) },
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching available tasks:", error);
@@ -128,38 +121,6 @@ exports.getAvailableTasks = async (req, res, next) => {
  */
 exports.acceptTask = async (req, res, next) => {
   try {
-    const task = await taskData.findTaskById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found",
-      });
-    }
-
-    logger.info(
-      `Task ${task.id} status: ${task.status}, freelancer: ${task.freelancer_id}`,
-    );
-
-    if (!["submitted", "under_review"].includes(task.status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Task is not available for acceptance. Current status: ${task.status}`,
-        error: {
-          code: "INVALID_TASK_STATUS",
-          currentStatus: task.status,
-          requiredStatus: ["submitted", "under_review"],
-        },
-      });
-    }
-
-    if (task.freelancer_id) {
-      return res.status(400).json({
-        success: false,
-        message: "Task is already assigned to another freelancer",
-      });
-    }
-
     // Check if freelancer has too many active tasks
     const activeTasks = await taskData.findTasks({
       freelancer_id: req.user.id,
@@ -167,21 +128,21 @@ exports.acceptTask = async (req, res, next) => {
     });
 
     if (activeTasks.length >= 10) {
-      return res.status(400).json({
-        success: false,
-        message: "You have reached the maximum number of active tasks (10)",
-      });
+      throw errors.conflict("You have reached the maximum number of active tasks (10)");
     }
 
-    // Assign task to freelancer
-    const workflow = task.workflow || {};
-    workflow.assignedAt = new Date();
-
-    const updatedTask = await taskData.updateTask(req.params.id, {
-        freelancer_id: req.user.id,
-        status: "assigned",
-        workflow,
-    });
+    // Availability check and assignment happen in one database statement.
+    const updatedTask = await taskData.acceptTaskAtomically(
+      req.params.id,
+      req.user.id,
+    );
+    if (!updatedTask) {
+      throw errors.conflict("Task is no longer available for acceptance", {
+        task_id: req.params.id,
+        required_status: TASK_STATUS.UNDER_REVIEW,
+      });
+    }
+    const task = updatedTask;
 
 
     // Try to notify client (don't fail if notification fails)
@@ -266,13 +227,10 @@ exports.startTask = async (req, res, next) => {
       });
     }
 
-    const workflow = task.workflow || {};
-    workflow.startedAt = new Date();
-
-    const updatedTask = await taskData.updateTask(task.id, {
-      status: TASK_STATUS.IN_PROGRESS,
-      workflow,
-    });
+    const updatedTask = await taskService.transitionTo(
+      task.id,
+      TASK_STATUS.IN_PROGRESS,
+    );
 
     // Optional notification to client
     try {
@@ -350,11 +308,14 @@ exports.cancelTask = async (req, res, next) => {
     const workflow = task.workflow || {};
     workflow.unassignedAt = new Date();
 
-    const updatedTask = await taskData.updateTask(task.id, {
+    const updatedTask = await taskData.updateTaskIfStatus(task.id, task.status, {
       status: TASK_STATUS.UNDER_REVIEW,
       freelancer_id: null,
       workflow,
     });
+    if (!updatedTask) {
+      throw errors.conflict("Task changed while it was being returned to review");
+    }
 
     // Notify client
     try {
@@ -616,11 +577,16 @@ exports.getMyTasks = async (req, res, next) => {
         filters.status = status;
     }
 
-    const tasks = await taskData.findTasks(filters);
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["created_at", "updated_at", "status", "priority"],
+      defaultSort: "updated_at",
+    });
+    const result = await taskData.listTasks({ filters, ...options });
 
     res.status(200).json({
       success: true,
-      data: { tasks },
+      data: { tasks: result.items.map(serializeTask) },
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching freelancer tasks:", error);
@@ -672,7 +638,7 @@ exports.updateSubmission = async (req, res, next) => {
         client_review: clientReview,
     });
 
-    await taskData.updateTask(submission.task_id, { status: "submitted_work" });
+    await taskService.transitionTo(submission.task_id, TASK_STATUS.DELIVERED);
     
     const task = await taskData.findTaskById(submission.task_id);
 

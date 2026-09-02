@@ -4,7 +4,6 @@ const taskService = require("./taskService");
 const {
   ASSIGNMENT_WEIGHTS,
   USER_ROLES,
-  TASK_TYPES,
 } = require("../config/constants");
 const logger = require("../utils/logger");
 
@@ -26,7 +25,7 @@ class AssignmentService {
   /**
    * Calculate assignment score for a freelancer
    */
-  static calculateAssignmentScore(freelancer, taskType, taskPriority) {
+  static calculateAssignmentScore(freelancer, taskType, _taskPriority) {
     const profile = freelancer.freelancer_profile;
 
     // Performance Score (0-100)

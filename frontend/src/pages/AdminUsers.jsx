@@ -48,7 +48,7 @@ const AdminUsers = () => {
             setLoading(true);
             const response = await api.get('/admin/users');
             if (response.data.success) {
-                setUsers(response.data.data || []);
+                setUsers(response.data.data?.users || []);
             }
         } catch (error) {
             console.error('Error fetching users:', error);

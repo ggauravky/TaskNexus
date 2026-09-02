@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { USER_ROLES } from '../../utils/constants';
+import AuthenticatedLayout from '../layout/AuthenticatedLayout';
 
 /**
  * Protected Route Component
@@ -39,7 +40,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
         return <Navigate to={dashboardRoutes[user.role] || '/'} replace />;
     }
 
-    return children;
+    return <AuthenticatedLayout>{children}</AuthenticatedLayout>;
 };
 
 export default ProtectedRoute;

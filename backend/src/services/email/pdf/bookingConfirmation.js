@@ -59,19 +59,19 @@ const generateBookingConfirmationPdf = (booking) =>
       .fillColor("#7dd3fc")
       .font("Helvetica-Bold")
       .fontSize(11)
-      .text("TASKNEXUS BOOKING", 52, 42);
+      .text("TASKNEXUS SERVICE REQUEST", 52, 42);
 
     doc
       .fillColor("#ffffff")
       .fontSize(26)
-      .text("Confirmation PDF", 52, 64);
+      .text("Request Summary", 52, 64);
 
     doc
       .font("Helvetica")
       .fontSize(11)
       .fillColor("#cbd5e1")
       .text(
-        "Keep this summary for your records. It includes the booking ID, session ID, timing, and customer details submitted during confirmation.",
+        "Keep this request summary for your records. It includes the request ID, session reference, preferred timing, and submitted contact details. Availability is confirmed separately.",
         52,
         104,
         { width: 500, lineGap: 2 }
@@ -79,8 +79,8 @@ const generateBookingConfirmationPdf = (booking) =>
 
     doc.y = 198;
     drawPair(doc, "Service", booking.service_snapshot?.name || booking.service_slug);
-    drawPair(doc, "Booking ID", booking.booking_id);
-    drawPair(doc, "Session ID", booking.session_id);
+    drawPair(doc, "Request ID", booking.booking_id);
+    drawPair(doc, "Session reference", booking.session_id);
     drawPair(doc, "Customer", booking.full_name);
     drawPair(doc, "Email", booking.email);
     drawPair(doc, "Phone", booking.phone || "Not provided");
@@ -120,7 +120,7 @@ const generateBookingConfirmationPdf = (booking) =>
       .fontSize(10)
       .fillColor("#475569")
       .text(
-        "Reply to the confirmation email or contact the TaskNexus team if you need to adjust the submitted service details.",
+        "Reply to the request email or contact the TaskNexus team if you need to adjust the submitted service details.",
         { width: 500, lineGap: 3 }
       );
 

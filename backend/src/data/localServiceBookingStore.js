@@ -11,7 +11,7 @@ const FILE_PATH = path.join(__dirname, "../../.local-data/service-bookings.json"
 const createBooking = async (payload) => {
   const bookings = readCollection(FILE_PATH);
   const record = withRecordMetadata({
-    status: "confirmed",
+    status: "requested",
     email_status: "pending",
     brevo_message_ids: null,
     ...payload,

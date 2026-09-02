@@ -96,6 +96,23 @@ const findTasks = async (filters) => {
   return applyFilters(tasks, filters);
 };
 
+const listTasks = async ({ filters = {}, page, limit, sortBy, sortOrder, search }) => {
+  let tasks = applyFilters(readTasks(), filters);
+  if (search) {
+    const needle = search.toLowerCase();
+    tasks = tasks.filter((task) =>
+      String(task.task_details?.title || "").toLowerCase().includes(needle),
+    );
+  }
+  tasks.sort((left, right) => {
+    const result = String(left[sortBy] || "").localeCompare(String(right[sortBy] || ""));
+    return sortOrder === "asc" ? result : -result;
+  });
+  const total = tasks.length;
+  const start = (page - 1) * limit;
+  return { items: tasks.slice(start, start + limit), total, page, limit };
+};
+
 const updateTask = async (id, updates) => {
   const tasks = readTasks();
   const index = tasks.findIndex((task) => task.id === id);
@@ -114,9 +131,52 @@ const updateTask = async (id, updates) => {
   return tasks[index];
 };
 
+const updateTaskIfStatus = async (id, expectedStatus, updates) => {
+  const tasks = readTasks();
+  const index = tasks.findIndex(
+    (task) => task.id === id && task.status === expectedStatus,
+  );
+  if (index === -1) return null;
+
+  tasks[index] = {
+    ...tasks[index],
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+  writeTasks(tasks);
+  return tasks[index];
+};
+
+const acceptTaskAtomically = async (id, freelancerId) => {
+  const tasks = readTasks();
+  const index = tasks.findIndex(
+    (task) =>
+      task.id === id &&
+      task.status === "under_review" &&
+      !task.freelancer_id,
+  );
+  if (index === -1) return null;
+
+  tasks[index] = {
+    ...tasks[index],
+    freelancer_id: freelancerId,
+    status: "assigned",
+    workflow: {
+      ...(tasks[index].workflow || {}),
+      assignedAt: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  };
+  writeTasks(tasks);
+  return tasks[index];
+};
+
 module.exports = {
   createTask,
   findTaskById,
   findTasks,
+  listTasks,
   updateTask,
+  updateTaskIfStatus,
+  acceptTaskAtomically,
 };

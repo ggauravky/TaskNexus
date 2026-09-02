@@ -9,6 +9,9 @@ const NotificationService = require("../services/notificationService");
 const taskService = require("../services/taskService");
 const { TASK_STATUS, PAYMENT_STATUS } = require("../config/constants");
 const realtimeHub = require("../services/realtimeHub");
+const { parseListQuery } = require("../utils/queryOptions");
+const { paginationMeta } = require("../utils/apiResponse");
+const { serializeTask } = require("../serializers");
 
 /**
  * @desc    Get client dashboard overview with comprehensive statistics
@@ -113,7 +116,7 @@ exports.getDashboard = async (req, res, next) => {
  */
 exports.getTasks = async (req, res, next) => {
   try {
-    const { status, type, search } = req.query;
+    const { status, type } = req.query;
 
     const filters = { client_id: req.user.id };
 
@@ -124,16 +127,16 @@ exports.getTasks = async (req, res, next) => {
         filters["task_details->>type"] = type;
     }
 
-    // Search is not implemented in the new data layer yet
-    if (search) {
-      console.warn("Search functionality is not implemented yet");
-    }
-    
-    const tasks = await taskData.findTasks(filters);
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["created_at", "updated_at", "status", "priority"],
+      defaultSort: "updated_at",
+    });
+    const result = await taskData.listTasks({ filters, ...options });
 
     res.status(200).json({
       success: true,
-      data: tasks,
+      data: { tasks: result.items.map(serializeTask) },
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching client tasks:", error);
@@ -531,17 +534,12 @@ exports.rateFreelancer = async (req, res, next) => {
  */
 exports.getPayments = async (req, res, next) => {
   try {
-    const { status, startDate, endDate } = req.query;
+    const { status } = req.query;
 
     const filters = { client_id: req.user.id };
 
     if (status) {
       filters.status = status;
-    }
-
-    // Date range filter is not implemented in the new data layer yet
-    if (startDate || endDate) {
-        console.warn("Date range filter is not implemented yet");
     }
 
     const payments = await paymentData.findPayments(filters);

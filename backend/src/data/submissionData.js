@@ -5,6 +5,37 @@ const { createSupabaseRunner } = require("./supabaseFallbackRunner");
 
 const runQuery = createSupabaseRunner("submission");
 
+const submitWorkAtomically = async ({ taskId, freelancerId, content, submissionType, idempotencyKey }) => {
+    return runQuery(
+        () => supabase.rpc('submit_task_work', {
+            p_task_id: taskId,
+            p_freelancer_id: freelancerId,
+            p_content: content,
+            p_submission_type: submissionType,
+            p_idempotency_key: idempotencyKey,
+        }),
+        "submitting task work",
+        {
+            fallbackAction: async () => {
+                const localTaskStore = require('./localTaskStore');
+                const task = await localTaskStore.updateTaskIfStatus(taskId, 'in_progress', {
+                    status: 'delivered',
+                    workflow: { deliveredAt: new Date().toISOString() },
+                });
+                if (!task || task.freelancer_id !== freelancerId) return null;
+                const submission = await localSubmissionStore.createSubmission({
+                    task_id: taskId,
+                    freelancer_id: freelancerId,
+                    submission_type: submissionType,
+                    content,
+                    idempotency_key: idempotencyKey,
+                });
+                return { task, submission };
+            },
+        },
+    );
+};
+
 const createSubmission = async (submissionData) => {
     const data = await runQuery(
         () => supabase.from('submissions').insert([submissionData]).select(),
@@ -77,6 +108,7 @@ const getRevisionCount = async (taskId) => {
 };
 
 module.exports = {
+    submitWorkAtomically,
     createSubmission,
     findSubmissions,
     findSubmissionById,

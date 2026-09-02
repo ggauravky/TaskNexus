@@ -8,12 +8,13 @@ const {
   requireFreelancer,
 } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
-const { body, query, param } = require("express-validator");
+const { body, param } = require("express-validator");
 const {
   commentAttachmentUpload,
   validateUploadedFiles,
 } = require("../middleware/upload");
 const { taskCreationLimiter } = require("../middleware/rateLimiter");
+const { TASK_TYPES } = require("../contracts/domain");
 
 // Validation rules
 const createTaskValidation = [
@@ -37,16 +38,7 @@ const createTaskValidation = [
     .trim()
     .notEmpty()
     .withMessage("Category is required")
-    .isIn([
-      "web_development",
-      "mobile_development",
-      "design",
-      "writing",
-      "marketing",
-      "data_entry",
-      "video_editing",
-      "other",
-    ])
+    .isIn(Object.values(TASK_TYPES))
     .withMessage("Invalid category"),
   body("budget")
     .isFloat({ min: 10, max: 100000 })

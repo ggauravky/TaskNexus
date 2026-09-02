@@ -8,7 +8,7 @@ const SERVICE_CATALOG = [
       "We review your current offer, delivery goals, and blockers, then map a practical execution plan with clear next actions for your team.",
     durationLabel: "75-minute session",
     priceLabel: "INR 4,999",
-    ctaLabel: "Book strategy session",
+    ctaLabel: "Request strategy session",
     highlights: [
       "Positioning and offer review",
       "Launch checklist and priorities",

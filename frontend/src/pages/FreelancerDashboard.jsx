@@ -49,7 +49,7 @@ const MY_TASK_FILTER_OPTIONS = [
   { id: TASK_STATUS.COMPLETED, label: 'Completed' },
 ];
 
-const getTaskId = (task) => task?.id || task?._id || '';
+const getTaskId = (task) => task?.id || '';
 const getTaskTitle = (task) => task?.task_details?.title || task?.title || 'Untitled Task';
 const getTaskDescription = (task) => task?.task_details?.description || task?.description || 'No description';
 const getTaskBudget = (task) => Number(task?.task_details?.budget ?? task?.budget ?? 0);

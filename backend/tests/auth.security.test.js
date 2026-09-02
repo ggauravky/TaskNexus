@@ -191,7 +191,10 @@ describe("Phase 0 authentication and authorization baseline", () => {
       .set("Cookie", [`refreshToken=${originalRefreshToken}`]);
     expect(response.status).toBe(200);
     expect(response.body.data.accessToken).toEqual(expect.any(String));
-    expect(users[0].refresh_token).not.toBe(originalRefreshToken);
+    const tokenUpdates = userData.updateUser.mock.calls.filter(
+      ([, updates]) => typeof updates.refresh_token === "string",
+    );
+    expect(tokenUpdates.at(-1)[1].refresh_token).not.toBe(originalRefreshToken);
   });
 
   test("invalid refresh token is rejected", async () => {

@@ -165,7 +165,7 @@ const TaskDetailsModal = ({ isOpen, onClose, task }) => {
                                 </div>
                             )}
                             <div>
-                                <span className="font-medium">Task ID:</span> {task.task_id || task.id || task._id}
+                                <span className="font-medium">Task ID:</span> {task.task_id || task.id}
                             </div>
                         </div>
                     </div>

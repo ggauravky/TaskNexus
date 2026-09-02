@@ -1,6 +1,7 @@
 // backend/src/services/taskService.js
 const { TASK_STATUS, TASK_STATE_TRANSITIONS, BUSINESS_RULES } = require('../config/constants');
 const taskData = require('../data/taskData');
+const { errors } = require('../utils/appError');
 
 const canTransitionTo = (currentStatus, newStatus) => {
     const allowedTransitions = TASK_STATE_TRANSITIONS[currentStatus] || [];
@@ -10,11 +11,14 @@ const canTransitionTo = (currentStatus, newStatus) => {
 const transitionTo = async (taskId, newStatus) => {
     const task = await taskData.findTaskById(taskId);
     if (!task) {
-        throw new Error('Task not found');
+        throw errors.notFound('Task not found', { task_id: taskId });
     }
 
     if (!canTransitionTo(task.status, newStatus)) {
-        throw new Error(`Invalid state transition from ${task.status} to ${newStatus}`);
+        throw errors.invalidTransition(
+            `Invalid state transition from ${task.status} to ${newStatus}`,
+            { task_id: taskId, from: task.status, to: newStatus },
+        );
     }
 
     const workflowUpdate = { ...task.workflow };
@@ -32,7 +36,17 @@ const transitionTo = async (taskId, newStatus) => {
         workflowUpdate[workflowMap[newStatus]] = new Date();
     }
 
-    return await taskData.updateTask(taskId, { status: newStatus, workflow: workflowUpdate });
+    const updatedTask = await taskData.updateTaskIfStatus(taskId, task.status, {
+        status: newStatus,
+        workflow: workflowUpdate,
+    });
+    if (!updatedTask) {
+        throw errors.conflict('Task changed while the transition was being applied', {
+            task_id: taskId,
+            expected_status: task.status,
+        });
+    }
+    return updatedTask;
 };
 
 const canRequestRevision = (task) => {

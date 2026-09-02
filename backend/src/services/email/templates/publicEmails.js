@@ -113,34 +113,34 @@ const buildNewsletterAdminEmail = ({ email, subscribedAt }) => ({
 });
 
 const buildServiceBookingCustomerEmail = ({ booking, appUrl }) => ({
-  subject: `Booking confirmed: ${booking.service_snapshot?.name || booking.service_slug}`,
+  subject: `Service request received: ${booking.service_snapshot?.name || booking.service_slug}`,
   text: [
     `Hi ${booking.full_name},`,
     "",
-    "Your TaskNexus booking is confirmed.",
+    "Your TaskNexus service request has been recorded.",
     `Service: ${booking.service_snapshot?.name || booking.service_slug}`,
-    `Booking ID: ${booking.booking_id}`,
-    `Session ID: ${booking.session_id}`,
+    `Request ID: ${booking.booking_id}`,
+    `Session reference: ${booking.session_id}`,
     `Preferred date: ${formatDateLabel(booking.preferred_date)}`,
     `Preferred time: ${booking.preferred_time} (${booking.timezone})`,
     "",
     `Review services: ${appUrl}/services`,
   ].join("\n"),
   html: renderEmailShell({
-    previewText: "Your TaskNexus booking is confirmed.",
-    eyebrow: "Service Booking",
-    title: "Your session is confirmed",
+    previewText: "Your TaskNexus service request has been recorded.",
+    eyebrow: "Service Request",
+    title: "We recorded your request",
     intro:
-      "Thanks for booking with TaskNexus. We have recorded your session details and attached a confirmation PDF for reference.",
+      "Thanks for contacting TaskNexus. We recorded your preferred session details and attached a request summary. Availability is confirmed separately.",
     bodyHtml: `
       <p style="margin:0;color:#334155;font-size:15px;line-height:1.8;">
-        Hi <strong>${escapeHtml(booking.full_name)}</strong>, your booking for <strong>${escapeHtml(
+        Hi <strong>${escapeHtml(booking.full_name)}</strong>, your request for <strong>${escapeHtml(
           booking.service_snapshot?.name || booking.service_slug
-        )}</strong> is confirmed.
+        )}</strong> has been recorded.
       </p>
       ${renderDetailRows([
-        { label: "Booking ID", value: booking.booking_id },
-        { label: "Session ID", value: booking.session_id },
+        { label: "Request ID", value: booking.booking_id },
+        { label: "Session reference", value: booking.session_id },
         { label: "Service", value: booking.service_snapshot?.name || booking.service_slug },
         { label: "Preferred date", value: formatDateLabel(booking.preferred_date) },
         { label: "Preferred time", value: `${booking.preferred_time} (${booking.timezone})` },
@@ -148,10 +148,11 @@ const buildServiceBookingCustomerEmail = ({ booking, appUrl }) => ({
         { label: "Phone", value: booking.phone || "Not provided" },
       ])}
       ${renderInfoCard({
-        title: "Included in your confirmation",
+        title: "What happens next",
         body: renderBulletList([
-          "A branded confirmation PDF is attached to this email.",
-          "We will use the submitted details to prepare the session context.",
+          "A PDF summary of your request is attached to this email.",
+          "We will review the submitted details and confirm availability separately.",
+          "No payment was collected by this request form.",
           booking.notes ? `Notes received: ${booking.notes}` : "No additional notes were submitted.",
         ]),
         accent: "#22c55e",
@@ -163,34 +164,34 @@ const buildServiceBookingCustomerEmail = ({ booking, appUrl }) => ({
     },
     footerLines: [
       "Reply to this email if you need to adjust your submitted details.",
-      "Keep the attached PDF for your booking and session reference.",
+      "Keep the attached PDF as a summary of the details you submitted.",
     ],
   }),
 });
 
 const buildServiceBookingAdminEmail = ({ booking }) => ({
-  subject: `New service booking: ${booking.service_snapshot?.name || booking.service_slug}`,
+  subject: `New service request: ${booking.service_snapshot?.name || booking.service_slug}`,
   text: [
-    "New public service booking received.",
+    "New public service request received.",
     `Customer: ${booking.full_name}`,
     `Email: ${booking.email}`,
     `Service: ${booking.service_snapshot?.name || booking.service_slug}`,
-    `Booking ID: ${booking.booking_id}`,
-    `Session ID: ${booking.session_id}`,
+    `Request ID: ${booking.booking_id}`,
+    `Session reference: ${booking.session_id}`,
   ].join("\n"),
   html: renderEmailShell({
-    previewText: "New public service booking received.",
+    previewText: "New public service request received.",
     eyebrow: "Admin Alert",
-    title: "New service booking",
-    intro: "A public visitor submitted and confirmed a service booking.",
+    title: "New service request",
+    intro: "A public visitor submitted preferred details for a service session. Availability still needs confirmation.",
     bodyHtml: `
       ${renderDetailRows([
         { label: "Customer", value: booking.full_name },
         { label: "Email", value: booking.email },
         { label: "Phone", value: booking.phone || "Not provided" },
         { label: "Service", value: booking.service_snapshot?.name || booking.service_slug },
-        { label: "Booking ID", value: booking.booking_id },
-        { label: "Session ID", value: booking.session_id },
+        { label: "Request ID", value: booking.booking_id },
+        { label: "Session reference", value: booking.session_id },
         { label: "Preferred date", value: formatDateLabel(booking.preferred_date) },
         { label: "Preferred time", value: `${booking.preferred_time} (${booking.timezone})` },
         { label: "Submitted at", value: formatDateTimeLabel(booking.created_at) },
@@ -206,36 +207,36 @@ const buildServiceBookingAdminEmail = ({ booking }) => ({
       }
     `,
     footerLines: [
-      "This alert was generated by the TaskNexus public service booking flow.",
+      "This alert was generated by the TaskNexus public service request flow.",
     ],
   }),
 });
 
 const buildSupportJarThankYouEmail = ({ contribution, appUrl }) => ({
-  subject: "Super thanks from TaskNexus",
+  subject: "Thanks for your TaskNexus support pledge",
   text: [
     `Hi ${contribution.full_name},`,
     "",
-    `Thank you for your support. We received ${formatCurrency(contribution.amount, contribution.currency)} in the TaskNexus support jar.`,
+    `Thank you for your support pledge of ${formatCurrency(contribution.amount, contribution.currency)}. No payment was processed or transferred.`,
     "",
     `Visit TaskNexus: ${appUrl}`,
   ].join("\n"),
   html: renderEmailShell({
     previewText: "Thank you for supporting TaskNexus.",
     eyebrow: "Support Jar",
-    title: "Super thanks",
+    title: "Thanks for the signal of support",
     intro:
-      "Your support helps us keep building sharper systems, cleaner delivery, and better experiences inside TaskNexus.",
+      "Your non-binding pledge is a useful signal that TaskNexus and its public work are valuable.",
     bodyHtml: `
       <p style="margin:0;color:#334155;font-size:15px;line-height:1.8;">
-        Hi <strong>${escapeHtml(contribution.full_name)}</strong>, thank you for contributing <strong>${escapeHtml(
+        Hi <strong>${escapeHtml(contribution.full_name)}</strong>, thank you for recording a support pledge of <strong>${escapeHtml(
           formatCurrency(contribution.amount, contribution.currency)
-        )}</strong> to the TaskNexus support jar.
+        )}</strong>. No payment was collected or transferred.
       </p>
       ${renderInfoCard({
         title: "What this means to us",
         body: renderBulletList([
-          "It helps us keep improving the platform and public resources.",
+          "It helps us understand which work people value.",
           "It is a direct signal that the work is useful.",
           contribution.message ? `Your message: ${contribution.message}` : "Your support came through loud and clear.",
         ]),
@@ -254,18 +255,18 @@ const buildSupportJarThankYouEmail = ({ contribution, appUrl }) => ({
 });
 
 const buildSupportJarAdminEmail = ({ contribution }) => ({
-  subject: "New TaskNexus support jar contribution",
+  subject: "New TaskNexus support pledge",
   text: [
-    "New support jar contribution received.",
+    "New support pledge recorded. No payment was processed.",
     `Name: ${contribution.full_name}`,
     `Email: ${contribution.email}`,
     `Amount: ${formatCurrency(contribution.amount, contribution.currency)}`,
   ].join("\n"),
   html: renderEmailShell({
-    previewText: "New TaskNexus support jar contribution.",
+    previewText: "New TaskNexus support pledge recorded.",
     eyebrow: "Admin Alert",
-    title: "New support contribution",
-    intro: "A public visitor contributed to the TaskNexus support jar.",
+    title: "New support pledge",
+    intro: "A public visitor recorded a non-binding support pledge. No payment was processed.",
     bodyHtml: `
       ${renderDetailRows([
         { label: "Name", value: contribution.full_name },

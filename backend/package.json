@@ -6,6 +6,8 @@
     "scripts": {
         "start": "node server.js",
         "dev": "nodemon server.js",
+        "lint": "eslint . --ext .js --max-warnings 0",
+        "validate:migrations": "node scripts/validateMigrations.js",
         "provision:admin": "node scripts/createAdmin.js",
         "test": "jest --runInBand",
         "test:watch": "jest --watch",
@@ -22,7 +24,7 @@
     "dependencies": {
         "@getbrevo/brevo": "^5.0.4",
         "@supabase/supabase-js": "^2.95.3",
-        "bcrypt": "^5.1.1",
+        "bcrypt": "^6.0.0",
         "cookie-parser": "^1.4.6",
         "cors": "^2.8.5",
         "dotenv": "^16.3.1",
@@ -37,6 +39,7 @@
         "winston": "^3.11.0"
     },
     "devDependencies": {
+        "eslint": "^8.57.1",
         "jest": "^29.7.0",
         "nodemon": "^3.0.2",
         "supertest": "^6.3.3"

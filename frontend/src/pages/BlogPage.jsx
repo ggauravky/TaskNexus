@@ -7,25 +7,28 @@ import PublicSiteLayout from "../components/marketing/PublicSiteLayout";
 
 const articles = [
   {
-    title: "How managed delivery removes coordination drag",
+    title: "How clear ownership reduces coordination drag",
     category: "Operations",
-    readTime: "6 min read",
     summary:
-      "Why clients move faster when the system owns staffing, QA, and follow-through instead of leaving those tasks scattered across chat threads.",
+      "Why work moves more predictably when the brief, owner, review step, and next action are visible in one place.",
+    body:
+      "Start by naming one accountable owner and one review point for each task. Keep decisions beside the work instead of splitting them across private messages. A small amount of visible structure usually prevents more delay than another status meeting.",
   },
   {
     title: "The hidden cost of unclear handoffs",
     category: "Execution",
-    readTime: "4 min read",
     summary:
       "A practical look at how vague briefs, missing review gates, and weak status ownership slow down delivery more than most teams realize.",
+    body:
+      "A useful handoff states the outcome, constraints, due date, source material, and definition of done. If any of those are missing, the receiver must guess or pause for clarification. A short checklist makes that uncertainty visible before work begins.",
   },
   {
-    title: "What a calm operations stack actually looks like",
+    title: "What a calm task workflow looks like",
     category: "Systems",
-    readTime: "7 min read",
     summary:
       "A starter model for teams that want less status-chasing, clearer priorities, and cleaner movement from request to finished output.",
+    body:
+      "Use a small set of meaningful states, make due work easy to find, and reserve notifications for changes that require attention. The goal is not more dashboards; it is a reliable answer to what is happening, who owns it, and what comes next.",
   },
 ];
 
@@ -72,7 +75,9 @@ const BlogPage = () => {
             Subscribe for practical ops notes, service updates, and small ideas that help delivery feel less noisy.
           </p>
           <form className="space-y-3" onSubmit={handleSubmit}>
+            <label htmlFor="newsletter-email" className="sr-only">Email address</label>
             <input
+              id="newsletter-email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -113,16 +118,17 @@ const BlogPage = () => {
             <article key={article.title} className="public-surface space-y-4">
               <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                 <span>{article.category}</span>
-                <span className="text-slate-300">/</span>
-                <span>{article.readTime}</span>
               </div>
               <div>
                 <h2 className="text-2xl font-semibold text-slate-900">{article.title}</h2>
                 <p className="mt-3 text-sm leading-7 text-slate-600">{article.summary}</p>
               </div>
-              <button className="inline-flex items-center gap-2 text-sm font-semibold text-sky-700">
-                Read summary <ArrowRight className="h-4 w-4" />
-              </button>
+              <details className="group rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <summary className="cursor-pointer text-sm font-semibold text-sky-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
+                  Read note
+                </summary>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{article.body}</p>
+              </details>
             </article>
           ))}
         </div>

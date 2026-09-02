@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("./src/config/loadEnv");
 const app = require("./src/app");
 const logger = require("./src/utils/logger");
 const fs = require("fs");

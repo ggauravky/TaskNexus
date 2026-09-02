@@ -3,6 +3,7 @@ import { X, DollarSign, Calendar, FileText, Tag, Clock } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import Dialog from '../common/Dialog';
+import { TASK_TYPES, TASK_TYPE_LABELS } from '../../utils/constants';
 
 const defaultFormData = {
   title: '',
@@ -40,16 +41,10 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null })
   const [formData, setFormData] = useState({ ...defaultFormData });
 
   const categories = useMemo(
-    () => [
-      { value: 'web_development', label: 'Web Development' },
-      { value: 'mobile_development', label: 'Mobile Development' },
-      { value: 'design', label: 'Design' },
-      { value: 'writing', label: 'Writing' },
-      { value: 'marketing', label: 'Marketing' },
-      { value: 'data_entry', label: 'Data Entry' },
-      { value: 'video_editing', label: 'Video Editing' },
-      { value: 'other', label: 'Other' },
-    ],
+    () => Object.values(TASK_TYPES).map((value) => ({
+      value,
+      label: TASK_TYPE_LABELS[value],
+    })),
     [],
   );
 

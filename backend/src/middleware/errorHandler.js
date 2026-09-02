@@ -5,7 +5,7 @@ const { ERROR_CODES } = require("../config/constants");
  * Global Error Handler Middleware
  * Catches all errors and sends appropriate response
  */
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   const safeUrl = String(req.originalUrl || req.path || "").split("?")[0];
   // Log error
   logger.error("Error:", {
@@ -15,6 +15,7 @@ const errorHandler = (err, req, res, next) => {
     method: req.method,
     ip: req.ip,
     userId: req.userId,
+    requestId: req.requestId,
   });
 
   // Default error
@@ -24,6 +25,7 @@ const errorHandler = (err, req, res, next) => {
     error: {
       code: err.code || ERROR_CODES.INTERNAL_SERVER_ERROR,
       message: err.message || "Internal server error",
+      request_id: req.requestId,
     },
   };
 
@@ -37,6 +39,7 @@ const errorHandler = (err, req, res, next) => {
     errorResponse.error = {
       code: ERROR_CODES.AUTHENTICATION_ERROR,
       message: "Invalid token",
+      request_id: req.requestId,
     };
   }
 
@@ -45,6 +48,7 @@ const errorHandler = (err, req, res, next) => {
     errorResponse.error = {
       code: ERROR_CODES.AUTHENTICATION_ERROR,
       message: "Token expired",
+      request_id: req.requestId,
     };
   }
 
@@ -62,12 +66,13 @@ const errorHandler = (err, req, res, next) => {
 /**
  * 404 Not Found Handler
  */
-const notFound = (req, res, next) => {
+const notFound = (req, res, _next) => {
   res.status(404).json({
     success: false,
     error: {
       code: ERROR_CODES.NOT_FOUND,
       message: `Route ${String(req.originalUrl || req.path || "").split("?")[0]} not found`,
+      request_id: req.requestId,
     },
   });
 };

@@ -2,6 +2,7 @@ const taskData = require("../data/taskData");
 const userData = require("../data/userData");
 const NotificationService = require("./notificationService");
 const realtimeHub = require("./realtimeHub");
+const collaborationData = require("../data/collaborationData");
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -175,7 +176,7 @@ const emitTaskRealtime = (task, event, payload) => {
   });
 };
 
-const addTaskComment = async ({ task, actor, body, files = [], req }) => {
+const addTaskComment = async ({ task, actor, body, files = [] }) => {
   const { workflow, collaboration, comments, activity } = getCollaborationState(task);
   const participants = await getParticipants(task);
   const mentionedUsers = findMentionedUsers(body, participants).filter(
@@ -221,7 +222,12 @@ const addTaskComment = async ({ task, actor, body, files = [], req }) => {
     },
   };
 
-  await taskData.updateTask(task.id, { workflow: nextWorkflow });
+  const normalizedComment = await collaborationData.createComment(comment);
+  if (normalizedComment) {
+    await collaborationData.createActivity(task.id, activityEntry);
+  } else {
+    await taskData.updateTask(task.id, { workflow: nextWorkflow });
+  }
 
   if (mentionedUsers.length > 0) {
     await Promise.all(
@@ -253,6 +259,16 @@ const addTaskComment = async ({ task, actor, body, files = [], req }) => {
 };
 
 const listTaskComments = async (task) => {
+  const normalized = await collaborationData.listComments(task.id);
+  if (normalized !== null) {
+    return normalized.map((comment) => ({
+      ...comment,
+      attachments: toArray(comment.attachments).map((attachment) => ({
+        ...attachment,
+        url: `/api/tasks/${task.id}/attachments/${attachment.filename}`,
+      })),
+    }));
+  }
   const { comments } = getCollaborationState(task);
   return comments
     .map((comment) => ({
@@ -266,13 +282,17 @@ const listTaskComments = async (task) => {
 };
 
 const listTaskActivity = async (task) => {
+  const normalized = await collaborationData.listActivity(task.id);
+  if (normalized !== null) return normalized;
   const { activity } = getCollaborationState(task);
   return activity.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 };
 
 const addSubtask = async ({ task, actor, payload }) => {
-  const { workflow, collaboration, activity, metrics, subtasks } =
+  const { workflow, collaboration, activity, metrics, subtasks: legacySubtasks } =
     getCollaborationState(task);
+  const storedSubtasks = await collaborationData.listMilestones(task.id);
+  const subtasks = storedSubtasks === null ? legacySubtasks : storedSubtasks;
 
   const dueDate = payload.dueDate ? new Date(payload.dueDate) : null;
   if (dueDate && Number.isNaN(dueDate.getTime())) {
@@ -331,10 +351,15 @@ const addSubtask = async ({ task, actor, payload }) => {
     },
   };
 
-  await taskData.updateTask(task.id, {
-    metrics: nextMetrics,
-    workflow: nextWorkflow,
-  });
+  const normalizedSubtask = await collaborationData.createMilestone(task.id, subtask);
+  if (normalizedSubtask) {
+    await collaborationData.createActivity(task.id, activityEntry);
+  } else {
+    await taskData.updateTask(task.id, {
+      metrics: nextMetrics,
+      workflow: nextWorkflow,
+    });
+  }
 
   emitTaskRealtime(task, "task.subtask.created", {
     subtask,
@@ -345,8 +370,10 @@ const addSubtask = async ({ task, actor, payload }) => {
 };
 
 const updateSubtask = async ({ task, actor, subtaskId, payload }) => {
-  const { workflow, collaboration, activity, metrics, subtasks } =
+  const { workflow, collaboration, activity, metrics, subtasks: legacySubtasks } =
     getCollaborationState(task);
+  const storedSubtasks = await collaborationData.listMilestones(task.id);
+  const subtasks = storedSubtasks === null ? legacySubtasks : storedSubtasks;
 
   const index = subtasks.findIndex((item) => item.id === subtaskId);
   if (index === -1) {
@@ -434,10 +461,15 @@ const updateSubtask = async ({ task, actor, subtaskId, payload }) => {
     },
   };
 
-  await taskData.updateTask(task.id, {
-    metrics: nextMetrics,
-    workflow: nextWorkflow,
-  });
+  const normalizedSubtask = await collaborationData.updateMilestone(task.id, next);
+  if (normalizedSubtask) {
+    await collaborationData.createActivity(task.id, activityEntry);
+  } else {
+    await taskData.updateTask(task.id, {
+      metrics: nextMetrics,
+      workflow: nextWorkflow,
+    });
+  }
 
   emitTaskRealtime(task, "task.subtask.updated", {
     subtask: next,
@@ -448,8 +480,10 @@ const updateSubtask = async ({ task, actor, subtaskId, payload }) => {
 };
 
 const deleteSubtask = async ({ task, actor, subtaskId }) => {
-  const { workflow, collaboration, activity, metrics, subtasks } =
+  const { workflow, collaboration, activity, metrics, subtasks: legacySubtasks } =
     getCollaborationState(task);
+  const storedSubtasks = await collaborationData.listMilestones(task.id);
+  const subtasks = storedSubtasks === null ? legacySubtasks : storedSubtasks;
 
   const current = subtasks.find((item) => item.id === subtaskId);
   if (!current) {
@@ -484,10 +518,15 @@ const deleteSubtask = async ({ task, actor, subtaskId }) => {
     },
   };
 
-  await taskData.updateTask(task.id, {
-    metrics: nextMetrics,
-    workflow: nextWorkflow,
-  });
+  const normalizedSubtask = await collaborationData.deleteMilestone(task.id, subtaskId);
+  if (normalizedSubtask) {
+    await collaborationData.createActivity(task.id, activityEntry);
+  } else {
+    await taskData.updateTask(task.id, {
+      metrics: nextMetrics,
+      workflow: nextWorkflow,
+    });
+  }
 
   emitTaskRealtime(task, "task.subtask.deleted", {
     subtaskId,
@@ -495,6 +534,17 @@ const deleteSubtask = async ({ task, actor, subtaskId }) => {
   });
 
   return { subtaskId, milestoneProgress };
+};
+
+const listSubtasks = async (task) => {
+  const normalized = await collaborationData.listMilestones(task.id);
+  const subtasks = normalized === null
+    ? getCollaborationState(task).subtasks
+    : normalized;
+  return {
+    subtasks,
+    milestoneProgress: computeMilestoneProgress(subtasks),
+  };
 };
 
 module.exports = {
@@ -506,5 +556,6 @@ module.exports = {
   addSubtask,
   updateSubtask,
   deleteSubtask,
+  listSubtasks,
   computeMilestoneProgress,
 };

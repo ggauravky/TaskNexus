@@ -22,7 +22,7 @@ router.get("/my-tasks", freelancerController.getMyTasks);
 // Accept a task
 router.post(
   "/tasks/:id/accept",
-  [param("id").notEmpty().withMessage("Task ID is required")],
+  [param("id").isUUID().withMessage("Invalid task ID")],
   validate,
   freelancerController.acceptTask
 );
@@ -30,7 +30,7 @@ router.post(
 // Start working on a task
 router.put(
   "/tasks/:id/start",
-  [param("id").notEmpty().withMessage("Task ID is required")],
+  [param("id").isUUID().withMessage("Invalid task ID")],
   validate,
   freelancerController.startTask
 );
@@ -38,7 +38,7 @@ router.put(
 // Cancel / unaccept a task
 router.put(
   "/tasks/:id/cancel",
-  [param("id").notEmpty().withMessage("Task ID is required")],
+  [param("id").isUUID().withMessage("Invalid task ID")],
   validate,
   freelancerController.cancelTask
 );
@@ -47,7 +47,7 @@ router.put(
 router.put(
   "/tasks/:id/progress",
   [
-    param("id").notEmpty().withMessage("Task ID is required"),
+    param("id").isUUID().withMessage("Invalid task ID"),
     body("progress").isNumeric().withMessage("Progress must be a number"),
     body("stage").optional().isString(),
     body("note").optional().isString(),

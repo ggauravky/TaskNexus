@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { randomUUID } = require("crypto");
 
 /**
  * Generate JWT access token
@@ -26,9 +27,10 @@ const generateRefreshToken = (userId, role) => {
       userId,
       role,
       type: "refresh",
+      jti: randomUUID(),
     },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRY || "7d" }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRY || "7d" },
   );
 };
 

@@ -14,13 +14,16 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ENUM Types
 CREATE TYPE user_role AS ENUM ('client', 'freelancer', 'admin');
 CREATE TYPE user_status AS ENUM ('active', 'suspended', 'blocked');
-CREATE TYPE freelancer_availability AS ENUM ('full-time', 'part-time', 'weekends', 'flexible');
+CREATE TYPE freelancer_availability AS ENUM ('available', 'part_time', 'busy');
 CREATE TYPE task_status AS ENUM (
   'submitted', 'under_review', 'assigned', 'in_progress', 'submitted_work',
   'qa_review', 'revision_requested', 'delivered', 'client_revision',
   'completed', 'cancelled', 'disputed'
 );
-CREATE TYPE task_type AS ENUM ('video-editing', 'web-development', 'design', 'writing', 'other');
+CREATE TYPE task_type AS ENUM (
+  'video-editing', 'web-development', 'mobile-development', 'design',
+  'writing', 'marketing', 'data-entry', 'other'
+);
 CREATE TYPE task_priority AS ENUM ('low', 'medium', 'high', 'urgent');
 CREATE TYPE submission_type AS ENUM ('initial', 'revision');
 CREATE TYPE qa_status AS ENUM ('pending', 'approved', 'rejected');
@@ -99,11 +102,14 @@ CREATE TABLE submissions (
   client_review JSONB,
   version INTEGER NOT NULL DEFAULT 1,
   is_active BOOLEAN NOT NULL DEFAULT true,
+  idempotency_key TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_submissions_task_id ON submissions(task_id);
 CREATE INDEX idx_submissions_freelancer_id ON submissions(freelancer_id);
+CREATE UNIQUE INDEX idx_submissions_idempotency_key ON submissions(freelancer_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 
 -- Payments Table
 CREATE TABLE payments (
@@ -147,9 +153,12 @@ CREATE INDEX idx_reviews_reviewee_id ON reviews(reviewee_id);
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipient_id UUID NOT NULL REFERENCES users(id),
+  actor_id UUID REFERENCES users(id),
   type notification_type NOT NULL,
   content JSONB NOT NULL,
   related_task_id UUID REFERENCES tasks(id),
+  entity_type TEXT,
+  entity_id UUID,
   status notification_status NOT NULL DEFAULT 'unread',
   priority notification_priority NOT NULL DEFAULT 'medium',
   read_at TIMESTAMPTZ,
@@ -158,6 +167,8 @@ CREATE TABLE notifications (
 );
 CREATE INDEX idx_notifications_recipient_id ON notifications(recipient_id);
 CREATE INDEX idx_notifications_status ON notifications(status);
+CREATE INDEX idx_notifications_actor_id ON notifications(actor_id);
+CREATE INDEX idx_notifications_related_task_id ON notifications(related_task_id);
 
 -- Newsletter Subscriptions Table
 CREATE TABLE newsletter_subscriptions (
@@ -187,7 +198,7 @@ CREATE TABLE service_bookings (
   preferred_time TEXT NOT NULL,
   timezone TEXT NOT NULL,
   notes TEXT,
-  status TEXT NOT NULL DEFAULT 'confirmed',
+  status TEXT NOT NULL DEFAULT 'requested',
   email_status TEXT NOT NULL DEFAULT 'pending',
   brevo_message_ids JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -228,3 +239,120 @@ CREATE TABLE audit_logs (
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX idx_audit_logs_resource ON audit_logs(resource, resource_id);
 CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
+
+-- High-contention collaboration data is normalized to avoid lost JSONB updates.
+CREATE TABLE task_comments (
+  id TEXT PRIMARY KEY,
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  author_id UUID REFERENCES users(id),
+  author_name TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  mentions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE task_milestones (
+  id TEXT PRIMARY KEY,
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  due_at TIMESTAMPTZ,
+  weight NUMERIC NOT NULL DEFAULT 0 CHECK (weight >= 0 AND weight <= 100),
+  completed BOOLEAN NOT NULL DEFAULT false,
+  completed_at TIMESTAMPTZ,
+  completed_by UUID REFERENCES users(id),
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE task_activity (
+  id TEXT PRIMARY KEY,
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  activity_type TEXT NOT NULL,
+  actor_id UUID REFERENCES users(id),
+  actor_name TEXT NOT NULL,
+  message TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_task_comments_task_created ON task_comments(task_id, created_at);
+CREATE INDEX idx_task_comments_author_id ON task_comments(author_id);
+CREATE INDEX idx_task_milestones_task_position ON task_milestones(task_id, position, created_at);
+CREATE INDEX idx_task_milestones_completed_by ON task_milestones(completed_by);
+CREATE INDEX idx_task_activity_task_created ON task_activity(task_id, created_at);
+CREATE INDEX idx_task_activity_actor_id ON task_activity(actor_id);
+CREATE INDEX idx_tasks_assigned_by_id ON tasks(assigned_by_id);
+CREATE INDEX idx_tasks_client_status_updated ON tasks(client_id, status, updated_at DESC);
+CREATE INDEX idx_tasks_freelancer_status_updated ON tasks(freelancer_id, status, updated_at DESC);
+CREATE INDEX idx_tasks_available_updated ON tasks(status, updated_at DESC) WHERE freelancer_id IS NULL;
+CREATE INDEX idx_notifications_recipient_status_created ON notifications(recipient_id, status, created_at DESC);
+
+CREATE OR REPLACE FUNCTION accept_task(p_task_id UUID, p_freelancer_id UUID)
+RETURNS SETOF tasks
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE tasks
+  SET freelancer_id = p_freelancer_id,
+      status = 'assigned',
+      workflow = jsonb_set(COALESCE(workflow, '{}'::jsonb), '{assignedAt}', to_jsonb(now()), true),
+      updated_at = now()
+  WHERE id = p_task_id AND status = 'under_review' AND freelancer_id IS NULL
+  RETURNING *;
+$$;
+
+REVOKE ALL ON FUNCTION accept_task(UUID, UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION accept_task(UUID, UUID) TO service_role;
+
+CREATE OR REPLACE FUNCTION submit_task_work(
+  p_task_id UUID, p_freelancer_id UUID, p_content JSONB,
+  p_submission_type submission_type, p_idempotency_key TEXT
+)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE existing_submission submissions%ROWTYPE;
+DECLARE submitted_task tasks%ROWTYPE;
+DECLARE created_submission submissions%ROWTYPE;
+BEGIN
+  SELECT * INTO existing_submission FROM submissions
+  WHERE task_id = p_task_id
+    AND freelancer_id = p_freelancer_id
+    AND idempotency_key = p_idempotency_key;
+  IF FOUND THEN
+    SELECT * INTO submitted_task FROM tasks WHERE id = existing_submission.task_id;
+    RETURN jsonb_build_object('task', to_jsonb(submitted_task), 'submission', to_jsonb(existing_submission));
+  END IF;
+  UPDATE tasks SET status = 'delivered',
+    workflow = jsonb_set(COALESCE(workflow, '{}'::jsonb), '{deliveredAt}', to_jsonb(now()), true),
+    updated_at = now()
+  WHERE id = p_task_id AND freelancer_id = p_freelancer_id AND status = 'in_progress'
+  RETURNING * INTO submitted_task;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  UPDATE submissions SET is_active = false WHERE task_id = p_task_id AND is_active = true;
+  INSERT INTO submissions(task_id, freelancer_id, submission_type, content, version, is_active, idempotency_key)
+  VALUES (p_task_id, p_freelancer_id, p_submission_type, p_content,
+    COALESCE((SELECT MAX(version) + 1 FROM submissions WHERE task_id = p_task_id), 1), true, p_idempotency_key)
+  RETURNING * INTO created_submission;
+  RETURN jsonb_build_object('task', to_jsonb(submitted_task), 'submission', to_jsonb(created_submission));
+END $$;
+
+REVOKE ALL ON FUNCTION submit_task_work(UUID, UUID, JSONB, submission_type, TEXT)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION submit_task_work(UUID, UUID, JSONB, submission_type, TEXT) TO service_role;
+
+-- This is a backend-only application: browser database roles have no table access.
+DO $$
+DECLARE table_name TEXT;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'users', 'tasks', 'submissions', 'payments', 'reviews', 'notifications',
+    'newsletter_subscriptions', 'service_bookings', 'support_jar_contributions',
+    'audit_logs', 'task_comments', 'task_milestones', 'task_activity'
+  ] LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
+    EXECUTE format('REVOKE ALL ON TABLE %I FROM anon, authenticated', table_name);
+  END LOOP;
+END $$;

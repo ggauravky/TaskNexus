@@ -60,7 +60,7 @@ const SupportJarPage = () => {
         name: contribution?.full_name,
       });
       setFormData(initialForm);
-      toast.success("Support received. The thank-you email flow has been triggered.");
+      toast.success("Support pledge recorded. No payment was processed.");
     } catch (error) {
       const message =
         error.response?.data?.error?.message || "Unable to record support right now.";
@@ -73,8 +73,8 @@ const SupportJarPage = () => {
   return (
     <PublicSiteLayout
       eyebrow="Support Jar"
-      title="If the work helps, you can back it here."
-      subtitle="The support jar is a simple way to say the product, the ideas, or the public work was useful. We record the contribution and send a proper thank-you email to the supporter."
+      title="If the work helps, record your support."
+      subtitle="The support jar records a non-binding expression of support and sends a thank-you email. It does not collect or transfer money."
       heroAside={
         <div className="space-y-5 text-white">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200">
@@ -83,7 +83,7 @@ const SupportJarPage = () => {
           </div>
           <h2 className="text-2xl font-semibold">Small signal, real help</h2>
           <p className="text-sm leading-7 text-slate-200">
-            Support helps us keep building cleaner workflows, sharper UX, and useful public resources around delivery systems.
+            A support pledge tells us the product or public work was useful. No payment method is requested and no funds are transferred.
           </p>
         </div>
       }
@@ -96,8 +96,8 @@ const SupportJarPage = () => {
               What happens next
             </div>
             <ul className="mt-5 space-y-4 text-sm leading-7 text-slate-600">
-              <li>You submit your support amount and optional note.</li>
-              <li>TaskNexus records the contribution details.</li>
+              <li>You record an optional pledge amount and note.</li>
+              <li>TaskNexus records the pledge details; no payment occurs.</li>
               <li>You receive a proper super-thanks email with your name and amount.</li>
             </ul>
           </div>
@@ -105,13 +105,13 @@ const SupportJarPage = () => {
           {successState ? (
             <div className="public-success-card">
               <p className="text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Contribution received
+                Support pledge recorded
               </p>
               <h3 className="mt-2 text-2xl font-semibold text-slate-900">
                 Thank you, {successState.name}
               </h3>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                We recorded your contribution of {successState.currency} {successState.amount}. The thank-you email flow has been queued.
+                We recorded your support pledge of {successState.currency} {successState.amount}. No payment was processed; the thank-you email has been queued.
               </p>
             </div>
           ) : null}
@@ -120,11 +120,11 @@ const SupportJarPage = () => {
         <form className="public-form-card space-y-4" onSubmit={handleSubmit}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Contribution form
+              Support pledge form
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-slate-900">Support TaskNexus</h2>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              Choose an amount, leave a note if you want, and we will take care of the rest.
+              Record an optional pledge amount and note. This form does not process a payment.
             </p>
           </div>
 
@@ -134,7 +134,7 @@ const SupportJarPage = () => {
           </div>
 
           <fieldset>
-            <legend className="label">Suggested amounts</legend>
+            <legend className="label">Suggested pledge amounts</legend>
             <div className="flex flex-wrap gap-2">
               {presetAmounts.map((amount) => (
                 <button
@@ -155,7 +155,7 @@ const SupportJarPage = () => {
 
           <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
             <Field
-              label="Amount"
+              label="Pledge amount (not charged)"
               name="amount"
               type="number"
               min="1"
@@ -175,7 +175,7 @@ const SupportJarPage = () => {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Current contribution: <span className="font-semibold text-slate-900">{formattedAmount}</span>
+            Recorded pledge: <span className="font-semibold text-slate-900">{formattedAmount}</span>
           </div>
 
           <div>
@@ -195,7 +195,7 @@ const SupportJarPage = () => {
 
           <button type="submit" disabled={loading} className="btn btn-primary w-full inline-flex items-center justify-center gap-2">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <HeartHandshake className="h-4 w-4" />}
-            <span>{loading ? "Recording support..." : "Send support"}</span>
+            <span>{loading ? "Recording pledge..." : "Record support pledge"}</span>
           </button>
         </form>
       </section>

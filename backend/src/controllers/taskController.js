@@ -10,6 +10,9 @@ const { TASK_STATUS } = require("../config/constants");
 const fs = require("fs");
 const path = require("path");
 const { commentsDir } = require("../middleware/upload");
+const { parseListQuery } = require("../utils/queryOptions");
+const { paginationMeta } = require("../utils/apiResponse");
+const { serializeTask } = require("../serializers");
 
 /**
  * @desc    Create a new task (Client only)
@@ -28,14 +31,12 @@ exports.createTask = async (req, res, next) => {
       experienceLevel,
     } = req.body;
 
-    const taskType = category.replace(/_/g, "-");
-
     const task = await taskData.createTask({
       client_id: req.user.id,
       status: TASK_STATUS.SUBMITTED,
       task_details: {
         title: title.trim(),
-        type: taskType,
+        type: category,
         description: description.trim(),
         budget: parseFloat(budget),
         deadline: new Date(deadline),
@@ -122,11 +123,16 @@ exports.getTasks = async (req, res, next) => {
       filters["task_details->>type"] = category;
     }
 
-    const tasks = await taskData.findTasks(filters);
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["created_at", "updated_at", "status", "priority"],
+      defaultSort: "updated_at",
+    });
+    const result = await taskData.listTasks({ filters, ...options });
 
     res.status(200).json({
       success: true,
-      data: tasks,
+      data: { tasks: result.items.map(serializeTask) },
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching tasks:", error);
@@ -366,19 +372,23 @@ exports.submitTask = async (req, res, next) => {
       });
     }
 
-    // Create submission
-    const submission = await submissionData.createSubmission({
-      task_id: task.id,
-      freelancer_id: req.user.id,
+    const result = await submissionData.submitWorkAtomically({
+      taskId: task.id,
+      freelancerId: req.user.id,
       content: {
           deliverables: deliverables || [],
           notes: comments || "",
       },
-      submission_type: 'initial', // TODO: handle revisions
+      submissionType: 'initial',
+      idempotencyKey: req.get("idempotency-key") || req.requestId,
     });
-
-    // Update task status
-    const updatedTask = await taskService.transitionTo(task.id, "submitted_work");
+    if (!result) {
+      const error = new Error("Task changed while work was being submitted");
+      error.statusCode = 409;
+      error.code = "CONFLICT";
+      throw error;
+    }
+    const { task: updatedTask, submission } = result;
 
     // Notify client
     await NotificationService.create({
@@ -589,10 +599,8 @@ exports.getSubtasks = async (req, res, next) => {
     const task = await taskData.findTaskById(req.params.id);
     collaborationService.ensureTaskAccess(task, req.user);
 
-    const subtasks = Array.isArray(task.metrics?.subtasks)
-      ? task.metrics.subtasks
-      : [];
-    const milestoneProgress = task.metrics?.milestoneProgress ?? 0;
+    const { subtasks, milestoneProgress } =
+      await collaborationService.listSubtasks(task);
 
     res.status(200).json({
       success: true,

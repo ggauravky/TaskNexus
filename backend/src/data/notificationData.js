@@ -36,6 +36,27 @@ const findNotifications = async (filters) => {
     });
 };
 
+const listNotifications = async ({ filters, page, limit }) => {
+    const from = (page - 1) * limit;
+    const queryFactory = () => {
+        let query = supabase.from('notifications').select('*', { count: 'exact' });
+        Object.entries(filters).forEach(([key, value]) => {
+            query = query.eq(key, value);
+        });
+        return query.order('created_at', { ascending: false }).range(from, from + limit - 1);
+    };
+    try {
+        const { data, error, count } = await queryFactory();
+        if (error) throw error;
+        return { items: data || [], total: count || 0, page, limit };
+    } catch (error) {
+        if (process.env.NODE_ENV !== 'production') {
+            return localNotificationStore.listNotifications({ filters, page, limit });
+        }
+        throw error;
+    }
+};
+
 const updateNotification = async (id, updates) => {
     const data = await runQuery(
         () => supabase.from('notifications').update(updates).eq('id', id).select(),
@@ -93,6 +114,7 @@ const deleteManyNotifications = async (filters) => {
 module.exports = {
     createNotification,
     findNotifications,
+    listNotifications,
     updateNotification,
     updateManyNotifications,
     deleteNotification,

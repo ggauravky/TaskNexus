@@ -2,29 +2,18 @@
  * Application Constants
  */
 
+import {
+  NOTIFICATION_TYPES,
+  TASK_PRIORITY,
+  TASK_STATUS,
+  TASK_TYPES,
+  USER_ROLES,
+} from "../contracts/domain";
+
+export { NOTIFICATION_TYPES, TASK_PRIORITY, TASK_STATUS, TASK_TYPES, USER_ROLES };
+
 export const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-
-export const USER_ROLES = {
-  CLIENT: "client",
-  FREELANCER: "freelancer",
-  ADMIN: "admin",
-};
-
-export const TASK_STATUS = {
-  SUBMITTED: "submitted",
-  UNDER_REVIEW: "under_review",
-  ASSIGNED: "assigned",
-  IN_PROGRESS: "in_progress",
-  SUBMITTED_WORK: "submitted_work",
-  QA_REVIEW: "qa_review",
-  REVISION_REQUESTED: "revision_requested",
-  DELIVERED: "delivered",
-  CLIENT_REVISION: "client_revision",
-  COMPLETED: "completed",
-  CANCELLED: "cancelled",
-  DISPUTED: "disputed",
-};
 
 export const TASK_STATUS_LABELS = {
   [TASK_STATUS.SUBMITTED]: "Submitted",
@@ -56,27 +45,15 @@ export const TASK_STATUS_COLORS = {
   [TASK_STATUS.DISPUTED]: "badge-danger",
 };
 
-export const TASK_TYPES = {
-  VIDEO_EDITING: "video-editing",
-  WEB_DEVELOPMENT: "web-development",
-  DESIGN: "design",
-  WRITING: "writing",
-  OTHER: "other",
-};
-
 export const TASK_TYPE_LABELS = {
   [TASK_TYPES.VIDEO_EDITING]: "Video Editing",
   [TASK_TYPES.WEB_DEVELOPMENT]: "Web Development",
+  [TASK_TYPES.MOBILE_DEVELOPMENT]: "Mobile Development",
   [TASK_TYPES.DESIGN]: "Design",
   [TASK_TYPES.WRITING]: "Writing",
+  [TASK_TYPES.MARKETING]: "Marketing",
+  [TASK_TYPES.DATA_ENTRY]: "Data Entry",
   [TASK_TYPES.OTHER]: "Other",
-};
-
-export const TASK_PRIORITY = {
-  LOW: "low",
-  MEDIUM: "medium",
-  HIGH: "high",
-  URGENT: "urgent",
 };
 
 export const TASK_PRIORITY_LABELS = {
@@ -91,16 +68,6 @@ export const TASK_PRIORITY_COLORS = {
   [TASK_PRIORITY.MEDIUM]: "badge-info",
   [TASK_PRIORITY.HIGH]: "badge-warning",
   [TASK_PRIORITY.URGENT]: "badge-danger",
-};
-
-export const NOTIFICATION_TYPES = {
-  TASK_ASSIGNED: "task_assigned",
-  TASK_SUBMITTED: "task_submitted",
-  QA_FEEDBACK: "qa_feedback",
-  CLIENT_APPROVAL: "client_approval",
-  REVISION_REQUESTED: "revision_requested",
-  PAYMENT_RELEASED: "payment_released",
-  DEADLINE_REMINDER: "deadline_reminder",
 };
 
 export const ROUTES = {
@@ -134,4 +101,3 @@ export const ROUTES = {
   ADMIN_ANALYTICS: "/admin/analytics",
   ADMIN_SETTINGS: "/admin/settings",
 };
-

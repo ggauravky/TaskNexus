@@ -11,3 +11,5 @@ ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'task_approved';
 ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'task_rejected';
 ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'submission_approved';
 ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'new_review';
+
+ALTER TABLE service_bookings ALTER COLUMN status SET DEFAULT 'requested';
