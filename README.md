@@ -6,10 +6,12 @@ The active database is Supabase/PostgreSQL. MongoDB and Mongoose are not part of
 
 ## Current product scope
 
-- Clients create tasks, monitor work, collaborate, review submissions, and maintain profiles.
-- Freelancers browse or accept eligible work, update progress, collaborate, submit work, and view earnings records.
+- Clients create tasks, monitor work, collaborate, review submissions, and maintain professional profiles.
+- Freelancers browse or accept eligible work, update progress, collaborate, submit work, view earnings records, and publish professional profiles.
 - Administrators review users, tasks, audit information, and actual aggregate platform data.
-- Public pages include the landing page, services, blog, support jar, login, and registration.
+- Public pages include the landing page, services, blog, support jar, login, registration, and privacy-controlled profiles at `/u/:username`.
+
+Professional profiles use normalized profile, education, and skill records. Skills come from a canonical catalog with aliases and self-reported proficiency. Collaboration preferences describe how a member wants to contribute; they do not grant application permissions.
 
 Payment-related records are workflow data only. TaskNexus does not currently provide a production payment gateway or real escrow. Team creation, projects, people discovery, contribution proof, opportunities, and AI features are planned direction, not current functionality.
 
@@ -98,6 +100,16 @@ The script creates a new administrator through the current Supabase/PostgreSQL d
 
 Apply migrations through the Supabase SQL editor or the project migration workflow before deploying matching API code.
 
+Phase 2 profile endpoints:
+
+- `GET/PUT /api/profile` for the authenticated member
+- `PUT /api/profile/onboarding` for guided setup completion
+- `GET /api/profile/username` for case-safe availability checks
+- `PUT /api/profile/skills` for transactional skill replacement
+- `POST/PUT/DELETE /api/profile/education` for owner-scoped education records
+- `GET /api/public/skills` for bounded catalog search
+- `GET /api/public/profiles/:username` for the explicit public DTO
+
 ## Verification
 
 Run the complete baseline verification from the repository root:
@@ -125,6 +137,6 @@ Local attachment storage is private but not durable across all Render deployment
 
 ## Product direction
 
-TaskNexus is evolving toward `Connect -> Build -> Prove -> Grow`: professional profiles, structured skills, teams, projects, project tasks, contribution history, and showcases. Those capabilities are not implemented in the current product and should not be described as available until their phases ship.
+TaskNexus is evolving toward `Connect -> Build -> Prove -> Grow`. Professional profiles and structured skills are implemented. Teams, projects, project tasks, contribution history, showcases, discovery, and AI features remain future-phase scope and should not be described as available.
 
 See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md) and [Canonical contracts](docs/CANONICAL_CONTRACTS.md).

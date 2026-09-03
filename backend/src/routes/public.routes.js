@@ -9,6 +9,10 @@ const {
 
 const router = express.Router();
 const { publicFormLimiter } = require("../middleware/rateLimiter");
+const profileController = require("../controllers/profileController");
+
+router.get("/profiles/:username", profileController.getPublic);
+router.get("/skills", profileController.searchSkills);
 
 router.get("/services/catalog", publicController.getServicesCatalog);
 router.post(

@@ -13,11 +13,6 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { USER_ROLES } from "../utils/constants";
 
-const ROLE_ROUTES = {
-  [USER_ROLES.CLIENT]: "/client/dashboard",
-  [USER_ROLES.FREELANCER]: "/freelancer/dashboard",
-};
-
 const Register = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
@@ -138,7 +133,7 @@ const Register = () => {
       return;
     }
 
-    navigate(ROLE_ROUTES[result.user.role] || "/");
+    navigate("/profile/onboarding");
   };
 
   return (

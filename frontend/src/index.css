@@ -437,6 +437,35 @@
     content: '\00B7';
     @apply text-gray-400 mx-2;
   }
+
+  /* Phase 2 professional profile system */
+  .profile-shell {
+    font-family: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .profile-label {
+    @apply mb-2 block text-xs font-medium text-[#8a8f98];
+  }
+
+  .profile-input {
+    @apply min-h-11 w-full rounded-lg border border-[#34343a] bg-[#141516] px-3 py-2.5 text-[#f7f8f8] outline-none placeholder:text-[#62666d] focus:border-[#5e69d1] focus:ring-2 focus:ring-[#5e69d1]/30 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .profile-input option {
+    @apply bg-[#141516] text-[#f7f8f8];
+  }
+
+  .profile-primary-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#5e6ad2] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#828fff] focus:outline-none focus:ring-2 focus:ring-[#5e69d1] focus:ring-offset-2 focus:ring-offset-[#010102] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .profile-quiet-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#34343a] bg-[#0f1011] px-3 py-2 text-sm font-medium text-[#d0d6e0] transition-colors hover:bg-[#18191a] hover:text-[#f7f8f8] focus:outline-none focus:ring-2 focus:ring-[#5e69d1] focus:ring-offset-2 focus:ring-offset-[#010102] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .profile-icon-button {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#34343a] bg-[#0f1011] text-[#8a8f98] transition-colors hover:bg-[#18191a] hover:text-[#f7f8f8] focus:outline-none focus:ring-2 focus:ring-[#5e69d1];
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

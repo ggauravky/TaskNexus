@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -16,14 +16,16 @@ import SupportJarPage from './pages/SupportJarPage';
 import AdminLogin from './pages/AdminLogin';
 import ClientDashboard from './pages/ClientDashboard';
 import FreelancerDashboard from './pages/FreelancerDashboard';
-import FreelancerProfile from './pages/FreelancerProfile';
-import ClientProfile from './pages/ClientProfile';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminTasks from './pages/AdminTasks';
 import AdminUsers from './pages/AdminUsers';
 import AdminAnalytics from './pages/AdminAnalytics';
 import NotFound from './pages/NotFound';
 import Loading from './components/common/Loading';
+
+const ProfessionalProfile = lazy(() => import('./pages/ProfessionalProfile'));
+const ProfileOnboarding = lazy(() => import('./pages/ProfileOnboarding'));
+const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
 
@@ -41,12 +43,16 @@ const RouteMetadata = () => {
     const { pathname } = useLocation();
 
     useEffect(() => {
-        const isPrivate = /^(\/client|\/freelancer|\/admin)(\/|$)/.test(pathname);
-        const metadata = PUBLIC_METADATA[pathname] || {
+        const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile)(\/|$)/.test(pathname);
+        const isPublicProfile = /^\/u\/[a-z0-9_-]+$/i.test(pathname);
+        const metadata = PUBLIC_METADATA[pathname] || (isPublicProfile ? {
+            title: 'Developer Profile | TaskNexus',
+            description: 'A public TaskNexus professional profile.',
+        } : {
             title: isPrivate ? 'Workspace | TaskNexus' : 'Page Not Found | TaskNexus',
             description: 'TaskNexus workspace.',
             noindex: true,
-        };
+        });
 
         document.title = metadata.title;
         const description = document.querySelector('meta[name="description"]');
@@ -126,7 +132,9 @@ function App() {
                         }}
                     />
 
-                    <AppRoutes />
+                    <Suspense fallback={<Loading fullScreen={true} text="Loading workspace..." />}>
+                        <AppRoutes />
+                    </Suspense>
                 </div>
             </Router>
         </AuthProvider>
@@ -158,6 +166,7 @@ function AppRoutes() {
             <Route path="/blog" element={<BlogPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/support-jar" element={<SupportJarPage />} />
+            <Route path="/u/:username" element={<PublicProfile />} />
             <Route path="/admin/login" element={
                 isAuthenticated && user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <AdminLogin />
             } />
@@ -170,7 +179,7 @@ function AppRoutes() {
             } />
             <Route path="/client/profile" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                    <ClientProfile />
+                    <Navigate to="/profile" replace />
                 </ProtectedRoute>
             } />
 
@@ -182,7 +191,18 @@ function AppRoutes() {
             } />
             <Route path="/freelancer/profile" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.FREELANCER]}>
-                    <FreelancerProfile />
+                    <Navigate to="/profile" replace />
+                </ProtectedRoute>
+            } />
+
+            <Route path="/profile" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <ProfessionalProfile />
+                </ProtectedRoute>
+            } />
+            <Route path="/profile/onboarding" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER]}>
+                    <ProfileOnboarding />
                 </ProtectedRoute>
             } />
 

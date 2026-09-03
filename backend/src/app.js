@@ -19,6 +19,7 @@ const notificationRoutes = require("./routes/notification.routes");
 const settingsRoutes = require("./routes/settings.routes");
 const realtimeRoutes = require("./routes/realtime.routes");
 const publicRoutes = require("./routes/public.routes");
+const profileRoutes = require("./routes/profile.routes");
 
 // Create Express app
 const app = express();
@@ -98,6 +99,7 @@ app.get("/health", (req, res) => {
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/public", publicRoutes);
+app.use("/api/profile", profileRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/client", clientRoutes);
 app.use("/api/freelancer", freelancerRoutes);
