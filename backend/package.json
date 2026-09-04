@@ -10,8 +10,8 @@
         "verify:database": "node scripts/verifyMongoDatabase.js",
         "database:indexes": "node scripts/syncMongoIndexes.js",
         "database:seed": "node scripts/seedSkills.js",
-        "migrate:mongodb": "node scripts/migrateToMongo.js",
         "verify:mongodb-integration": "node scripts/verifyMongoIntegration.js",
+        "verify:api-integration": "node scripts/verifyMongoApi.js",
         "provision:admin": "node scripts/createAdmin.js",
         "test": "jest --runInBand",
         "test:watch": "jest --watch",
@@ -27,7 +27,6 @@
     "license": "MIT",
     "dependencies": {
         "@getbrevo/brevo": "^5.0.4",
-        "@supabase/supabase-js": "^2.95.3",
         "bcrypt": "^6.0.0",
         "cookie-parser": "^1.4.6",
         "cors": "^2.8.5",

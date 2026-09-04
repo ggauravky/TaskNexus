@@ -10,6 +10,7 @@ const profileData = require("../src/data/profileData");
 
 const runId = randomUUID();
 const marker = `mongo-qa-${runId}`;
+const usernameMarker = `mongo-qa-${runId.slice(0, 8)}`;
 const ids = {
   client: randomUUID(), freelancerA: randomUUID(), freelancerB: randomUUID(), skill: randomUUID(),
   raceTask: randomUUID(), successTask: randomUUID(), rollbackTask: randomUUID(), audit: randomUUID(),
@@ -45,16 +46,16 @@ const run = async () => {
       { _id: ids.freelancerB, email: `${marker}-b@example.invalid`, password: "hash", role: "freelancer", profile: { firstName: "QA", lastName: "B" } },
     ]);
     await models.UserProfile.insertMany([
-      { _id: ids.client, username: `${marker}-client`.slice(0, 30) },
-      { _id: ids.freelancerA, username: `${marker}-a`.slice(0, 30) },
-      { _id: ids.freelancerB, username: `${marker}-b`.slice(0, 30) },
+      { _id: ids.client, username: `${usernameMarker}-client` },
+      { _id: ids.freelancerA, username: `${usernameMarker}-a` },
+      { _id: ids.freelancerB, username: `${usernameMarker}-b` },
     ]);
     await models.Skill.create({ _id: ids.skill, slug: marker, name: marker, normalized_name: marker, category: "other" });
 
     await expectDuplicate(() => models.User.create({
       email: `${marker}-client@example.invalid`, password: "hash", role: "client", profile: {},
     }));
-    await expectDuplicate(() => models.UserProfile.create({ _id: randomUUID(), username: `${marker}-client`.slice(0, 30) }));
+    await expectDuplicate(() => models.UserProfile.create({ _id: randomUUID(), username: `${usernameMarker}-client` }));
     await models.UserSkill.create({ _id: `${ids.freelancerA}:${ids.skill}`, user_id: ids.freelancerA, skill_id: ids.skill });
     await expectDuplicate(() => models.UserSkill.create({ _id: randomUUID(), user_id: ids.freelancerA, skill_id: ids.skill }));
 

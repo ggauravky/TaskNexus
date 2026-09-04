@@ -10,7 +10,7 @@ import Dialog from '../common/Dialog';
 const TaskDetailsModal = ({ isOpen, onClose, task }) => {
     if (!isOpen || !task) return null;
 
-    // Normalize task fields (Supabase rows use task_details JSONB)
+    // Normalize task fields from the canonical API task shape.
     const details = task.task_details || {};
     const workflow = task.workflow || {};
 

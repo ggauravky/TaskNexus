@@ -53,7 +53,10 @@ const profile = model("UserProfile", {
   visibility: { type: String, enum: domain.profileVisibilities, default: "private" },
   onboarding_completed: { type: Boolean, default: false },
 }, { collection: "user_profiles" });
-profile.schema.index({ username: 1 }, { unique: true, sparse: true });
+profile.schema.index(
+  { username: 1 },
+  { unique: true, partialFilterExpression: { username: { $type: "string" } } },
+);
 profile.schema.index({ username: 1, visibility: 1 });
 
 const skill = model("Skill", {

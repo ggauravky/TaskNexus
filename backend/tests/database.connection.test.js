@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const dns = require("node:dns");
 
 jest.mock("../src/utils/logger", () => ({ info: jest.fn(), error: jest.fn() }));
 
@@ -25,6 +26,23 @@ describe("MongoDB connection", () => {
     expect(connect).toHaveBeenCalledWith(process.env.MONGODB_URI, expect.objectContaining({
       dbName: "tasknexus_test", maxPoolSize: 20, serverSelectionTimeoutMS: 10000,
     }));
+  });
+
+  test("supports explicit DNS resolvers for Atlas SRV lookups", async () => {
+    process.env.MONGODB_URI = "mongodb+srv://example.invalid/ignored";
+    process.env.MONGODB_DNS_SERVERS = "1.1.1.1, 8.8.8.8";
+    const setServers = jest.spyOn(dns, "setServers").mockImplementation(() => {});
+    jest.spyOn(mongoose, "connect").mockResolvedValue(mongoose);
+    await database.connectDatabase();
+    expect(setServers).toHaveBeenCalledWith(["1.1.1.1", "8.8.8.8"]);
+  });
+
+  test("rejects invalid explicit DNS resolvers", async () => {
+    process.env.MONGODB_URI = "mongodb+srv://example.invalid/ignored";
+    process.env.MONGODB_DNS_SERVERS = "resolver.example.com";
+    await expect(database.connectDatabase()).rejects.toThrow(
+      "MONGODB_DNS_SERVERS must contain comma-separated IP addresses",
+    );
   });
 
   test("sanitizes driver errors and never repeats the connection URI", async () => {

@@ -77,10 +77,4 @@ describe("Phase 2 professional profile domain", () => {
     expect(result).toEqual(expect.objectContaining({ percentage: 40, completed: 4, total: 10 }));
     expect(result.missing).toContain("skills");
   });
-
-  test("migration helper normalizes legacy freelancer skill strings", () => {
-    const { normalizeLegacySkillName } = require("../src/migration/legacyProfile");
-    expect(normalizeLegacySkillName(" React.js ")).toBe("react.js");
-    expect(normalizeLegacySkillName("  ")).toBeNull();
-  });
 });
