@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import SkillPicker from "../components/profile/SkillPicker";
 import api from "../services/api";
+import { toEditableProfile } from "../utils/profile";
 
 const INTERESTS = ["open_source", "startups", "ai_ml", "web_platform", "mobile", "data", "data_science", "devops", "cloud", "cybersecurity", "saas", "hackathons", "design_systems", "accessibility", "developer_tools", "climate_tech", "education"];
 const ROLES = ["frontend_developer", "backend_developer", "full_stack_developer", "mobile_developer", "ml_engineer", "data_analyst", "ui_ux_designer", "devops_engineer", "qa_engineer", "product", "builder", "designer", "product_lead", "project_lead", "reviewer", "mentor", "researcher", "data_specialist"];
@@ -22,7 +23,7 @@ const ProfileOnboarding = () => {
     api.get("/profile").then((response) => {
       const data = response.data.data;
       setBundle(data);
-      setForm({ ...data.profile, firstName: data.account.firstName, lastName: data.account.lastName });
+      setForm(toEditableProfile(data));
       setSkills(data.skills || []);
     }).catch(() => setError("Guided setup could not be loaded."));
   }, []);

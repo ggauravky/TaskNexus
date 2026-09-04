@@ -1,6 +1,6 @@
 # Current canonical contracts
 
-These values describe the intended current API and database contract. Changes that require data migration belong in a tracked SQL migration.
+These values describe the intended current API and database contract. Changes that require data migration need a reviewed, idempotent MongoDB migration or backfill.
 
 ## Roles
 
@@ -57,7 +57,7 @@ These values describe the intended current API and database contract. Changes th
 
 ## Field naming
 
-- Database and API row identifiers use `id`, not `_id`.
+- API identifiers use `id`; MongoDB stores the same string as `_id` internally.
 - Task JSON detail data uses `task_details`, not `taskDetails`.
 - Foreign keys use snake_case, for example `client_id` and `freelancer_id`.
-- Compatibility fallbacks may remain at non-critical boundaries temporarily, but new code must use the canonical names.
+- Data adapters translate storage representation; callers use only canonical names.

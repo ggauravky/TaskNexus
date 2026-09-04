@@ -1,5 +1,3 @@
-const fs = require("fs");
-const path = require("path");
 const {
   normalizeUsername,
   normalizeProfileInput,
@@ -78,13 +76,5 @@ describe("Phase 2 professional profile domain", () => {
     });
     expect(result).toEqual(expect.objectContaining({ percentage: 40, completed: 4, total: 10 }));
     expect(result.missing).toContain("skills");
-  });
-
-  test("migration preserves and resolves legacy freelancer skill strings", () => {
-    const sql = fs.readFileSync(path.join(__dirname, "../sql/migrations/20260903_phase2_professional_profiles.sql"), "utf8");
-    expect(sql).toContain("jsonb_array_elements_text");
-    expect(sql).toContain("u.freelancer_profile->'skills'");
-    expect(sql).toContain("ON CONFLICT (user_id, skill_id) DO NOTHING");
-    expect(sql).not.toMatch(/DELETE\s+FROM\s+users/i);
   });
 });

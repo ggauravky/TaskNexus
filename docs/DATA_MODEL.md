@@ -1,20 +1,36 @@
-# Data model ownership
+# MongoDB data model
 
-PostgreSQL is the durable source of truth. JSONB remains appropriate for
-low-contention aggregates such as profiles, task presentation details, and
-workflow timestamps. Frequently appended or independently updated collections
-are relational.
+MongoDB is the durable source of truth. Application UUID/string identifiers are stored directly as document `_id` values and serialized as API `id` fields.
 
-| Concern | Storage | Reason |
+| Collection | Purpose | Principal relationships/indexes |
 | --- | --- | --- |
-| User/profile preferences | `users` JSONB fields | Read and updated as one aggregate |
-| Task details/workflow summary | `tasks` JSONB fields | Flexible presentation metadata |
-| Comments | `task_comments` | Concurrent appends and indexed chronology |
-| Milestones/subtasks | `task_milestones` | Independent updates without lost writes |
-| Activity | `task_activity` | Append-only chronological history |
-| Submission attempts | `submissions` | Versioning and idempotency |
-| Notifications | `notifications` | Recipient/status pagination and entity links |
+| `users` | Accounts, password hashes, roles, session state | unique email; role/status |
+| `user_profiles` | One professional profile per account | `_id` = user ID; unique sparse username |
+| `skills` | Canonical skill catalog | unique slug/name; category/name; aliases |
+| `user_skills` | Profile-to-skill assignments | unique user/skill; user/primary |
+| `user_education` | Multiple education entries | user/position/start year |
+| `tasks` | Task brief and lifecycle summary | unique human task ID; client/status; freelancer/status |
+| `submissions` | Versioned task deliveries | task/active/version; unique freelancer/idempotency key |
+| `payments` | Existing payment workflow records | unique payment ID; task/client/freelancer |
+| `reviews` | Existing review records | unique task/reviewer/type; reviewee/time |
+| `notifications` | Durable inbox items | recipient/status/created time |
+| `task_comments` | Concurrent task discussion | task/created time; author |
+| `task_milestones` | Independently updated task milestones | task/position/time |
+| `task_activity` | Append-oriented task history | task/time; actor |
+| `newsletter_subscriptions` | Public newsletter requests | unique email; status |
+| `service_bookings` | Public service booking requests | unique booking/session IDs; email |
+| `support_jar_contributions` | Existing support records | email; created time |
+| `audit_logs` | Append-oriented accountability data | user/time; resource/id; time |
 
-The Phase 1 migration backfills comments, milestones, and activity from legacy
-task JSONB. Development environments without the migration retain a temporary
-JSONB fallback; production treats normalized relations as required.
+## Relationship policy
+
+MongoDB does not enforce foreign keys. Controllers and services validate resource existence, ownership, and state before writes; migration and deployment verification scan critical relationships for orphans. Independent collections are used where records have their own lifecycle, authorization boundary, query pattern, or concurrent writes.
+
+## Atomicity
+
+- Registration creates the user and one-to-one profile in a transaction.
+- Task acceptance is one conditional `findOneAndUpdate`.
+- Work submission transitions the task, deactivates older submissions, and inserts the next version in one transaction.
+- Profile skill replacement validates references and replaces assignments in one transaction.
+
+Transactions are sequential within a session; transaction-dependent operations are not grouped with `Promise.all`.

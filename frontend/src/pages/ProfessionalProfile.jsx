@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import SkillPicker from "../components/profile/SkillPicker";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import { toEditableProfile } from "../utils/profile";
 
 const INTEREST_LABELS = {
   open_source: "Open source", startups: "Startups", ai_ml: "AI and ML",
@@ -47,7 +48,7 @@ const ProfessionalProfile = () => {
     const response = await api.get("/profile");
     const data = response.data.data;
     setBundle(data);
-    setForm({ ...data.profile, firstName: data.account.firstName, lastName: data.account.lastName });
+    setForm(toEditableProfile(data));
     setSkills(data.skills || []);
   };
 
@@ -57,7 +58,7 @@ const ProfessionalProfile = () => {
 
   const dirty = useMemo(() => {
     if (!bundle || !form) return false;
-    const baseline = { ...bundle.profile, firstName: bundle.account.firstName, lastName: bundle.account.lastName };
+    const baseline = toEditableProfile(bundle);
     return JSON.stringify(form) !== JSON.stringify(baseline) || JSON.stringify(skills) !== JSON.stringify(bundle.skills || []);
   }, [bundle, form, skills]);
 

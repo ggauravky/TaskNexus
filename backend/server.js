@@ -1,6 +1,7 @@
 require("./src/config/loadEnv");
 const app = require("./src/app");
 const logger = require("./src/utils/logger");
+const { connectDatabase, disconnectDatabase } = require("./src/config/database");
 const fs = require("fs");
 const path = require("path");
 
@@ -29,6 +30,10 @@ const startServer = async () => {
     // Create directories
     createDirectories();
 
+    // MongoDB is the canonical persistence layer. Startup fails rather than
+    // falling back to local files when the database is unavailable.
+    await connectDatabase();
+
     // Get port from environment or use default
     const PORT = process.env.PORT || 5000;
 
@@ -50,6 +55,8 @@ const startServer = async () => {
 
       server.close(async () => {
         logger.info("HTTP server closed");
+        await disconnectDatabase();
+        logger.info("MongoDB connection closed");
         logger.info("Graceful shutdown completed");
         process.exit(0);
       });

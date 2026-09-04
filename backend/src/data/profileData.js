@@ -1,109 +1,66 @@
-const supabase = require("../config/supabase");
-const { buildSupabaseError, isSupabaseNoRowsError } = require("../utils/supabaseErrors");
+const mongoose = require("mongoose");
+const { User, UserProfile, Skill, UserSkill, UserEducation } = require("../models");
+const { escapeRegex, runMongo, toApp } = require("./mongoDataUtils");
 
-const execute = async (factory, action, { allowNoRows = false } = {}) => {
+const profileRow = (value) => {
+  const row = toApp(value);
+  if (!row) return null;
+  row.user_id = row.id;
+  delete row.id;
+  return row;
+};
+
+const findProfileByUserId = (userId) => runMongo(async () => profileRow(await UserProfile.findById(userId).lean()), "Unable to find profile");
+const findProfileByUsername = (username) => runMongo(async () => profileRow(await UserProfile.findOne({ username: String(username).toLowerCase() }).lean()), "Unable to find profile");
+const isUsernameTaken = (username, excludingUserId = null) => runMongo(async () => Boolean(await UserProfile.exists({ username: String(username).toLowerCase(), ...(excludingUserId ? { _id: mongoose.trusted({ $ne: excludingUserId }) } : {}) })), "Unable to check username");
+const upsertProfile = (userId, values) => runMongo(async () => profileRow(await UserProfile.findByIdAndUpdate(userId, { $set: values, $setOnInsert: { _id: userId } }, { upsert: true, returnDocument: "after", runValidators: true }).lean()), "Unable to save profile");
+
+const listEducation = (userId) => runMongo(async () => (await UserEducation.find({ user_id: userId }).sort({ position: 1, start_year: -1 }).lean()).map(toApp), "Unable to list education");
+const createEducation = (userId, values) => runMongo(async () => toApp(await UserEducation.create({ user_id: userId, ...values })), "Unable to create education");
+const updateEducation = (userId, educationId, values) => runMongo(async () => toApp(await UserEducation.findOneAndUpdate({ _id: educationId, user_id: userId }, { $set: values }, { returnDocument: "after", runValidators: true }).lean()), "Unable to update education");
+const deleteEducation = (userId, educationId) => runMongo(async () => toApp(await UserEducation.findOneAndDelete({ _id: educationId, user_id: userId }).lean()), "Unable to delete education");
+
+const listUserSkills = (userId) => runMongo(async () => {
+  const assignments = await UserSkill.find({ user_id: userId }).sort({ is_primary: -1, created_at: 1 }).lean();
+  const catalog = await Skill.find({ _id: mongoose.trusted({ $in: assignments.map((row) => row.skill_id) }) }).lean();
+  const byId = new Map(catalog.map((item) => [String(item._id), toApp(item)]));
+  return assignments.map((row) => ({ ...toApp(row), skill: byId.get(row.skill_id) || null }));
+}, "Unable to list profile skills");
+
+const replaceUserSkills = (userId, skills) => runMongo(async () => {
+  const session = await mongoose.startSession();
   try {
-    const { data, error } = await factory();
-    if (error) {
-      if (allowNoRows && isSupabaseNoRowsError(error)) return null;
-      throw error;
-    }
-    return data;
-  } catch (error) {
-    if (allowNoRows && isSupabaseNoRowsError(error)) return null;
-    throw buildSupabaseError(error, action, { allowNoRows });
+    await session.withTransaction(async () => {
+      const user = await User.findById(userId).select("role freelancer_profile").session(session).lean();
+      if (!user) throw new Error("User not found");
+      const ids = skills.map((item) => item.skillId);
+      const catalog = await Skill.find({ _id: mongoose.trusted({ $in: ids }), is_active: true }).session(session).lean();
+      if (catalog.length !== ids.length) throw new Error("One or more skills are invalid");
+      await UserSkill.deleteMany({ user_id: userId }, { session });
+      if (skills.length) await UserSkill.insertMany(skills.map((item) => ({ _id: `${userId}:${item.skillId}`, user_id: userId, skill_id: item.skillId, proficiency: item.proficiency, is_primary: item.isPrimary })), { session });
+      if (user.role === "freelancer") {
+        const names = new Map(catalog.map((item) => [String(item._id), item.name]));
+        await User.updateOne(
+          { _id: userId },
+          { $set: { "freelancer_profile.skills": skills.map((item) => names.get(item.skillId)).filter(Boolean) } },
+          { session, runValidators: true },
+        );
+      }
+    });
+  } finally { await session.endSession(); }
+  return listUserSkills(userId);
+}, "Unable to replace profile skills");
+
+const searchSkills = ({ query = "", category, limit = 20 }) => runMongo(async () => {
+  const filter = { is_active: true };
+  if (category) filter.category = category;
+  if (query) {
+    const pattern = new RegExp(escapeRegex(query), "i");
+    filter.$or = mongoose.trusted([{ name: pattern }, { slug: pattern }, { aliases: pattern }]);
   }
-};
+  const rows = await Skill.find(filter).sort({ name: 1 }).limit(Math.min(Math.max(limit, 1), 30)).lean();
+  const exact = String(query).trim().toLowerCase();
+  return rows.map(toApp).sort((a, b) => (a.name.toLowerCase() === exact ? -1 : b.name.toLowerCase() === exact ? 1 : a.name.localeCompare(b.name)));
+}, "Unable to search skills");
 
-const findProfileByUserId = (userId) => execute(
-  () => supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle(),
-  "finding professional profile",
-  { allowNoRows: true },
-);
-
-const findProfileByUsername = (username) => execute(
-  () => supabase.from("user_profiles").select("*").ilike("username", username).maybeSingle(),
-  "finding public profile",
-  { allowNoRows: true },
-);
-
-const isUsernameTaken = async (username, excludingUserId = null) => {
-  let query = supabase.from("user_profiles").select("user_id").ilike("username", username);
-  if (excludingUserId) query = query.neq("user_id", excludingUserId);
-  const rows = await execute(() => query.limit(1), "checking username availability");
-  return Boolean(rows?.length);
-};
-
-const upsertProfile = async (userId, values) => {
-  const data = await execute(
-    () => supabase.from("user_profiles").upsert({ user_id: userId, ...values }, { onConflict: "user_id" }).select(),
-    "saving professional profile",
-  );
-  return data?.[0] || null;
-};
-
-const listEducation = (userId) => execute(
-  () => supabase.from("user_education").select("*").eq("user_id", userId).order("position").order("start_year", { ascending: false }),
-  "listing education",
-);
-
-const createEducation = async (userId, values) => {
-  const data = await execute(
-    () => supabase.from("user_education").insert({ user_id: userId, ...values }).select(),
-    "creating education",
-  );
-  return data?.[0] || null;
-};
-
-const updateEducation = async (userId, educationId, values) => {
-  const data = await execute(
-    () => supabase.from("user_education").update(values).eq("id", educationId).eq("user_id", userId).select().maybeSingle(),
-    "updating education",
-    { allowNoRows: true },
-  );
-  return data || null;
-};
-
-const deleteEducation = async (userId, educationId) => {
-  const data = await execute(
-    () => supabase.from("user_education").delete().eq("id", educationId).eq("user_id", userId).select("id").maybeSingle(),
-    "deleting education",
-    { allowNoRows: true },
-  );
-  return data || null;
-};
-
-const listUserSkills = (userId) => execute(
-  () => supabase.from("user_skills").select("user_id,skill_id,proficiency,is_primary,created_at,updated_at,skill:skills(id,slug,name,category)").eq("user_id", userId).order("is_primary", { ascending: false }).order("created_at"),
-  "listing profile skills",
-);
-
-const replaceUserSkills = (userId, skills) => execute(
-  () => supabase.rpc("replace_user_skills", { p_user_id: userId, p_skills: skills }),
-  "replacing profile skills",
-);
-
-const searchSkills = async ({ query = "", category, limit = 20 }) => {
-  return execute(
-    () => supabase.rpc("search_skills", {
-      p_query: query,
-      p_category: category || null,
-      p_limit: limit,
-    }),
-    "searching skills",
-  );
-};
-
-module.exports = {
-  findProfileByUserId,
-  findProfileByUsername,
-  isUsernameTaken,
-  upsertProfile,
-  listEducation,
-  createEducation,
-  updateEducation,
-  deleteEducation,
-  listUserSkills,
-  replaceUserSkills,
-  searchSkills,
-};
+module.exports = { findProfileByUserId, findProfileByUsername, isUsernameTaken, upsertProfile, listEducation, createEducation, updateEducation, deleteEducation, listUserSkills, replaceUserSkills, searchSkills };

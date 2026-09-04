@@ -1,69 +1,13 @@
-const supabase = require("../config/supabase");
-const localNewsletterStore = require("./localNewsletterStore");
-const { createSupabaseRunner } = require("./supabaseFallbackRunner");
-
-const runQuery = createSupabaseRunner("newsletter subscription");
+const { NewsletterSubscription } = require("../models");
+const { runMongo, toApp } = require("./mongoDataUtils");
 
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+const upsertSubscription = (data) => runMongo(async () => toApp(await NewsletterSubscription.findOneAndUpdate(
+  { email: normalizeEmail(data.email) },
+  { $set: { source: "blog", status: "subscribed", ...data, email: normalizeEmail(data.email) }, $setOnInsert: { subscribed_at: new Date() } },
+  { upsert: true, returnDocument: "after", runValidators: true },
+).lean()), "Unable to save newsletter subscription");
+const findSubscriptionByEmail = (email) => runMongo(async () => toApp(await NewsletterSubscription.findOne({ email: normalizeEmail(email) }).lean()), "Unable to find newsletter subscription");
+const updateSubscriptionByEmail = (email, updates) => runMongo(async () => toApp(await NewsletterSubscription.findOneAndUpdate({ email: normalizeEmail(email) }, { $set: updates }, { returnDocument: "after", runValidators: true }).lean()), "Unable to update newsletter subscription");
 
-const upsertSubscription = async (subscriptionData) => {
-  const payload = {
-    source: "blog",
-    status: "subscribed",
-    ...subscriptionData,
-    email: normalizeEmail(subscriptionData.email),
-  };
-
-  const data = await runQuery(
-    () =>
-      supabase
-        .from("newsletter_subscriptions")
-        .upsert([payload], { onConflict: "email" })
-        .select(),
-    "upserting newsletter subscription",
-    {
-      fallbackAction: () => localNewsletterStore.upsertSubscription(payload),
-    }
-  );
-
-  return Array.isArray(data) ? data[0] : data;
-};
-
-const findSubscriptionByEmail = async (email) =>
-  runQuery(
-    () =>
-      supabase
-        .from("newsletter_subscriptions")
-        .select("*")
-        .eq("email", normalizeEmail(email))
-        .single(),
-    "finding newsletter subscription by email",
-    {
-      allowNoRows: true,
-      fallbackAction: () => localNewsletterStore.findSubscriptionByEmail(email),
-    }
-  );
-
-const updateSubscriptionByEmail = async (email, updates) => {
-  const data = await runQuery(
-    () =>
-      supabase
-        .from("newsletter_subscriptions")
-        .update(updates)
-        .eq("email", normalizeEmail(email))
-        .select(),
-    "updating newsletter subscription",
-    {
-      fallbackAction: () =>
-        localNewsletterStore.updateSubscriptionByEmail(email, updates),
-    }
-  );
-
-  return Array.isArray(data) ? data[0] || null : data;
-};
-
-module.exports = {
-  findSubscriptionByEmail,
-  upsertSubscription,
-  updateSubscriptionByEmail,
-};
+module.exports = { findSubscriptionByEmail, upsertSubscription, updateSubscriptionByEmail };

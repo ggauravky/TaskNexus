@@ -83,13 +83,13 @@ describe("Phase 2 profile service", () => {
     expect(profileData.deleteEducation).toHaveBeenCalledWith(user.id, educationId);
   });
 
-  test("skill replacement uses the authenticated user and syncs canonical names to legacy JSON", async () => {
+  test("skill replacement delegates the transactional canonical and legacy sync", async () => {
     const skillId = "00000000-0000-4000-8000-000000000050";
     profileData.listUserSkills.mockResolvedValue([{ skill_id: skillId, proficiency: "advanced", is_primary: true, skill: { id: skillId, name: "React", slug: "react", category: "frontend" } }]);
     userData.updateUser.mockResolvedValue(user);
     const result = await profileService.replaceSkills(user, [{ skillId, proficiency: "advanced", isPrimary: true }]);
     expect(profileData.replaceUserSkills).toHaveBeenCalledWith(user.id, expect.any(Array));
-    expect(userData.updateUser).toHaveBeenCalledWith(user.id, expect.objectContaining({ freelancer_profile: expect.objectContaining({ skills: ["React"] }) }));
+    expect(userData.updateUser).not.toHaveBeenCalled();
     expect(result[0]).toMatchObject({ name: "React", isPrimary: true });
   });
 

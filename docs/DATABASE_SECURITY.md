@@ -1,43 +1,34 @@
-# Database security and migration operations
+# MongoDB security and operations
 
-TaskNexus is a backend-only database architecture. The browser calls the
-Express API and must never receive a Supabase service-role credential.
+TaskNexus uses a backend-only database architecture. Browsers call Express and never receive the MongoDB URI or database credentials.
 
-## Runtime credentials
+## Atlas credentials
 
-- Production requires `SUPABASE_SERVICE_ROLE_KEY`.
-- `SUPABASE_ANON_KEY` is retained only as a local-development compatibility
-  fallback.
-- The Supabase client does not persist sessions or refresh tokens.
-- Service-role values belong only in backend environment configuration.
+- Use a dedicated least-privilege application database user, not an organization-owner credential.
+- Store `MONGODB_URI` only in ignored local files or the deployment secret store.
+- Require TLS and restrict Atlas network access to development/deployment sources where practical.
+- Never log connection strings. Startup and runtime database errors are sanitized.
 
-## RLS boundary
+## Application boundary
 
-Migration `20260902_phase1_architecture_stabilization.sql` enables RLS on every
-application table and revokes table access from `anon` and `authenticated`.
-The backend service role owns application access. Security-definer RPCs revoke
-public execution and grant it only to `service_role`.
+- Express authentication, roles, ownership checks, and state machines authorize access.
+- DTO serializers whitelist output; password, refresh, and reset fields are excluded by model projection and serialization.
+- Request filters and sort fields use explicit allowlists. User input is never spread into a Mongo query or update.
+- Search regular expressions are escaped and bounded.
+- Mongoose uses strict schemas, enum/range validation, `strictQuery`, and filter sanitization.
+- Unique indexes enforce email, username, skill, relationship, and idempotency invariants.
 
-This model deliberately does not add permissive browser policies: doing so
-would create a second authorization system beside the API middleware.
+## Deployment operations
 
-## Applying migrations safely
+1. Confirm the target database name and credential scope.
+2. Run `npm --prefix backend run database:indexes` as a reviewed deployment operation.
+3. Run `npm --prefix backend run database:seed` for the canonical skill catalog.
+4. Run `npm --prefix backend run verify:database`.
+5. Run `npm --prefix backend run verify:mongodb-integration` against the non-production target.
+6. Smoke-test authentication, profiles, tasks, submissions, notifications, and administration APIs.
 
-1. Back up the database or create a provider snapshot.
-2. Apply migrations in filename order.
-3. Run `npm --prefix backend run validate:migrations` before deployment.
-4. Verify that the API environment contains the service-role key before
-   enabling the production deployment.
-5. Smoke-test health, login, task listing, acceptance, work submission, and
-   notification listing.
+The backend fails startup if MongoDB cannot connect. It never silently falls back to JSON files or process memory.
 
-The Phase 1 migration keeps legacy collaboration JSONB while backfilling the
-normalized tables. This provides rollback data. Do not remove those JSON keys
-until a later, separately approved cleanup confirms the backfill in production.
+## Recovery
 
-## Rollback
-
-Application rollback is preferred: deploy the previous API version while the
-legacy JSONB remains available. Dropping new tables, columns, indexes, or RPCs
-is destructive and should only be done from an explicit reviewed down-migration
-after a backup. RLS/revokes must not be relaxed merely to make a rollback work.
+Use Atlas backups/snapshots and application deployment rollback. Never drop a database, collection, or index as an improvised rollback. The previous external database projects remain read-only rollback references until separately authorized for decommissioning.

@@ -1,8 +1,7 @@
 require("../src/config/loadEnv");
 
 const required = [
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
+  "MONGODB_URI",
   "ADMIN_EMAIL",
   "ADMIN_PASSWORD",
 ];
@@ -19,8 +18,10 @@ if (process.env.ADMIN_PASSWORD.length < 12) {
 }
 
 const userData = require("../src/data/userData");
+const { connectDatabase, disconnectDatabase } = require("../src/config/database");
 
 const createAdmin = async () => {
+  await connectDatabase();
   const email = process.env.ADMIN_EMAIL.trim().toLowerCase();
   const existingUser = await userData.findUserByEmail(email);
 
@@ -51,4 +52,4 @@ const createAdmin = async () => {
 createAdmin().catch((error) => {
   console.error(`Admin provisioning failed: ${error.message}`);
   process.exitCode = 1;
-});
+}).finally(disconnectDatabase);

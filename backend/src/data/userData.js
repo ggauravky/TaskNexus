@@ -1,193 +1,42 @@
-// backend/src/data/userData.js
-const supabase = require("../config/supabase");
 const bcrypt = require("bcrypt");
-const logger = require("../utils/logger");
-const localUserStore = require("./localUserStore");
-const {
-  buildSupabaseError,
-  isSupabaseNetworkError,
-  isSupabaseNoRowsError,
-} = require("../utils/supabaseErrors");
+const mongoose = require("mongoose");
+const { User, UserProfile } = require("../models");
+const { buildFilter, escapeRegex, runMongo, toApp, toApps, trustedOperators } = require("./mongoDataUtils");
 
-let localFallbackLogged = false;
-
-const isLocalFallbackEnabled = () =>
-  process.env.NODE_ENV !== "production" &&
-  process.env.DISABLE_LOCAL_AUTH_FALLBACK !== "true";
-
-const logLocalFallbackOnce = () => {
-  if (localFallbackLogged) return;
-
-  localFallbackLogged = true;
-  logger.warn(
-    "Supabase is unreachable. Using local auth fallback store for development."
-  );
-};
-
-const runQuery = async (queryFactory, action, options = {}) => {
-  try {
-    const { data, error } = await queryFactory();
-    if (error) {
-      if (options.allowNoRows && isSupabaseNoRowsError(error)) {
-        return null;
-      }
-      throw error;
-    }
-    return data;
-  } catch (error) {
-    if (isLocalFallbackEnabled() && isSupabaseNetworkError(error)) {
-      logLocalFallbackOnce();
-      return options.fallbackAction();
-    }
-
-    if (options.allowNoRows && isSupabaseNoRowsError(error)) {
-      return null;
-    }
-
-    throw buildSupabaseError(error, action, {
-      allowNoRows: options.allowNoRows,
-    });
-  }
-};
-
-const createUser = async (userData) => {
-  const { email, password, role, profile, freelancerProfile, clientProfile } =
-    userData;
-
-  const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12);
+const createUser = async ({ email, password, role, profile, freelancerProfile, clientProfile }) => runMongo(async () => {
+  const salt = await bcrypt.genSalt(Number.parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12);
   const hashedPassword = await bcrypt.hash(password, salt);
-
-  const payload = {
-    email,
-    password: hashedPassword,
-    role,
-    profile,
-    freelancer_profile: freelancerProfile,
-    client_profile: clientProfile,
-  };
-
-  const data = await runQuery(
-    () => supabase.from("users").insert([payload]).select(),
-    "creating user",
-    {
-      fallbackAction: () =>
-        localUserStore.createUser({
-          email,
-          password: hashedPassword,
-          role,
-          profile,
-          freelancerProfile,
-          clientProfile,
-        }),
-    }
-  );
-
-  if (Array.isArray(data)) {
-    return data[0];
-  }
-
-  return data;
-};
-
-const findUserByEmail = async (email) => {
-  return runQuery(
-    () => supabase.from("users").select("*").eq("email", email).single(),
-    "finding user by email",
-    {
-      allowNoRows: true,
-      fallbackAction: () => localUserStore.findUserByEmail(email),
-    }
-  );
-};
-
-const findUserById = async (id) => {
-  return runQuery(
-    () => supabase.from("users").select("*").eq("id", id).single(),
-    "finding user by id",
-    {
-      allowNoRows: true,
-      fallbackAction: () => localUserStore.findUserById(id),
-    }
-  );
-};
-
-const findUsers = async (filters) => {
-  const query = () => {
-    let builtQuery = supabase.from("users").select("*");
-
-    if (filters) {
-      for (const [key, value] of Object.entries(filters)) {
-        if (key.includes("->")) {
-          const [jsonbField, property] = key.split("->");
-          if (Array.isArray(value)) {
-            builtQuery = builtQuery.contains(jsonbField, value);
-          } else {
-            builtQuery = builtQuery.eq(`${jsonbField}->>${property}`, value);
-          }
-        } else if (Array.isArray(value)) {
-          builtQuery = builtQuery.in(key, value);
-        } else {
-          builtQuery = builtQuery.eq(key, value);
-        }
-      }
-    }
-
-    return builtQuery;
-  };
-
-  return runQuery(query, "finding users", {
-    fallbackAction: () => localUserStore.findUsers(filters),
-  });
-};
-
-const listUsers = async ({ filters = {}, page, limit, sortBy, sortOrder, search }) => {
+  const session = await mongoose.startSession();
+  let created;
   try {
-    let query = supabase.from("users").select("*", { count: "exact" });
-    Object.entries(filters).forEach(([key, value]) => {
-      query = Array.isArray(value) ? query.in(key, value) : query.eq(key, value);
+    await session.withTransaction(async () => {
+      [created] = await User.create([{
+        email: String(email).trim().toLowerCase(), password: hashedPassword, role, profile,
+        freelancer_profile: freelancerProfile, client_profile: clientProfile,
+      }], { session });
+      await UserProfile.create([{ _id: created._id }], { session });
     });
-    if (search) query = query.ilike("email", `%${search}%`);
-    const from = (page - 1) * limit;
-    const { data, error, count } = await query
-      .order(sortBy, { ascending: sortOrder === "asc" })
-      .range(from, from + limit - 1);
-    if (error) throw error;
-    return { items: data || [], total: count || 0, page, limit };
-  } catch (error) {
-    if (isLocalFallbackEnabled() && isSupabaseNetworkError(error)) {
-      logLocalFallbackOnce();
-      return localUserStore.listUsers({ filters, page, limit, sortBy, sortOrder, search });
-    }
-    throw buildSupabaseError(error, "listing users");
-  }
-};
+  } finally { await session.endSession(); }
+  return toApp(created);
+}, "Unable to create user");
 
-const updateUser = async (id, updates) => {
-  const data = await runQuery(
-    () => supabase.from("users").update(updates).eq("id", id).select(),
-    "updating user",
-    {
-      fallbackAction: () => localUserStore.updateUser(id, updates),
-    }
-  );
+const sensitive = "+password +refresh_token +password_reset_token +password_reset_expires";
+const findUserByEmail = (email) => runMongo(async () => toApp(await User.findOne({ email: String(email).trim().toLowerCase() }).select(sensitive).lean()), "Unable to find user");
+const findUserById = (id) => runMongo(async () => toApp(await User.findById(id).select(sensitive).lean()), "Unable to find user");
+const findUsers = (filters) => runMongo(async () => toApps(await User.find(buildFilter(filters)).lean()), "Unable to find users");
 
-  if (Array.isArray(data)) {
-    return data[0];
-  }
+const listUsers = ({ filters = {}, page, limit, sortBy, sortOrder, search }) => runMongo(async () => {
+  const query = buildFilter(filters);
+  if (search) query.email = trustedOperators({ $regex: escapeRegex(search), $options: "i" });
+  const safeSort = ["created_at", "updated_at", "email", "role", "status"].includes(sortBy) ? sortBy : "created_at";
+  const [items, total] = await Promise.all([
+    User.find(query).sort({ [safeSort]: sortOrder === "asc" ? 1 : -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    User.countDocuments(query),
+  ]);
+  return { items: toApps(items), total, page, limit };
+}, "Unable to list users");
 
-  return data;
-};
+const updateUser = (id, updates) => runMongo(async () => toApp(await User.findByIdAndUpdate(id, { $set: updates }, { returnDocument: "after", runValidators: true }).select(sensitive).lean()), "Unable to update user");
+const comparePassword = (candidatePassword, userPassword) => bcrypt.compare(candidatePassword, userPassword);
 
-const comparePassword = async (candidatePassword, userPassword) => {
-  return bcrypt.compare(candidatePassword, userPassword);
-};
-
-module.exports = {
-  createUser,
-  findUserByEmail,
-  findUserById,
-  findUsers,
-  listUsers,
-  updateUser,
-  comparePassword,
-};
+module.exports = { createUser, findUserByEmail, findUserById, findUsers, listUsers, updateUser, comparePassword };
