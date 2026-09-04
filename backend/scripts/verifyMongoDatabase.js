@@ -28,6 +28,19 @@ const relationships = [
   [models.TaskActivity, "task_id", models.Task, "activity task"],
   [models.TaskActivity, "actor_id", models.User, "activity actor"],
   [models.AuditLog, "user_id", models.User, "audit actor"],
+  [models.Team, "created_by", models.User, "team creator"],
+  [models.Team, "owner_id", models.User, "team owner"],
+  [models.TeamMembership, "team_id", models.Team, "membership team"],
+  [models.TeamMembership, "user_id", models.User, "membership user"],
+  [models.TeamInvitation, "team_id", models.Team, "invitation team"],
+  [models.TeamInvitation, "invited_user_id", models.User, "invited user"],
+  [models.TeamInvitation, "invited_by", models.User, "invitation actor"],
+  [models.TeamJoinRequest, "team_id", models.Team, "join request team"],
+  [models.TeamJoinRequest, "user_id", models.User, "join requester"],
+  [models.TeamJoinRequest, "reviewed_by", models.User, "join request reviewer"],
+  [models.TeamActivity, "team_id", models.Team, "team activity team"],
+  [models.TeamActivity, "actor_id", models.User, "team activity actor"],
+  [models.TeamActivity, "target_user_id", models.User, "team activity target"],
 ];
 
 const verifyDeclaredIndexes = async (Model) => {
@@ -64,6 +77,8 @@ const run = async () => {
     .sort({ created_at: -1 }).explain("queryPlanner");
   const planText = JSON.stringify(plan.queryPlanner?.winningPlan || {});
   if (!planText.includes("IXSCAN")) throw new Error("Notification query did not use an index");
+  const teamPlan = await models.Team.find({ visibility: "public", status: "active" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(teamPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Team discovery query did not use an index");
   process.stdout.write(`MongoDB verification passed for ${databaseName()} (${Object.keys(counts).length} collections).\n`);
 };
 

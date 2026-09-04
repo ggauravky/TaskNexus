@@ -26,6 +26,9 @@ import Loading from './components/common/Loading';
 const ProfessionalProfile = lazy(() => import('./pages/ProfessionalProfile'));
 const ProfileOnboarding = lazy(() => import('./pages/ProfileOnboarding'));
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
+const TeamsPage = lazy(() => import('./pages/TeamsPage'));
+const TeamDetailPage = lazy(() => import('./pages/TeamDetailPage'));
+const TeamSettingsPage = lazy(() => import('./pages/TeamSettingsPage'));
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
 
@@ -43,11 +46,16 @@ const RouteMetadata = () => {
     const { pathname } = useLocation();
 
     useEffect(() => {
-        const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile)(\/|$)/.test(pathname);
+        const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile)(\/|$)/.test(pathname)
+            || pathname === '/teams' || /^\/teams\/[^/]+\/settings$/.test(pathname);
         const isPublicProfile = /^\/u\/[a-z0-9_-]+$/i.test(pathname);
+        const isPublicTeam = /^\/teams\/[a-z0-9-]+$/i.test(pathname);
         const metadata = PUBLIC_METADATA[pathname] || (isPublicProfile ? {
             title: 'Developer Profile | TaskNexus',
             description: 'A public TaskNexus professional profile.',
+        } : isPublicTeam ? {
+            title: 'Team | TaskNexus',
+            description: 'View a public collaboration team on TaskNexus.',
         } : {
             title: isPrivate ? 'Workspace | TaskNexus' : 'Page Not Found | TaskNexus',
             description: 'TaskNexus workspace.',
@@ -167,6 +175,7 @@ function AppRoutes() {
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/support-jar" element={<SupportJarPage />} />
             <Route path="/u/:username" element={<PublicProfile />} />
+            <Route path="/teams/:slug" element={<TeamDetailPage />} />
             <Route path="/admin/login" element={
                 isAuthenticated && user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <AdminLogin />
             } />
@@ -203,6 +212,16 @@ function AppRoutes() {
             <Route path="/profile/onboarding" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER]}>
                     <ProfileOnboarding />
+                </ProtectedRoute>
+            } />
+            <Route path="/teams" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <TeamsPage />
+                </ProtectedRoute>
+            } />
+            <Route path="/teams/:slug/settings" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <TeamSettingsPage />
                 </ProtectedRoute>
             } />
 
