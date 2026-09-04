@@ -698,6 +698,9 @@ const ClientDashboard = () => {
               >
                 Profile
               </button>
+              <button onClick={() => navigate('/teams')} className="btn-sm btn-secondary rounded-full px-4">
+                Teams
+              </button>
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-semibold text-slate-900">
                   {user?.profile?.firstName} {user?.profile?.lastName}

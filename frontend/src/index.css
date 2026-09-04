@@ -466,6 +466,85 @@
   .profile-icon-button {
     @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#34343a] bg-[#0f1011] text-[#8a8f98] transition-colors hover:bg-[#18191a] hover:text-[#f7f8f8] focus:outline-none focus:ring-2 focus:ring-[#5e69d1];
   }
+
+  /* Phase 3 team collaboration system */
+  .team-shell {
+    font-family: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .team-nav-link {
+    @apply inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2.5 text-sm text-[#8a8f98] transition-colors hover:bg-[#141516] hover:text-[#f7f8f8] focus:outline-none focus:ring-2 focus:ring-[#5e69d1];
+  }
+
+  .team-nav-link.is-active {
+    @apply bg-[#18191a] text-[#f7f8f8];
+  }
+
+  .team-eyebrow {
+    @apply text-xs font-medium uppercase tracking-[0.08em] text-[#828fff];
+  }
+
+  .team-button-primary,
+  .team-button-secondary,
+  .team-button-danger {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#5e69d1] focus:ring-offset-2 focus:ring-offset-[#010102] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .team-button-primary {
+    @apply bg-[#5e6ad2] text-white hover:bg-[#828fff];
+  }
+
+  .team-button-secondary {
+    @apply border border-[#34343a] bg-[#0f1011] text-[#d0d6e0] hover:bg-[#18191a] hover:text-[#f7f8f8];
+  }
+
+  .team-button-danger {
+    @apply border border-red-900 bg-red-950/40 text-red-100 hover:bg-red-900/50;
+  }
+
+  .team-icon-button {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#34343a] bg-[#141516] text-[#8a8f98] transition-colors hover:bg-[#18191a] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#5e69d1];
+  }
+
+  .team-input {
+    @apply min-h-11 w-full rounded-lg border border-[#34343a] bg-[#141516] px-3 py-2.5 text-sm text-[#f7f8f8] outline-none placeholder:text-[#62666d] focus:border-[#5e69d1] focus:ring-2 focus:ring-[#5e69d1]/30 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .team-input option {
+    @apply bg-[#141516] text-[#f7f8f8];
+  }
+
+  .team-label {
+    @apply mb-2 block text-xs font-medium text-[#8a8f98];
+  }
+
+  .team-card {
+    @apply rounded-xl border border-[#23252a] bg-[#0f1011] p-5 transition-colors hover:border-[#34343a] hover:bg-[#141516];
+  }
+
+  .team-row-card {
+    @apply flex flex-col gap-4 rounded-xl border border-[#23252a] bg-[#0f1011] p-4 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .team-avatar {
+    @apply flex h-11 w-11 items-center justify-center rounded-xl border border-[#34343a] bg-[#18191a] text-sm font-semibold text-[#d0d6e0];
+  }
+
+  .team-chip {
+    @apply inline-flex min-h-6 items-center gap-1 rounded-md border border-[#34343a] bg-[#141516] px-2 py-1 text-[11px] leading-none text-[#8a8f98];
+  }
+
+  .team-section-icon {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#34343a] bg-[#18191a] text-[#b7bdf8];
+  }
+
+  .team-choice {
+    @apply inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#34343a] px-3 py-2 text-sm text-[#8a8f98] transition-colors hover:bg-[#18191a] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#5e69d1];
+  }
+
+  .team-choice.is-active {
+    @apply border-[#5e6ad2] bg-[#5e6ad2]/15 text-[#f7f8f8];
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

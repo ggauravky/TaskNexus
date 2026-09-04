@@ -28,6 +28,17 @@ const contracts = Object.freeze({
   COLLABORATION_COMMITMENT: toEnum(domain.collaborationCommitments),
   SKILL_PROFICIENCY: toEnum(domain.skillProficiencies),
   SKILL_CATEGORY: toEnum(domain.skillCategories),
+  TEAM_VISIBILITY: toEnum(domain.teamVisibilities),
+  TEAM_JOIN_POLICY: toEnum(domain.teamJoinPolicies),
+  TEAM_STATUS: toEnum(domain.teamStatuses),
+  TEAM_ROLE: toEnum(domain.teamRoles),
+  TEAM_MEMBERSHIP_STATUS: toEnum(domain.teamMembershipStatuses),
+  TEAM_INVITATION_STATUS: toEnum(domain.teamInvitationStatuses),
+  TEAM_JOIN_REQUEST_STATUS: toEnum(domain.teamJoinRequestStatuses),
+  TEAM_ACTIVITY_TYPES: toEnum(domain.teamActivityTypes),
+  TEAM_NOTIFICATION_TYPES: Object.freeze(Object.fromEntries(
+    domain.notificationTypes.filter((value) => value.startsWith("team_")).map((value) => [value.toUpperCase(), value]),
+  )),
   TASK_STATE_TRANSITIONS: Object.freeze(domain.taskTransitions),
 });
 

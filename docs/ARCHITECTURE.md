@@ -11,7 +11,7 @@ The backend is authoritative for authorization and state transitions. Shared fro
 
 ## Identity and authorization
 
-Current `client`, `freelancer`, and `admin` roles are global product roles. Future Team/Project permissions must be contextual membership permissions rather than extensions of these global roles.
+`client`, `freelancer`, and `admin` remain global marketplace roles. Team permissions are derived only from an active `TeamMembership` and its contextual `owner`, `admin`, or `member` role. A global administrator receives no implicit access to a private team. Future Project permissions must follow the same contextual pattern rather than extending global account roles.
 
 ## Event meanings
 

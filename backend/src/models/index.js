@@ -10,6 +10,10 @@ const RESERVED_USERNAMES = new Set([
   "profile", "register", "root", "security", "settings", "support", "system", "tasknexus",
   "tasks", "team", "teams", "u", "users",
 ]);
+const RESERVED_TEAM_SLUGS = new Set([
+  "admin", "api", "app", "auth", "create", "discover", "help", "invitations", "join",
+  "me", "new", "profile", "requests", "settings", "support", "system", "tasknexus", "teams",
+]);
 const httpsUrl = (value) => value == null || /^https:\/\/[^\s]+$/i.test(value);
 
 const user = model("User", {
@@ -170,6 +174,80 @@ const notification = model("Notification", {
 notification.schema.index({ recipient_id: 1, status: 1, created_at: -1 });
 notification.schema.index({ related_task_id: 1 });
 
+const team = model("Team", {
+  _id: stringId(),
+  name: { type: String, required: true, trim: true, minlength: 3, maxlength: 80 },
+  slug: {
+    type: String, required: true, lowercase: true, trim: true, minlength: 3, maxlength: 60, match: SLUG_PATTERN,
+    validate: { validator: (value) => !RESERVED_TEAM_SLUGS.has(value), message: "Team slug is reserved" },
+  },
+  tagline: { type: String, trim: true, maxlength: 160, default: null },
+  description: { type: String, trim: true, maxlength: 3000, default: null },
+  avatar_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  cover_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  created_by: { type: String, required: true },
+  owner_id: { type: String, required: true },
+  visibility: { type: String, enum: domain.teamVisibilities, default: "public" },
+  join_policy: { type: String, enum: domain.teamJoinPolicies, default: "request" },
+  status: { type: String, enum: domain.teamStatuses, default: "active" },
+  primary_interests: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  preferred_skills: { type: [String], default: [], validate: (items) => items.length <= 12 },
+}, { collection: "teams" });
+team.schema.index({ slug: 1 }, { unique: true });
+team.schema.index({ owner_id: 1 });
+team.schema.index({ visibility: 1, status: 1, created_at: -1 });
+team.schema.index({ primary_interests: 1, visibility: 1, status: 1 });
+
+const teamMembership = model("TeamMembership", {
+  _id: stringId(), team_id: { type: String, required: true }, user_id: { type: String, required: true },
+  role: { type: String, enum: domain.teamRoles, required: true },
+  status: { type: String, enum: domain.teamMembershipStatuses, default: "active" },
+  joined_at: { type: Date, default: Date.now }, ended_at: { type: Date, default: null },
+}, { collection: "team_memberships" });
+teamMembership.schema.index({ team_id: 1, user_id: 1 }, { unique: true });
+teamMembership.schema.index({ team_id: 1, role: 1, status: 1 });
+teamMembership.schema.index({ user_id: 1, status: 1, updated_at: -1 });
+teamMembership.schema.index(
+  { team_id: 1 },
+  { unique: true, partialFilterExpression: { role: "owner", status: "active" }, name: "one_active_owner_per_team" },
+);
+
+const teamInvitation = model("TeamInvitation", {
+  _id: stringId(), team_id: { type: String, required: true }, invited_user_id: { type: String, required: true },
+  invited_by: { type: String, required: true }, status: { type: String, enum: domain.teamInvitationStatuses, default: "pending" },
+  message: { type: String, trim: true, maxlength: 500, default: null }, expires_at: { type: Date, default: null },
+  responded_at: { type: Date, default: null },
+}, { collection: "team_invitations" });
+teamInvitation.schema.index({ team_id: 1, invited_user_id: 1 });
+teamInvitation.schema.index({ invited_user_id: 1, status: 1, created_at: -1 });
+teamInvitation.schema.index({ team_id: 1, status: 1, created_at: -1 });
+teamInvitation.schema.index(
+  { team_id: 1, invited_user_id: 1 },
+  { unique: true, partialFilterExpression: { status: "pending" }, name: "one_pending_team_invitation" },
+);
+
+const teamJoinRequest = model("TeamJoinRequest", {
+  _id: stringId(), team_id: { type: String, required: true }, user_id: { type: String, required: true },
+  message: { type: String, trim: true, maxlength: 500, default: null },
+  status: { type: String, enum: domain.teamJoinRequestStatuses, default: "pending" },
+  reviewed_by: { type: String, default: null }, reviewed_at: { type: Date, default: null },
+}, { collection: "team_join_requests" });
+teamJoinRequest.schema.index({ team_id: 1, user_id: 1 });
+teamJoinRequest.schema.index({ team_id: 1, status: 1, created_at: -1 });
+teamJoinRequest.schema.index({ user_id: 1, status: 1, created_at: -1 });
+teamJoinRequest.schema.index(
+  { team_id: 1, user_id: 1 },
+  { unique: true, partialFilterExpression: { status: "pending" }, name: "one_pending_team_join_request" },
+);
+
+const teamActivity = model("TeamActivity", {
+  _id: stringId(), team_id: { type: String, required: true }, actor_id: { type: String, required: true },
+  type: { type: String, required: true, enum: domain.teamActivityTypes }, target_user_id: { type: String, default: null },
+  metadata: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }, created_at: { type: Date, default: Date.now },
+}, { collection: "team_activity", timestamps: false });
+teamActivity.schema.index({ team_id: 1, created_at: -1 });
+teamActivity.schema.index({ actor_id: 1, created_at: -1 });
+
 const comment = model("TaskComment", {
   _id: { type: String, required: true }, task_id: { type: String, required: true }, author_id: { type: String, default: null },
   author_name: { type: String, required: true }, body: { type: String, default: "" },
@@ -227,4 +305,6 @@ module.exports = {
   Task: task.register(), Submission: submission.register(), Payment: payment.register(), Review: review.register(), Notification: notification.register(),
   TaskComment: comment.register(), TaskMilestone: milestone.register(), TaskActivity: activity.register(), NewsletterSubscription: newsletter.register(),
   ServiceBooking: booking.register(), SupportContribution: support.register(), AuditLog: audit.register(),
+  Team: team.register(), TeamMembership: teamMembership.register(), TeamInvitation: teamInvitation.register(),
+  TeamJoinRequest: teamJoinRequest.register(), TeamActivity: teamActivity.register(),
 };

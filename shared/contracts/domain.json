@@ -51,7 +51,15 @@
     "task_approved",
     "task_rejected",
     "submission_approved",
-    "new_review"
+    "new_review",
+    "team_invitation",
+    "team_invitation_accepted",
+    "team_join_request",
+    "team_join_request_accepted",
+    "team_join_request_rejected",
+    "team_member_removed",
+    "team_role_changed",
+    "team_ownership_transferred"
   ],
   "notificationStatuses": ["unread", "read"],
   "notificationPriorities": ["low", "medium", "high"],
@@ -59,6 +67,18 @@
   "profileAvailabilities": ["open", "limited", "unavailable"],
   "collaborationCommitments": ["exploring", "few_hours", "part_time", "full_time"],
   "skillProficiencies": ["beginner", "intermediate", "advanced"],
+  "teamVisibilities": ["public", "private"],
+  "teamJoinPolicies": ["open", "request", "invite_only"],
+  "teamStatuses": ["active", "archived"],
+  "teamRoles": ["owner", "admin", "member"],
+  "teamMembershipStatuses": ["active", "left", "removed"],
+  "teamInvitationStatuses": ["pending", "accepted", "declined", "cancelled", "expired"],
+  "teamJoinRequestStatuses": ["pending", "accepted", "rejected", "cancelled"],
+  "teamActivityTypes": [
+    "team_created", "team_updated", "team_archived", "member_joined", "member_left",
+    "member_removed", "invitation_sent", "invitation_accepted", "join_request_created",
+    "join_request_accepted", "join_request_rejected", "role_changed", "ownership_transferred"
+  ],
   "skillCategories": [
     "languages", "frontend", "backend", "mobile", "database", "data-ai",
     "cloud-devops", "design", "product", "quality", "collaboration", "other"

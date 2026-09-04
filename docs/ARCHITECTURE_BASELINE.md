@@ -14,7 +14,7 @@ React → Express → services/data modules → Mongoose → MongoDB Atlas
 
 TaskNexus uses UUID/string values as MongoDB `_id` values. The API exposes them as `id`; no ObjectId compatibility layer exists. Independent or high-contention records—skills, education, submissions, comments, milestones, activity, and notifications—remain separate collections. Flexible task details and workflow metadata remain bounded nested objects.
 
-Multi-document writes use MongoDB transactions. Task acceptance uses a conditional atomic update so only one freelancer can win. Production disables automatic index creation; indexes are synchronized as an explicit deployment step.
+Multi-document writes use MongoDB transactions. Task acceptance uses a conditional atomic update so only one freelancer can win. Team creation, membership transitions, invitation acceptance, request approval, and ownership transfer use transactions plus unique indexes. Production disables automatic index creation; indexes are synchronized as an explicit deployment step.
 
 ## Authentication and authorization
 
@@ -23,6 +23,7 @@ Multi-document writes use MongoDB transactions. Task acceptance uses a condition
 - Access token: short lived, frontend memory, Bearer header
 - Refresh token: rotating, HttpOnly cookie, matched to the user record
 - Authorization: API authentication, role checks, and resource ownership
+- Team authorization: active membership plus contextual `owner`, `admin`, or `member`; global account role never grants team access
 - Sensitive model fields: excluded from queries by default and omitted by DTO serializers
 
 ## Realtime, uploads, and email
@@ -44,6 +45,6 @@ Realtime uses authenticated Server-Sent Events. The hub is process-local and nee
 - Attachment storage is private but not durable object storage.
 - Cross-site refresh cookies remain subject to browser third-party-cookie policy.
 - Several dashboard modules remain large.
-- More lifecycle-level API integration coverage is useful as the task workflow grows.
-
-Teams and memberships are not part of this baseline.
+- Realtime team notifications are durable immediately but the process-local SSE hub does not publish transaction-created team events until clients refresh/poll.
+- Teams currently calculate member counts; no denormalized counter is stored.
+- Projects and project-scoped permissions intentionally remain outside this baseline.

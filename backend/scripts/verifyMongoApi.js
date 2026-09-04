@@ -10,6 +10,7 @@ const apiBase = (process.argv[2] || "http://localhost:5000/api").replace(/\/$/, 
 const runId = randomUUID();
 const password = `Tn-${randomBytes(18).toString("base64url")}9aA`;
 const ids = { admin: randomUUID() };
+const teamIds = [];
 const emails = {
   admin: `mongo-api-${runId}-admin@example.invalid`,
   client: `mongo-api-${runId}-client@example.invalid`,
@@ -52,11 +53,21 @@ const cleanup = async () => {
   const userIds = Object.values(ids).filter(Boolean);
   if (!userIds.length) return;
   const users = () => mongoose.trusted({ $in: userIds });
+  const createdTeams = await models.Team.find({ created_by: users() }).select("_id").lean();
+  teamIds.push(...createdTeams.map((item) => String(item._id)).filter((id) => !teamIds.includes(id)));
+  const teams = () => mongoose.trusted({ $in: teamIds });
   await Promise.all([
-    models.Notification.deleteMany({ recipient_id: users() }),
+    models.Notification.deleteMany({ $or: mongoose.trusted([{ recipient_id: users() }, { entity_id: teams() }]) }),
     models.AuditLog.deleteMany({ user_id: users() }),
     models.UserEducation.deleteMany({ user_id: users() }),
     models.UserSkill.deleteMany({ user_id: users() }),
+    models.TeamActivity.deleteMany({ team_id: teams() }),
+    models.TeamInvitation.deleteMany({ team_id: teams() }),
+    models.TeamJoinRequest.deleteMany({ team_id: teams() }),
+    models.TeamMembership.deleteMany({ team_id: teams() }),
+  ]);
+  await models.Team.deleteMany({ _id: teams() });
+  await Promise.all([
     models.UserProfile.deleteMany({ _id: users() }),
     models.User.deleteMany({ _id: users() }),
   ]);
@@ -97,11 +108,40 @@ const run = async () => {
     await expectOk("/admin/tasks", adminToken);
     await expectOk("/admin/audit-logs", adminToken);
 
+    const teamSlug = `mongo-api-team-${runId.slice(0, 8)}`;
+    const createdTeam = await call("/teams", {
+      method: "POST", token: clientToken,
+      body: { name: "Mongo API Team", slug: teamSlug, visibility: "public", joinPolicy: "open", primaryInterests: ["developer_tools"] },
+    });
+    assert.equal(createdTeam.status, 201, "team creation failed");
+    const teamId = createdTeam.payload.data.id;
+    teamIds.push(teamId);
+    const teamDetail = await expectOk(`/teams/${teamSlug}`, freelancerToken);
+    assert.equal(teamDetail.data.viewer_relationship.kind, "none");
+    const joined = await call(`/teams/${teamId}/join`, { method: "POST", token: freelancerToken });
+    assert.equal(joined.status, 201, "open team join failed");
+    const roleChanged = await call(`/teams/${teamId}/members/${ids.freelancer}/role`, {
+      method: "PATCH", token: clientToken, body: { role: "admin" },
+    });
+    assert.equal(roleChanged.status, 200, "team role change failed");
+    const privateUpdate = await call(`/teams/${teamId}`, {
+      method: "PATCH", token: freelancerToken, body: { visibility: "private", tagline: "Contextual API roles" },
+    });
+    assert.equal(privateUpdate.status, 200, "team admin update failed");
+    const globalAdminDenied = await call(`/teams/${teamSlug}`, { token: adminToken });
+    assert.equal(globalAdminDenied.status, 404, "global admin must not bypass private team membership");
+    const transfer = await call(`/teams/${teamId}/transfer-ownership`, {
+      method: "POST", token: clientToken, body: { userId: ids.freelancer },
+    });
+    assert.equal(transfer.status, 200, "ownership transfer failed");
+    const archived = await call(`/teams/${teamId}/archive`, { method: "POST", token: freelancerToken });
+    assert.equal(archived.status, 200, "contextual owner archive failed");
+
     for (const token of [clientToken, freelancerToken, adminToken]) {
       const logout = await call("/auth/logout", { method: "POST", token });
       assert.equal(logout.status, 200);
     }
-    process.stdout.write("MongoDB API verification passed: client, freelancer, and admin authentication and core reads.\n");
+    process.stdout.write("MongoDB API verification passed: account roles, core reads, Teams routes, contextual RBAC, privacy, transfer, and archive.\n");
   } finally {
     await cleanup();
   }

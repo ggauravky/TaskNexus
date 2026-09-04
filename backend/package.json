@@ -12,6 +12,7 @@
         "database:seed": "node scripts/seedSkills.js",
         "verify:mongodb-integration": "node scripts/verifyMongoIntegration.js",
         "verify:api-integration": "node scripts/verifyMongoApi.js",
+        "verify:teams": "node scripts/verifyTeamsIntegration.js",
         "provision:admin": "node scripts/createAdmin.js",
         "test": "jest --runInBand",
         "test:watch": "jest --watch",

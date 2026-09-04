@@ -54,6 +54,26 @@ These values describe the intended current API and database contract. Changes th
 - `task_rejected`
 - `submission_approved`
 - `new_review`
+- `team_invitation`
+- `team_invitation_accepted`
+- `team_join_request`
+- `team_join_request_accepted`
+- `team_join_request_rejected`
+- `team_member_removed`
+- `team_role_changed`
+- `team_ownership_transferred`
+
+## Team contracts
+
+- Visibility: `public`, `private`
+- Join policy: `open`, `request`, `invite_only`
+- Team status: `active`, `archived`
+- Contextual role: `owner`, `admin`, `member`
+- Membership status: `active`, `left`, `removed`
+- Invitation status: `pending`, `accepted`, `declined`, `cancelled`, `expired`
+- Join-request status: `pending`, `accepted`, `rejected`, `cancelled`
+
+Account roles (`client`, `freelancer`, `admin`) are never team authorization roles. Team permissions are derived from active `team_memberships` records.
 
 ## Field naming
 

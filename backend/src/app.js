@@ -21,6 +21,7 @@ const settingsRoutes = require("./routes/settings.routes");
 const realtimeRoutes = require("./routes/realtime.routes");
 const publicRoutes = require("./routes/public.routes");
 const profileRoutes = require("./routes/profile.routes");
+const teamRoutes = require("./routes/team.routes");
 
 // Create Express app
 const app = express();
@@ -109,6 +110,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/realtime", realtimeRoutes);
+app.use("/api", teamRoutes);
 
 // 404 handler
 app.use(notFound);

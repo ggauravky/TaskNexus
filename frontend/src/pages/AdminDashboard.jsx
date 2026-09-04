@@ -105,6 +105,12 @@ const AdminDashboard = () => {
                 <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
+              <button onClick={() => navigate('/profile')} className="btn-sm btn-secondary">
+                Profile
+              </button>
+              <button onClick={() => navigate('/teams')} className="btn-sm btn-secondary">
+                Teams
+              </button>
               <button
                 onClick={handleLogout}
                 className="btn btn-secondary flex items-center"

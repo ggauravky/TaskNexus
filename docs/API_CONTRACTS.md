@@ -61,6 +61,29 @@ Canonical codes introduced in Phase 1 are `AUTH_REQUIRED`, `FORBIDDEN`,
 `INVALID_STATE_TRANSITION`. Legacy codes remain temporarily supported while
 older controllers are migrated.
 
+Team-specific codes include `TEAM_NOT_FOUND`, `TEAM_SLUG_TAKEN`, `TEAM_ACCESS_DENIED`, `ALREADY_TEAM_MEMBER`, `NOT_TEAM_MEMBER`, `TEAM_INVITATION_EXISTS`, `TEAM_INVITATION_NOT_FOUND`, `JOIN_REQUEST_EXISTS`, `JOIN_REQUEST_NOT_FOUND`, `INVALID_TEAM_ROLE`, and `OWNER_TRANSFER_REQUIRED`.
+
+## Teams
+
+```text
+GET    /api/teams
+POST   /api/teams
+GET    /api/teams/:slug
+PATCH  /api/teams/:id
+POST   /api/teams/:id/archive
+GET    /api/teams/:id/members
+POST   /api/teams/:id/join
+POST   /api/teams/:id/leave
+PATCH  /api/teams/:id/members/:userId/role
+DELETE /api/teams/:id/members/:userId
+POST   /api/teams/:id/transfer-ownership
+GET    /api/teams/:id/activity
+```
+
+Invitations use `/api/teams/:id/invitations`, `/api/team-invitations`, and explicit `accept`/`decline` actions. Join requests use `/api/teams/:id/join-requests`, `/api/team-join-requests`, and explicit `accept`/`reject` actions. Invite search is bounded at `/api/teams/:id/invite-candidates` and returns only safe summaries for public profiles.
+
+Team summaries expose `id`, `slug`, name/presentation fields, visibility, join policy, calculated member count, public owner summary, and viewer relationship. Team detail adds bounded description, safe member preview, and server-derived permissions. Raw membership, user, and profile documents are never returned.
+
 ## Pagination query
 
 Collection endpoints accept `page`, `limit`, `sortBy`, `sortOrder`, and

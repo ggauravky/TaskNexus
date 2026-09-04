@@ -17,6 +17,9 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 - Search regular expressions are escaped and bounded.
 - Mongoose uses strict schemas, enum/range validation, `strictQuery`, and filter sanitization.
 - Unique indexes enforce email, username, skill, relationship, and idempotency invariants.
+- Team IDOR checks load the target team and active membership before private DTOs, rosters, activity, requests, invitations, or settings are returned.
+- Team updates use field allowlists. Ownership, roles, archival, invitations, requests, removal, and leaving use dedicated action endpoints.
+- A partial unique index prevents two active owners; compound/partial indexes prevent duplicate memberships and duplicate pending invitations/requests.
 
 ## Deployment operations
 
@@ -26,6 +29,7 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 4. Run `npm --prefix backend run verify:database`.
 5. Run `npm --prefix backend run verify:mongodb-integration` against the non-production target.
 6. Smoke-test authentication, profiles, tasks, submissions, notifications, and administration APIs.
+7. Run `npm --prefix backend run verify:teams` against the dedicated non-production target and confirm disposable records are removed.
 
 The backend fails startup if MongoDB cannot connect. It never silently falls back to JSON files or process memory.
 

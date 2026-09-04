@@ -4,6 +4,9 @@
   "scripts": {
     "install:all": "npm --prefix backend install && npm --prefix frontend install",
     "verify": "npm --prefix backend run lint && npm --prefix backend test && npm --prefix frontend run lint && npm --prefix frontend run build",
-    "verify:database": "npm --prefix backend run verify:database"
+    "verify:database": "npm --prefix backend run verify:database",
+    "verify:mongodb-integration": "npm --prefix backend run verify:mongodb-integration",
+    "verify:api-integration": "npm --prefix backend run verify:api-integration",
+    "verify:teams": "npm --prefix backend run verify:teams"
   }
 }
