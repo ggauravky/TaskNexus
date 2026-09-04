@@ -8,6 +8,7 @@ const { errorHandler, notFound } = require("./middleware/errorHandler");
 const { apiLimiter } = require("./middleware/rateLimiter");
 const logger = require("./utils/logger");
 const requestContext = require("./middleware/requestContext");
+const { isDatabaseReady } = require("./config/database");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
@@ -93,7 +94,8 @@ app.use("/api/", (req, res, next) => {
 
 // Health check route
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  const ready = isDatabaseReady();
+  res.status(ready ? 200 : 503).json({ status: ready ? "ok" : "unavailable" });
 });
 
 // API routes

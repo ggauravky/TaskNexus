@@ -7,7 +7,6 @@ process.env.JWT_ACCESS_EXPIRY = "15m";
 process.env.JWT_REFRESH_EXPIRY = "7d";
 process.env.ALLOWED_ORIGINS = "http://localhost:5173";
 
-jest.mock("../src/config/supabase", () => ({ from: jest.fn() }));
 jest.mock("../src/data/userData", () => ({
   createUser: jest.fn(),
   findUserByEmail: jest.fn(),
@@ -87,6 +86,17 @@ describe("Phase 0 authentication and authorization baseline", () => {
     const response = await register("freelancer", "freelancer@example.com");
     expect(response.status).toBe(201);
     expect(response.body.data.user.role).toBe("freelancer");
+  });
+
+  test("registration accepts an empty optional phone field", async () => {
+    const response = await request(app).post("/api/auth/register").send({
+      email: "no-phone@example.com",
+      password: "CorrectHorseBatteryStaple!",
+      role: "freelancer",
+      profile: { ...profile, phone: "" },
+    });
+
+    expect(response.status).toBe(201);
   });
 
   test("public admin registration fails", async () => {

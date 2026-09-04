@@ -70,5 +70,5 @@ Task search is performed by the database against the task title.
 ## Idempotency
 
 Task work submission accepts an `Idempotency-Key` request header. If omitted,
-the server request ID is used. PostgreSQL stores the key and returns the
-existing submission for a replay.
+the server request ID is used. MongoDB stores the key under a unique partial
+index and returns the existing submission for a replay.

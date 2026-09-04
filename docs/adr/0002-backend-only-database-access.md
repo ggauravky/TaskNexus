@@ -4,9 +4,10 @@ Status: accepted
 
 All browser traffic goes through Express authentication and role middleware.
 Direct browser database access would duplicate authorization rules and expose a
-larger attack surface. RLS is therefore enabled as deny-by-default for browser
-roles, while the trusted backend uses a service-role credential.
+larger attack surface. The browser therefore has no database credential or
+database-network access. The trusted backend connects with a dedicated,
+least-privilege MongoDB application user.
 
-Atomic business operations are narrow security-definer functions with public
-execution revoked. They use a fixed `search_path` and are callable only by the
-service role.
+Express authorization and ownership checks are the application boundary.
+Mongoose validation, allowlisted query construction, MongoDB unique indexes,
+conditional updates, and transactions enforce persistence invariants.

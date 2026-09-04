@@ -1,45 +1,8 @@
-const supabase = require("../config/supabase");
-const localServiceBookingStore = require("./localServiceBookingStore");
-const { createSupabaseRunner } = require("./supabaseFallbackRunner");
+const { ServiceBooking } = require("../models");
+const { runMongo, toApp } = require("./mongoDataUtils");
 
-const runQuery = createSupabaseRunner("service booking");
+const createBooking = (data) => runMongo(async () => toApp(await ServiceBooking.create(data)), "Unable to create service booking");
+const findBookingById = (id) => runMongo(async () => toApp(await ServiceBooking.findById(id).lean()), "Unable to find service booking");
+const updateBooking = (id, updates) => runMongo(async () => toApp(await ServiceBooking.findByIdAndUpdate(id, { $set: updates }, { returnDocument: "after", runValidators: true }).lean()), "Unable to update service booking");
 
-const createBooking = async (bookingData) => {
-  const data = await runQuery(
-    () => supabase.from("service_bookings").insert([bookingData]).select(),
-    "creating service booking",
-    {
-      fallbackAction: () => localServiceBookingStore.createBooking(bookingData),
-    }
-  );
-
-  return Array.isArray(data) ? data[0] : data;
-};
-
-const findBookingById = async (id) =>
-  runQuery(
-    () => supabase.from("service_bookings").select("*").eq("id", id).single(),
-    "finding service booking by id",
-    {
-      allowNoRows: true,
-      fallbackAction: () => localServiceBookingStore.findBookingById(id),
-    }
-  );
-
-const updateBooking = async (id, updates) => {
-  const data = await runQuery(
-    () => supabase.from("service_bookings").update(updates).eq("id", id).select(),
-    "updating service booking",
-    {
-      fallbackAction: () => localServiceBookingStore.updateBooking(id, updates),
-    }
-  );
-
-  return Array.isArray(data) ? data[0] || null : data;
-};
-
-module.exports = {
-  createBooking,
-  findBookingById,
-  updateBooking,
-};
+module.exports = { createBooking, findBookingById, updateBooking };

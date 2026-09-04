@@ -1,219 +1,31 @@
-// backend/src/data/taskData.js
-const supabase = require("../config/supabase");
-const logger = require("../utils/logger");
-const localTaskStore = require("./localTaskStore");
-const {
-  buildSupabaseError,
-  isSupabaseNetworkError,
-  isSupabaseNoRowsError,
-} = require("../utils/supabaseErrors");
+const { Task } = require("../models");
+const { buildFilter, escapeRegex, runMongo, toApp, toApps, trustedOperators } = require("./mongoDataUtils");
 
-let localFallbackLogged = false;
+const createTask = (taskData) => runMongo(async () => {
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const task_id = taskData.task_id || `TSK-${dateStr}-${Math.floor(10000 + Math.random() * 90000)}`;
+  return toApp(await Task.create({ ...taskData, task_id }));
+}, "Unable to create task");
+const findTaskById = (id) => runMongo(async () => toApp(await Task.findById(id).lean()), "Unable to find task");
+const findTasks = (filters) => runMongo(async () => toApps(await Task.find(buildFilter(filters)).lean()), "Unable to find tasks");
 
-const isLocalFallbackEnabled = () =>
-  process.env.NODE_ENV !== "production" &&
-  process.env.DISABLE_LOCAL_AUTH_FALLBACK !== "true";
+const listTasks = ({ filters = {}, page, limit, sortBy, sortOrder, search }) => runMongo(async () => {
+  const query = buildFilter(filters);
+  if (search) query["task_details.title"] = trustedOperators({ $regex: escapeRegex(search), $options: "i" });
+  const safeSort = ["created_at", "updated_at", "priority", "status", "task_id"].includes(sortBy) ? sortBy : "created_at";
+  const [items, total] = await Promise.all([
+    Task.find(query).sort({ [safeSort]: sortOrder === "asc" ? 1 : -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Task.countDocuments(query),
+  ]);
+  return { items: toApps(items), total, page, limit };
+}, "Unable to list tasks");
 
-const logLocalFallbackOnce = () => {
-  if (localFallbackLogged) return;
-  localFallbackLogged = true;
-  logger.warn(
-    "Supabase is unreachable. Using local task fallback store for development."
-  );
-};
+const updateTask = (id, updates) => runMongo(async () => toApp(await Task.findByIdAndUpdate(id, { $set: updates }, { returnDocument: "after", runValidators: true }).lean()), "Unable to update task");
+const updateTaskIfStatus = (id, expectedStatus, updates) => runMongo(async () => toApp(await Task.findOneAndUpdate({ _id: id, status: expectedStatus }, { $set: updates }, { returnDocument: "after", runValidators: true }).lean()), "Unable to transition task");
+const acceptTaskAtomically = (id, freelancerId) => runMongo(async () => toApp(await Task.findOneAndUpdate(
+  { _id: id, status: "under_review", freelancer_id: null },
+  { $set: { freelancer_id: freelancerId, status: "assigned", "workflow.assignedAt": new Date().toISOString() } },
+  { returnDocument: "after", runValidators: true },
+).lean()), "Unable to accept task");
 
-const runQuery = async (queryFactory, action, options = {}) => {
-  try {
-    const { data, error } = await queryFactory();
-
-    if (error) {
-      if (options.allowNoRows && isSupabaseNoRowsError(error)) {
-        return null;
-      }
-      throw error;
-    }
-
-    return data;
-  } catch (error) {
-    if (isLocalFallbackEnabled() && isSupabaseNetworkError(error)) {
-      logLocalFallbackOnce();
-      return options.fallbackAction();
-    }
-
-    if (options.allowNoRows && isSupabaseNoRowsError(error)) {
-      return null;
-    }
-
-    throw buildSupabaseError(error, action, {
-      allowNoRows: options.allowNoRows,
-    });
-  }
-};
-
-const createTask = async (taskData) => {
-  // Generate unique task ID: TSK-YYYYMMDD-XXXXX
-  const date = new Date();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-  const random = Math.floor(10000 + Math.random() * 90000);
-  const payload = {
-    ...taskData,
-    task_id: taskData.task_id || `TSK-${dateStr}-${random}`,
-  };
-
-  const data = await runQuery(
-    () => supabase.from("tasks").insert([payload]).select(),
-    "creating task",
-    {
-      fallbackAction: () => localTaskStore.createTask(payload),
-    }
-  );
-
-  if (Array.isArray(data)) {
-    return data[0];
-  }
-
-  return data;
-};
-
-const findTaskById = async (id) => {
-  return runQuery(
-    () => supabase.from("tasks").select("*").eq("id", id).single(),
-    "finding task by id",
-    {
-      allowNoRows: true,
-      fallbackAction: () => localTaskStore.findTaskById(id),
-    }
-  );
-};
-
-const findTasks = async (filters) => {
-  const queryFactory = () => {
-    let query = supabase.from("tasks").select("*");
-
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (key.includes("->>")) {
-          const [column, jsonPath] = key.split("->>");
-          query = query.filter(`${column}->>${jsonPath}`, "eq", value);
-          return;
-        }
-
-        if (key.includes("->")) {
-          const [column, jsonPath] = key.split("->");
-          query = query.filter(`${column}->${jsonPath}`, "eq", value);
-          return;
-        }
-
-        // Supabase needs `.is(..., null)` for nullable columns; `.eq` with null throws
-        if (value === null) {
-          query = query.is(key, null);
-          return;
-        }
-
-        // Allow basic `IN` filtering when an array is passed
-        if (Array.isArray(value)) {
-          query = query.in(key, value);
-          return;
-        }
-
-        query = query.eq(key, value);
-      });
-    }
-
-    return query;
-  };
-
-  return runQuery(queryFactory, "finding tasks", {
-    fallbackAction: () => localTaskStore.findTasks(filters),
-  });
-};
-
-const listTasks = async ({ filters = {}, page, limit, sortBy, sortOrder, search }) => {
-  const queryFactory = async () => {
-    let query = supabase.from("tasks").select("*", { count: "exact" });
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value === null) query = query.is(key, null);
-      else if (Array.isArray(value)) query = query.in(key, value);
-      else if (key.includes("->>")) query = query.filter(key, "eq", value);
-      else query = query.eq(key, value);
-    });
-    if (search) query = query.ilike("task_details->>title", `%${search}%`);
-    const from = (page - 1) * limit;
-    const result = await query
-      .order(sortBy, { ascending: sortOrder === "asc" })
-      .range(from, from + limit - 1);
-    return result;
-  };
-
-  try {
-    const { data, error, count } = await queryFactory();
-    if (error) throw error;
-    return { items: data || [], total: count || 0, page, limit };
-  } catch (error) {
-    if (isLocalFallbackEnabled() && isSupabaseNetworkError(error)) {
-      logLocalFallbackOnce();
-      return localTaskStore.listTasks({ filters, page, limit, sortBy, sortOrder, search });
-    }
-    throw buildSupabaseError(error, "listing tasks");
-  }
-};
-
-const updateTask = async (id, updates) => {
-  const data = await runQuery(
-    () => supabase.from("tasks").update(updates).eq("id", id).select(),
-    "updating task",
-    {
-      fallbackAction: () => localTaskStore.updateTask(id, updates),
-    }
-  );
-
-  if (Array.isArray(data)) {
-    return data[0];
-  }
-
-  return data;
-};
-
-const updateTaskIfStatus = async (id, expectedStatus, updates) => {
-  return runQuery(
-    () =>
-      supabase
-        .from("tasks")
-        .update(updates)
-        .eq("id", id)
-        .eq("status", expectedStatus)
-        .select()
-        .maybeSingle(),
-    "transitioning task",
-    {
-      allowNoRows: true,
-      fallbackAction: () =>
-        localTaskStore.updateTaskIfStatus(id, expectedStatus, updates),
-    },
-  );
-};
-
-const acceptTaskAtomically = async (id, freelancerId) => {
-  const data = await runQuery(
-    () =>
-      supabase.rpc("accept_task", {
-        p_task_id: id,
-        p_freelancer_id: freelancerId,
-      }),
-    "accepting task",
-    {
-      fallbackAction: () => localTaskStore.acceptTaskAtomically(id, freelancerId),
-    },
-  );
-  return Array.isArray(data) ? data[0] || null : data;
-};
-
-module.exports = {
-  createTask,
-  findTaskById,
-  findTasks,
-  listTasks,
-  updateTask,
-  updateTaskIfStatus,
-  acceptTaskAtomically,
-};
+module.exports = { createTask, findTaskById, findTasks, listTasks, updateTask, updateTaskIfStatus, acceptTaskAtomically };

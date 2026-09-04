@@ -5,7 +5,6 @@ process.env.JWT_ACCESS_SECRET = "phase2-api-access-secret";
 process.env.JWT_REFRESH_SECRET = "phase2-api-refresh-secret";
 process.env.ALLOWED_ORIGINS = "http://localhost:5173";
 
-jest.mock("../src/config/supabase", () => ({ from: jest.fn(), rpc: jest.fn() }));
 jest.mock("../src/data/userData", () => ({
   findUserById: jest.fn(),
   findUserByEmail: jest.fn(),

@@ -113,13 +113,14 @@ const Register = () => {
 
     setLoading(true);
 
+    const phone = formData.profile.phone.trim();
     const payload = {
       ...formData,
       email: formData.email.trim().toLowerCase(),
       profile: {
         firstName: formData.profile.firstName.trim(),
         lastName: formData.profile.lastName.trim(),
-        phone: formData.profile.phone.trim(),
+        ...(phone ? { phone } : {}),
       },
     };
 

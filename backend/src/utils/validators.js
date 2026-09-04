@@ -39,7 +39,7 @@ const registerValidation = [
     .withMessage("Last name must be between 2 and 50 characters"),
 
   body("profile.phone")
-    .optional()
+    .optional({ checkFalsy: true })
     .isMobilePhone()
     .withMessage("Please provide a valid phone number"),
 ];

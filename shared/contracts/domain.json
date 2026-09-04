@@ -55,6 +55,14 @@
   ],
   "notificationStatuses": ["unread", "read"],
   "notificationPriorities": ["low", "medium", "high"],
+  "profileVisibilities": ["public", "private"],
+  "profileAvailabilities": ["open", "limited", "unavailable"],
+  "collaborationCommitments": ["exploring", "few_hours", "part_time", "full_time"],
+  "skillProficiencies": ["beginner", "intermediate", "advanced"],
+  "skillCategories": [
+    "languages", "frontend", "backend", "mobile", "database", "data-ai",
+    "cloud-devops", "design", "product", "quality", "collaboration", "other"
+  ],
   "freelancerAvailability": ["available", "part_time", "busy"],
   "adminTaskReviewActions": ["approve", "reject"],
   "clientSubmissionReviewActions": ["approve", "request_revision"],

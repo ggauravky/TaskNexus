@@ -231,10 +231,6 @@ const replaceSkills = async (user, input) => {
   const skills = normalizeSkillAssignments(input);
   await profileData.replaceUserSkills(user.id, skills);
   const rows = await profileData.listUserSkills(user.id);
-  if (user.role === "freelancer") {
-    const legacyFreelancer = { ...(user.freelancer_profile || {}), skills: rows.map((row) => row.skill?.name).filter(Boolean) };
-    await userData.updateUser(user.id, { freelancer_profile: legacyFreelancer });
-  }
   return rows.map(skillDto);
 };
 

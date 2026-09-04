@@ -23,6 +23,11 @@ const contracts = Object.freeze({
   NOTIFICATION_TYPES: toEnum(domain.notificationTypes),
   NOTIFICATION_STATUS: toEnum(domain.notificationStatuses),
   NOTIFICATION_PRIORITY: toEnum(domain.notificationPriorities),
+  PROFILE_VISIBILITY: toEnum(domain.profileVisibilities),
+  PROFILE_AVAILABILITY: toEnum(domain.profileAvailabilities),
+  COLLABORATION_COMMITMENT: toEnum(domain.collaborationCommitments),
+  SKILL_PROFICIENCY: toEnum(domain.skillProficiencies),
+  SKILL_CATEGORY: toEnum(domain.skillCategories),
   TASK_STATE_TRANSITIONS: Object.freeze(domain.taskTransitions),
 });
 

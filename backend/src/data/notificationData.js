@@ -1,122 +1,30 @@
-// backend/src/data/notificationData.js
-const supabase = require('../config/supabase');
-const localNotificationStore = require("./localNotificationStore");
-const { createSupabaseRunner } = require("./supabaseFallbackRunner");
+const { Notification } = require("../models");
+const { buildFilter, runMongo, toApp, toApps } = require("./mongoDataUtils");
 
-const runQuery = createSupabaseRunner("notification");
+const createNotification = (data) => runMongo(async () => toApp(await Notification.create(data)), "Unable to create notification");
+const findNotifications = (filters) => runMongo(async () => toApps(await Notification.find(buildFilter(filters)).lean()), "Unable to find notifications");
+const listNotifications = ({ filters = {}, page, limit }) => runMongo(async () => {
+  const query = buildFilter(filters);
+  const [items, total] = await Promise.all([
+    Notification.find(query).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Notification.countDocuments(query),
+  ]);
+  return { items: toApps(items), total, page, limit };
+}, "Unable to list notifications");
+const updateNotification = (id, updates) => runMongo(async () => toApp(await Notification.findByIdAndUpdate(id, { $set: updates }, { returnDocument: "after", runValidators: true }).lean()), "Unable to update notification");
+const updateManyNotifications = (filters, updates) => runMongo(async () => toApps(await Notification.find(buildFilter(filters)).lean().then(async (rows) => {
+  await Notification.updateMany(buildFilter(filters), { $set: updates }, { runValidators: true });
+  return rows.map((row) => ({ ...row, ...updates }));
+})), "Unable to update notifications");
+const deleteNotification = (id) => runMongo(async () => {
+  const row = await Notification.findByIdAndDelete(id).lean();
+  return row ? [toApp(row)] : [];
+}, "Unable to delete notification");
+const deleteManyNotifications = (filters) => runMongo(async () => {
+  const query = buildFilter(filters);
+  const rows = await Notification.find(query).lean();
+  await Notification.deleteMany(query);
+  return toApps(rows);
+}, "Unable to delete notifications");
 
-const createNotification = async (notificationData) => {
-    const data = await runQuery(
-        () => supabase.from('notifications').insert([notificationData]).select(),
-        "creating notification",
-        {
-            fallbackAction: () => localNotificationStore.createNotification(notificationData),
-        }
-    );
-    return Array.isArray(data) ? data[0] : data;
-};
-
-const findNotifications = async (filters) => {
-    const queryFactory = () => {
-        let query = supabase.from('notifications').select('*');
-        if (filters) {
-            Object.entries(filters).forEach(([key, value]) => {
-                if (Array.isArray(value)) {
-                    query = query.in(key, value);
-                } else {
-                    query = query.eq(key, value);
-                }
-            });
-        }
-        return query;
-    };
-
-    return runQuery(queryFactory, "finding notifications", {
-        fallbackAction: () => localNotificationStore.findNotifications(filters),
-    });
-};
-
-const listNotifications = async ({ filters, page, limit }) => {
-    const from = (page - 1) * limit;
-    const queryFactory = () => {
-        let query = supabase.from('notifications').select('*', { count: 'exact' });
-        Object.entries(filters).forEach(([key, value]) => {
-            query = query.eq(key, value);
-        });
-        return query.order('created_at', { ascending: false }).range(from, from + limit - 1);
-    };
-    try {
-        const { data, error, count } = await queryFactory();
-        if (error) throw error;
-        return { items: data || [], total: count || 0, page, limit };
-    } catch (error) {
-        if (process.env.NODE_ENV !== 'production') {
-            return localNotificationStore.listNotifications({ filters, page, limit });
-        }
-        throw error;
-    }
-};
-
-const updateNotification = async (id, updates) => {
-    const data = await runQuery(
-        () => supabase.from('notifications').update(updates).eq('id', id).select(),
-        "updating notification",
-        {
-            fallbackAction: () => localNotificationStore.updateNotification(id, updates),
-        }
-    );
-    return Array.isArray(data) ? data[0] : data;
-};
-
-const updateManyNotifications = async (filters, updates) => {
-    const queryFactory = () => {
-        let query = supabase.from('notifications').update(updates);
-        if (filters) {
-            Object.entries(filters).forEach(([key, value]) => {
-                query = query.eq(key, value);
-            });
-        }
-        return query.select();
-    };
-
-    return runQuery(queryFactory, "updating multiple notifications", {
-        fallbackAction: () => localNotificationStore.updateManyNotifications(filters, updates),
-    });
-};
-
-const deleteNotification = async (id) => {
-    const data = await runQuery(
-        () => supabase.from('notifications').delete().eq('id', id).select(),
-        "deleting notification",
-        {
-            fallbackAction: () => localNotificationStore.deleteNotification(id),
-        }
-    );
-    return data;
-};
-
-const deleteManyNotifications = async (filters) => {
-    const queryFactory = () => {
-        let query = supabase.from('notifications').delete();
-        if (filters) {
-            Object.entries(filters).forEach(([key, value]) => {
-                query = query.eq(key, value);
-            });
-        }
-        return query.select();
-    };
-
-    return runQuery(queryFactory, "deleting multiple notifications", {
-        fallbackAction: () => localNotificationStore.deleteManyNotifications(filters),
-    });
-};
-
-module.exports = {
-    createNotification,
-    findNotifications,
-    listNotifications,
-    updateNotification,
-    updateManyNotifications,
-    deleteNotification,
-    deleteManyNotifications,
-};
+module.exports = { createNotification, findNotifications, listNotifications, updateNotification, updateManyNotifications, deleteNotification, deleteManyNotifications };

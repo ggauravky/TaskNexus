@@ -1,20 +1,20 @@
 let mockWinner = null;
 
-jest.mock("../src/config/supabase", () => ({
-  rpc: jest.fn(async (_name, params) => {
-    if (mockWinner) return { data: [], error: null };
-    mockWinner = params.p_freelancer_id;
-    return {
-      data: [{
-        id: params.p_task_id,
-        freelancer_id: mockWinner,
-        status: "assigned",
-      }],
-      error: null,
-    };
-  }),
+jest.mock("../src/models", () => ({
+  Task: {
+    findOneAndUpdate: jest.fn((_filter, update) => ({
+      lean: jest.fn(async () => {
+        if (mockWinner) return null;
+        mockWinner = update.$set.freelancer_id;
+        return {
+          _id: "11111111-1111-4111-8111-111111111111",
+          freelancer_id: mockWinner,
+          status: "assigned",
+        };
+      }),
+    })),
+  },
 }));
-jest.mock("../src/data/localTaskStore", () => ({}));
 jest.mock("../src/utils/logger", () => ({ warn: jest.fn() }));
 
 const taskData = require("../src/data/taskData");

@@ -1,59 +1,11 @@
-// backend/src/data/reviewData.js
-const supabase = require('../config/supabase');
-const localReviewStore = require("./localReviewStore");
-const { createSupabaseRunner } = require("./supabaseFallbackRunner");
+const { Review } = require("../models");
+const { buildFilter, runMongo, toApp, toApps } = require("./mongoDataUtils");
 
-const runQuery = createSupabaseRunner("review");
+const createReview = (data) => runMongo(async () => toApp(await Review.create(data)), "Unable to create review");
+const findReviews = (filters) => runMongo(async () => toApps(await Review.find(buildFilter(filters)).lean()), "Unable to find reviews");
+const getAverageRating = (userId) => runMongo(async () => {
+  const [result] = await Review.aggregate([{ $match: { reviewee_id: userId } }, { $group: { _id: null, averageRating: { $avg: "$rating" }, totalReviews: { $sum: 1 } } }]);
+  return result ? { averageRating: result.averageRating, totalReviews: result.totalReviews } : { averageRating: 0, totalReviews: 0 };
+}, "Unable to calculate rating");
 
-const createReview = async (reviewData) => {
-    const data = await runQuery(
-        () => supabase.from('reviews').insert([reviewData]).select(),
-        "creating review",
-        {
-            fallbackAction: () => localReviewStore.createReview(reviewData),
-        }
-    );
-
-    return Array.isArray(data) ? data[0] : data;
-};
-
-const findReviews = async (filters) => {
-    const queryFactory = () => {
-        let query = supabase.from('reviews').select('*');
-
-        if (filters) {
-            Object.entries(filters).forEach(([key, value]) => {
-                query = query.eq(key, value);
-            });
-        }
-
-        return query;
-    };
-
-    return runQuery(queryFactory, "finding reviews", {
-        fallbackAction: () => localReviewStore.findReviews(filters),
-    });
-};
-
-const getAverageRating = async (userId) => {
-    try {
-        const reviews = await findReviews({ reviewee_id: userId });
-
-        if (!reviews || reviews.length === 0) {
-            return { averageRating: 0, totalReviews: 0 };
-        }
-
-        const totalReviews = reviews.length;
-        const averageRating = reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews;
-
-        return { averageRating, totalReviews };
-    } catch (error) {
-        throw error;
-    }
-};
-
-module.exports = {
-    createReview,
-    findReviews,
-    getAverageRating,
-};
+module.exports = { createReview, findReviews, getAverageRating };
