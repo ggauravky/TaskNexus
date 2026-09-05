@@ -15,6 +15,9 @@ jest.mock("../src/data/userData", () => ({
   findUserById: jest.fn(),
   updateUser: jest.fn(),
 }));
+jest.mock("../src/services/showcaseService", () => ({
+  listPublicProfileProjects: jest.fn().mockResolvedValue([]),
+}));
 
 const profileData = require("../src/data/profileData");
 const userData = require("../src/data/userData");

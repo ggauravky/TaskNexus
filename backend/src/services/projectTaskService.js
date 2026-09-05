@@ -6,6 +6,7 @@ const projectData = require("../data/projectData");
 const teamData = require("../data/teamData");
 const authz = require("./projectAuthorization");
 const { createProjectActivity, createProjectNotification } = require("./projectDomain");
+const { createTaskCompletionEvidence, revokeTaskCompletionEvidence } = require("./contributionService");
 const { task: taskDto, milestone: milestoneDto } = require("../serializers/projectSerializers");
 const { PROJECT_TASK_TRANSITIONS } = require("../config/constants");
 const { errors } = require("../utils/appError");
@@ -233,6 +234,7 @@ const changeStatus = async (taskId, actorId, input) => {
       type: status === "done" ? "task_completed" : "task_status_changed", metadata: { from: row.status, to: status, title: row.title },
     });
     if (status === "done") {
+      await createTaskCompletionEvidence(session, toApp(updated), actorId);
       const recipients = [...new Set([row.created_by, ...(row.assignee_ids || [])])].filter((id) => id !== actorId);
       for (const userId of recipients) {
         await createProjectNotification(session, {
@@ -242,6 +244,12 @@ const changeStatus = async (taskId, actorId, input) => {
           metadata: { task_id: taskId },
         });
       }
+    } else if (row.status === "done") {
+      const revoked = await revokeTaskCompletionEvidence(session, taskId, actorId);
+      await createProjectActivity(session, {
+        team_id: context.team.id, project_id: row.project_id, actor_id: actorId, entity_id: taskId,
+        type: "evidence_revoked", metadata: { reason: "task_reopened", evidence_count: revoked.modifiedCount },
+      });
     }
     return toApp(updated);
   });

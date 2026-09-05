@@ -119,6 +119,35 @@ Project summary/detail DTOs expose the parent Team summary, effective visibility
 
 Project Task writes use an integer `revision` for compare-and-set updates. Assignment accepts only active Project participants whose parent Team membership is still active. Status, role, completion, and archival changes use dedicated action endpoints rather than generic field spreading.
 
+## Contributions and showcases
+
+```text
+GET    /api/contributions/me
+GET    /api/projects/:projectId/contributions
+GET    /api/projects/:projectId/contributions/:userId
+POST   /api/projects/:projectId/evidence
+DELETE /api/contribution-evidence/:id
+POST   /api/contribution-evidence/:id/verify
+PATCH  /api/projects/:projectId/profile-visibility
+GET    /api/projects/:projectId/repositories
+POST   /api/projects/:projectId/repositories
+DELETE /api/projects/:projectId/repositories/:repositoryId
+POST   /api/projects/:projectId/repositories/:repositoryId/verify
+GET    /api/projects/:projectId/showcase
+PUT    /api/projects/:projectId/showcase
+POST   /api/projects/:projectId/showcase/publish
+POST   /api/projects/:projectId/showcase/unpublish
+GET    /api/showcase/:teamSlug/:projectSlug
+```
+
+Contribution lists expose bounded evidence DTOs with type, verification, lifecycle, provenance, occurrence/verification/revocation timestamps, safe source context, Project context, and public Profile summaries. Summaries count evidence by type and verification only; they do not calculate scores or rankings.
+
+Only the authenticated claimant may add, verify, or revoke their user-origin evidence. The server derives `user_id` from the access token. GitHub claims require a linked canonical repository and begin `unverified`; verification is a separately rate-limited backend action. System evidence is immutable.
+
+Repository management and showcase publication require server-derived management permissions. Showcase writes use `revision` compare-and-set. Publication requires a public Team, public completed Project, complete narrative, and valid active featured evidence.
+
+The public showcase endpoint has a distinct allowlisted DTO: safe Team/Project summaries, published narrative/media, selected safe evidence, public participant profiles with factual counts, verified public repositories, and SEO fields. It never returns internal task titles/descriptions, activity, claimant metadata, source keys, hidden profiles, drafts, or revoked evidence.
+
 ## Pagination query
 
 Collection endpoints accept `page`, `limit`, `sortBy`, `sortOrder`, and

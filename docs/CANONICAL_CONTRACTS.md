@@ -62,6 +62,7 @@ These values describe the intended current API and database contract. Changes th
 - `team_member_removed`
 - `team_role_changed`
 - `team_ownership_transferred`
+- `project_showcase_published`
 
 ## Team contracts
 
@@ -86,6 +87,18 @@ Account roles (`client`, `freelancer`, `admin`) are never team authorization rol
 - Project milestone status: `planned`, `in_progress`, `completed`
 
 Project lifecycle and Project Task transitions are defined in `shared/contracts/domain.json`. Project status changes use action endpoints, never generic metadata PATCH. Marketplace Task statuses remain a separate contract.
+
+## Contribution contracts
+
+- Evidence type: `project_participation`, `project_role`, `project_task_completion`, `github_commit`, `github_pull_request`, `external_link`
+- Verification: `internal_verified`, `external_verified`, `unverified`
+- Lifecycle: `active`, `revoked`, `superseded`
+- Origin: `system`, `user`
+- Repository provider: `github`
+- Repository verification: `pending`, `verified`, `failed`
+- Showcase status: `draft`, `published`, `unpublished`
+
+Verification and lifecycle are independent. Revoked records remain durable history. Counts are factual summaries and never scores or ranks.
 
 ## Field naming
 

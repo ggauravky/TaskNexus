@@ -1,6 +1,7 @@
 const profileData = require("../data/profileData");
 const userData = require("../data/userData");
 const { errors } = require("../utils/appError");
+const { listPublicProfileProjects } = require("./showcaseService");
 const {
   INTERESTS,
   COLLABORATION_ROLES,
@@ -177,13 +178,14 @@ const getPublicProfile = async (usernameValue) => {
   const username = normalizeUsername(usernameValue, { required: true });
   const profile = await profileData.findProfileByUsername(username);
   if (!profile || profile.visibility !== "public") throw errors.notFound("Profile not found");
-  const [user, skills, education] = await Promise.all([
+  const [user, skills, education, projects] = await Promise.all([
     userData.findUserById(profile.user_id),
     profileData.listUserSkills(profile.user_id),
     profileData.listEducation(profile.user_id),
+    listPublicProfileProjects(profile.user_id),
   ]);
   if (!user || user.status !== "active") throw errors.notFound("Profile not found");
-  return publicSerializer({ user, profile, skills, education });
+  return { ...publicSerializer({ user, profile, skills, education }), projects };
 };
 
 const checkUsername = async (value, userId) => {

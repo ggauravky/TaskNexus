@@ -6,6 +6,7 @@ const projectData = require("../data/projectData");
 const teamData = require("../data/teamData");
 const authz = require("./projectAuthorization");
 const { createProjectActivity, createProjectNotification } = require("./projectDomain");
+const { createParticipationEvidence, createRoleEvidence } = require("./contributionService");
 const { participant: participantDto } = require("../serializers/projectSerializers");
 const { projectErrors } = require("../utils/projectErrors");
 const { errors } = require("../utils/appError");
@@ -65,6 +66,9 @@ const addParticipant = async (projectId, actorId, input) => {
         }], { session });
       }
       if (!row) throw projectErrors.participantExists();
+      const participant = toApp(row);
+      await createParticipationEvidence(session, participant, actorId);
+      await createRoleEvidence(session, participant, actorId);
       await createProjectActivity(session, {
         team_id: context.team.id, project_id: projectId, actor_id: actorId,
         target_user_id: userId, type: "participant_added", metadata: { role },
@@ -148,6 +152,7 @@ const changeParticipantRole = async (projectId, targetUserId, actorId, role) => 
       { session, returnDocument: "after", runValidators: true },
     ).lean();
     if (!updated) throw projectErrors.staleWrite();
+    await createRoleEvidence(session, toApp(updated), actorId);
     await createProjectActivity(session, {
       team_id: context.team.id, project_id: projectId, actor_id: actorId, target_user_id: targetUserId,
       type: "participant_role_changed", metadata: { from: target.role, to: role },

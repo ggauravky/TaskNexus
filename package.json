@@ -8,6 +8,8 @@
     "verify:mongodb-integration": "npm --prefix backend run verify:mongodb-integration",
     "verify:api-integration": "npm --prefix backend run verify:api-integration",
     "verify:projects": "npm --prefix backend run verify:projects",
+    "verify:phase5": "npm --prefix backend run verify:phase5",
+    "verify:github": "npm --prefix backend run verify:github",
     "verify:teams": "npm --prefix backend run verify:teams"
   }
 }

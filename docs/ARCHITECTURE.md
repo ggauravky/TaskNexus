@@ -21,10 +21,23 @@ Team
        ├── ProjectParticipant
        ├── ProjectTask
        ├── ProjectMilestone
-       └── ProjectActivity
+       ├── ProjectActivity
+       ├── ContributionEvidence
+       ├── ProjectRepository
+       └── ProjectShowcase
 ```
 
 Marketplace `Task` and collaboration `ProjectTask` are separate aggregates, collections, routes, serializers, and state machines. Project creation and participant/revocation workflows use transactions; task mutations use compare-and-set revisions where concurrent writes matter.
+
+Contribution evidence is an append-oriented record of work, not a score. Internal facts originate from transactional Project actions. User claims start unverified, GitHub claims can be verified through a narrowly scoped provider, and revocation changes lifecycle state without deleting history. Public showcases are separate publication records and pass through a dedicated public serializer; they never reuse the internal Project DTO.
+
+## External provider boundary
+
+The GitHub adapter parses exact `https://github.com/{owner}/{repository}` repository, commit, pull-request, and profile URLs. It rejects credentials, fragments, queries, unsupported hosts, and unexpected path shapes before constructing fixed `https://api.github.com` read-only requests. An optional backend-only `GITHUB_TOKEN` may authenticate those requests. Provider metadata is bounded and never supplies TaskNexus identity by email or patch content.
+
+## Public publication boundary
+
+The public showcase is the intersection of a public Team, public completed Project, published `ProjectShowcase`, active selected evidence, and public participant profiles. Internal task titles/descriptions, activity metadata, hidden profiles, drafts, revoked evidence, credentials, and raw database documents are excluded. Public-profile Project cards additionally require the participant's explicit `show_on_profile` opt-in.
 
 ## Event meanings
 

@@ -34,7 +34,8 @@ const projectDetail = (project, context = {}) => ({
 
 const participant = (row, profile) => ({
   id: row.id, project_id: row.project_id, team_id: row.team_id, user_id: row.user_id,
-  role: row.role, status: row.status, joined_at: row.joined_at, profile: profile || null,
+  role: row.role, status: row.status, joined_at: row.joined_at,
+  show_on_profile: Boolean(row.show_on_profile), profile: profile || null,
 });
 
 const task = (row, context = {}) => ({

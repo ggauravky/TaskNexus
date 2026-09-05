@@ -1,6 +1,6 @@
 # TaskNexus
 
-TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports marketplace task briefs, professional profiles, contextual Teams, Team-owned collaboration Projects, Project Tasks, milestones, notifications, public service requests, and operational administration.
+TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports marketplace task briefs, professional profiles, contextual Teams, Team-owned collaboration Projects, Project Tasks, evidence-backed contributions, public Project showcases, notifications, public service requests, and operational administration.
 
 ## Current product scope
 
@@ -9,9 +9,11 @@ TaskNexus is a React and Express workspace for clients, freelancers, and adminis
 - Administrators review users, tasks, audit information, and aggregate platform data.
 - Authenticated users may create, discover, join, and manage teams through contextual `owner`, `admin`, and `member` roles that are independent from account roles.
 - Team owners and admins may create Projects; Project leads and contributors collaborate through scoped participants, assignments, task lifecycles, milestones, and activity.
-- Public pages include services, blog, support jar, login, registration, and privacy-controlled profiles at `/u/:username`.
+- Project work creates inspectable contribution evidence with provenance, verification, lifecycle state, and timestamps. Users can attach GitHub commits, pull requests, or external links without scores or rankings.
+- Completed public Projects can publish a separate privacy-safe showcase at `/showcase/:teamSlug/:projectSlug`; users explicitly opt published Projects into their public profiles.
+- Public pages include services, blog, support jar, login, registration, privacy-controlled profiles at `/u/:username`, and published showcases.
 
-Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Contribution scoring/showcases, broad People Discovery, opportunities, and AI features remain future work.
+Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Contribution scoring and ranking are intentionally excluded. Broad People Discovery, opportunities, and AI features remain future work.
 
 ## Stack
 
@@ -51,6 +53,7 @@ Backend:
 - `ALLOWED_ORIGINS`, `REFRESH_COOKIE_SAME_SITE`
 - `UPLOAD_PATH`, `MAX_FILE_SIZE`
 - `BREVO_*` when email delivery is enabled
+- `GITHUB_TOKEN` is optional. When present it raises GitHub REST API limits for backend-only, read-only verification requests; it is never exposed to the browser.
 
 Frontend: `VITE_API_URL` and `VITE_SITE_URL`.
 
@@ -71,6 +74,8 @@ npm --prefix backend run verify:database
 npm --prefix backend run verify:mongodb-integration
 npm --prefix backend run verify:teams
 npm --prefix backend run verify:projects
+npm --prefix backend run verify:phase5
+npm --prefix backend run verify:github
 npm --prefix backend run verify:api-integration
 ```
 
@@ -83,9 +88,11 @@ npm run verify
 npm run verify:database
 npm run verify:teams
 npm run verify:projects
+npm run verify:phase5
+npm run verify:github
 ```
 
-The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams` and `verify:projects` create disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, and cleanup.
+The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams`, `verify:projects`, and `verify:phase5` create disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, and cleanup. `verify:github` performs read-only live checks against public GitHub repository, commit, and pull-request metadata.
 
 ## Deployment
 
@@ -96,4 +103,4 @@ The first command runs backend lint/tests and frontend lint/build. The database 
 
 Local attachment storage is private but not durable across all deployment events. Durable object storage remains later infrastructure work.
 
-See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), [Team authorization](docs/TEAM_AUTHORIZATION.md), and [Project authorization](docs/PROJECT_AUTHORIZATION.md).
+See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), [Team authorization](docs/TEAM_AUTHORIZATION.md), [Project authorization](docs/PROJECT_AUTHORIZATION.md), and [Contribution evidence](docs/CONTRIBUTION_EVIDENCE.md).

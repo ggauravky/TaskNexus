@@ -46,6 +46,13 @@ const contracts = Object.freeze({
   PROJECT_TASK_STATUS: toEnum(domain.projectTaskStatuses),
   PROJECT_MILESTONE_STATUS: toEnum(domain.projectMilestoneStatuses),
   PROJECT_ACTIVITY_TYPES: toEnum(domain.projectActivityTypes),
+  CONTRIBUTION_EVIDENCE_TYPES: toEnum(domain.contributionEvidenceTypes),
+  CONTRIBUTION_VERIFICATION_LEVELS: toEnum(domain.contributionVerificationLevels),
+  CONTRIBUTION_EVIDENCE_STATUSES: toEnum(domain.contributionEvidenceStatuses),
+  CONTRIBUTION_EVIDENCE_ORIGINS: toEnum(domain.contributionEvidenceOrigins),
+  REPOSITORY_PROVIDERS: toEnum(domain.repositoryProviders),
+  REPOSITORY_VERIFICATION_STATUSES: toEnum(domain.repositoryVerificationStatuses),
+  SHOWCASE_STATUSES: toEnum(domain.showcaseStatuses),
   PROJECT_NOTIFICATION_TYPES: Object.freeze(Object.fromEntries(
     domain.notificationTypes.filter((value) => value.startsWith("project_")).map((value) => [value.toUpperCase(), value]),
   )),

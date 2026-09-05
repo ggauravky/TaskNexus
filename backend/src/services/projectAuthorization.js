@@ -81,6 +81,10 @@ const permissions = (context) => {
     manage_milestones: teamManager || lead,
     view_activity: workspace,
     view_settings: teamManager || lead,
+    view_contributions: workspace,
+    add_evidence: workspace,
+    manage_repositories: teamManager || lead,
+    manage_showcase: teamManager || lead,
   };
 };
 

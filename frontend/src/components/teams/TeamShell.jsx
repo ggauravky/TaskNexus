@@ -1,4 +1,4 @@
-import { FolderKanban, LogIn, LogOut, UserRound, UsersRound } from "lucide-react";
+import { FolderKanban, History, LogIn, LogOut, UserRound, UsersRound } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { dashboardFor } from "../../utils/teams";
@@ -20,6 +20,7 @@ const TeamShell = ({ children }) => {
               <NavLink to={dashboardFor(user?.role)} className={navClass}>Workspace</NavLink>
               <NavLink to="/teams" end className={navClass}><UsersRound className="h-4 w-4" /> Teams</NavLink>
               <NavLink to="/projects" className={navClass}><FolderKanban className="h-4 w-4" /> Projects</NavLink>
+              <NavLink to="/contributions" className={navClass}><History className="h-4 w-4" /> Contributions</NavLink>
               <NavLink to="/profile" className={navClass}><UserRound className="h-4 w-4" /> Profile</NavLink>
             </nav>
           ) : null}

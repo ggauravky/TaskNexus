@@ -277,6 +277,8 @@ const project = model("Project", {
   tags: { type: [String], default: [], validate: (items) => items.length <= 8 },
   repository_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
   demo_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  completion_evidence_ids: { type: [String], default: [], validate: (items) => items.length <= 100 },
+  completion_evidence_captured_at: { type: Date, default: null },
 }, { collection: "projects" });
 project.schema.index({ team_id: 1, slug: 1 }, { unique: true });
 project.schema.index({ team_id: 1, status: 1, updated_at: -1 });
@@ -288,12 +290,15 @@ const projectParticipant = model("ProjectParticipant", {
   user_id: { type: String, required: true }, role: { type: String, enum: domain.projectParticipantRoles, required: true },
   status: { type: String, enum: domain.projectParticipantStatuses, default: "active" },
   joined_at: { type: Date, default: Date.now }, ended_at: { type: Date, default: null },
+  show_on_profile: { type: Boolean, default: false },
+  profile_visibility_updated_at: { type: Date, default: null },
   assignment_epoch: { type: Number, min: 0, default: 0, select: false },
 }, { collection: "project_participants" });
 projectParticipant.schema.index({ project_id: 1, user_id: 1 }, { unique: true });
 projectParticipant.schema.index({ user_id: 1, status: 1, updated_at: -1 });
 projectParticipant.schema.index({ project_id: 1, role: 1, status: 1 });
 projectParticipant.schema.index({ team_id: 1, user_id: 1, status: 1 });
+projectParticipant.schema.index({ user_id: 1, show_on_profile: 1 });
 
 const projectTask = model("ProjectTask", {
   _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
@@ -331,6 +336,67 @@ const projectActivity = model("ProjectActivity", {
 projectActivity.schema.index({ project_id: 1, created_at: -1 });
 projectActivity.schema.index({ team_id: 1, created_at: -1 });
 projectActivity.schema.index({ actor_id: 1, created_at: -1 });
+
+const contributionEvidence = model("ContributionEvidence", {
+  _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  user_id: { type: String, required: true }, created_by: { type: String, required: true },
+  evidence_type: { type: String, enum: domain.contributionEvidenceTypes, required: true },
+  verification_level: { type: String, enum: domain.contributionVerificationLevels, required: true },
+  status: { type: String, enum: domain.contributionEvidenceStatuses, default: "active" },
+  origin: { type: String, enum: domain.contributionEvidenceOrigins, required: true },
+  title: { type: String, required: true, trim: true, maxlength: 180 },
+  summary: { type: String, trim: true, maxlength: 1000, default: null },
+  source_key: { type: String, required: true, maxlength: 500, select: false },
+  source_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  task_id: { type: String, default: null }, repository_id: { type: String, default: null },
+  provider: { type: String, enum: ["github", null], default: null },
+  provider_ref: { type: String, maxlength: 160, default: null },
+  occurred_at: { type: Date, required: true }, verified_at: { type: Date, default: null },
+  revoked_at: { type: Date, default: null }, revoked_reason: { type: String, maxlength: 300, default: null },
+  public_safe: { type: Boolean, default: false }, metadata: json,
+}, { collection: "contribution_evidence" });
+contributionEvidence.schema.index({ project_id: 1, source_key: 1 }, { unique: true, name: "one_evidence_source_per_project" });
+contributionEvidence.schema.index({ user_id: 1, status: 1, occurred_at: -1 });
+contributionEvidence.schema.index({ project_id: 1, status: 1, occurred_at: -1 });
+contributionEvidence.schema.index({ project_id: 1, user_id: 1, status: 1, occurred_at: -1 });
+contributionEvidence.schema.index({ repository_id: 1, provider_ref: 1 });
+
+const projectRepository = model("ProjectRepository", {
+  _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  provider: { type: String, enum: domain.repositoryProviders, default: "github" },
+  owner: { type: String, required: true, trim: true, maxlength: 100 },
+  repository: { type: String, required: true, trim: true, maxlength: 100 },
+  owner_key: { type: String, required: true, lowercase: true, select: false },
+  repository_key: { type: String, required: true, lowercase: true, select: false },
+  canonical_url: { type: String, required: true, maxlength: 500, validate: httpsUrl },
+  added_by: { type: String, required: true },
+  verification_status: { type: String, enum: domain.repositoryVerificationStatuses, default: "pending" },
+  verified_at: { type: Date, default: null }, last_checked_at: { type: Date, default: null },
+  metadata: json,
+}, { collection: "project_repositories" });
+projectRepository.schema.index(
+  { project_id: 1, provider: 1, owner_key: 1, repository_key: 1 },
+  { unique: true, name: "one_link_per_project_repository" },
+);
+projectRepository.schema.index({ project_id: 1, created_at: 1 });
+
+const projectShowcase = model("ProjectShowcase", {
+  _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  status: { type: String, enum: domain.showcaseStatuses, default: "draft" },
+  headline: { type: String, trim: true, maxlength: 180, default: null },
+  summary: { type: String, trim: true, maxlength: 1000, default: null },
+  problem: { type: String, trim: true, maxlength: 3000, default: null },
+  solution: { type: String, trim: true, maxlength: 3000, default: null },
+  outcome: { type: String, trim: true, maxlength: 3000, default: null },
+  featured_evidence_ids: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  featured_skills: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  hero_image_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  created_by: { type: String, required: true }, updated_by: { type: String, required: true },
+  published_at: { type: Date, default: null }, unpublished_at: { type: Date, default: null },
+  revision: { type: Number, min: 0, default: 0 },
+}, { collection: "project_showcases" });
+projectShowcase.schema.index({ project_id: 1 }, { unique: true });
+projectShowcase.schema.index({ team_id: 1, status: 1, published_at: -1 });
 
 const comment = model("TaskComment", {
   _id: { type: String, required: true }, task_id: { type: String, required: true }, author_id: { type: String, default: null },
@@ -393,4 +459,6 @@ module.exports = {
   TeamJoinRequest: teamJoinRequest.register(), TeamActivity: teamActivity.register(),
   Project: project.register(), ProjectParticipant: projectParticipant.register(), ProjectTask: projectTask.register(),
   ProjectMilestone: projectMilestone.register(), ProjectActivity: projectActivity.register(),
+  ContributionEvidence: contributionEvidence.register(), ProjectRepository: projectRepository.register(),
+  ProjectShowcase: projectShowcase.register(),
 };

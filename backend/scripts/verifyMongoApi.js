@@ -71,6 +71,9 @@ const cleanup = async () => {
     models.TeamJoinRequest.deleteMany({ team_id: teams() }),
     models.TeamMembership.deleteMany({ team_id: teams() }),
     models.ProjectActivity.deleteMany({ project_id: projects() }),
+    models.ProjectShowcase.deleteMany({ project_id: projects() }),
+    models.ProjectRepository.deleteMany({ project_id: projects() }),
+    models.ContributionEvidence.deleteMany({ project_id: projects() }),
     models.ProjectTask.deleteMany({ project_id: projects() }),
     models.ProjectMilestone.deleteMany({ project_id: projects() }),
     models.ProjectParticipant.deleteMany({ project_id: projects() }),
@@ -206,12 +209,66 @@ const run = async () => {
     assert.equal(projectActivity.status, 200, "project activity failed");
     assert.ok(projectActivity.payload.data.some((item) => item.type === "task_completed"));
 
+    const contributionFeed = await call(`/projects/${project.id}/contributions`, { token: contributorToken });
+    assert.equal(contributionFeed.status, 200, "participant contribution feed failed");
+    assert.ok(contributionFeed.payload.data.some((item) => item.type === "project_task_completion" && item.verification === "internal_verified"));
+    const teamOnlyContributions = await call(`/projects/${project.id}/contributions`, { token: teamOnlyToken });
+    assert.equal(teamOnlyContributions.status, 403, "nonparticipant contribution feed must be denied");
+    const internalEvidence = contributionFeed.payload.data.find((item) => item.type === "project_task_completion");
+    const immutableSystemEvidence = await call(`/contribution-evidence/${internalEvidence.id}`, { method: "DELETE", token: contributorToken });
+    assert.equal(immutableSystemEvidence.status, 403, "system evidence must be immutable through API");
+
+    const repository = await call(`/projects/${project.id}/repositories`, {
+      method: "POST", token: leadToken, body: { url: "https://github.com/octocat/Hello-World.git/" },
+    });
+    assert.equal(repository.status, 201, "project lead repository link failed");
+    const repositoryDenied = await call(`/projects/${project.id}/repositories`, {
+      method: "POST", token: teamOnlyToken, body: { url: "https://github.com/octocat/Spoon-Knife" },
+    });
+    assert.equal(repositoryDenied.status, 403, "team-only member linked a project repository");
+    const externalEvidence = await call(`/projects/${project.id}/evidence`, {
+      method: "POST", token: contributorToken,
+      body: { type: "external_link", title: "External demo claim", sourceUrl: "https://example.com/tasknexus-phase5-proof" },
+    });
+    assert.equal(externalEvidence.status, 201, "participant external evidence failed");
+    assert.equal(externalEvidence.payload.data.verification, "unverified");
+    const removeExternal = await call(`/contribution-evidence/${externalEvidence.payload.data.id}`, { method: "DELETE", token: contributorToken });
+    assert.equal(removeExternal.status, 200, "claimant could not revoke own evidence");
+    const profileOptIn = await call(`/projects/${project.id}/profile-visibility`, {
+      method: "PATCH", token: contributorToken, body: { showOnProfile: true },
+    });
+    assert.equal(profileOptIn.status, 200, "self profile project opt-in failed");
+
+    const showcaseDraft = await call(`/projects/${project.id}/showcase`, {
+      method: "PUT", token: leadToken,
+      body: {
+        headline: "API-verified project showcase", summary: "A safe public project summary.",
+        problem: "Internal workspace data needs a strict publication boundary.",
+        solution: "A separate allowlisted showcase serializer.", outcome: "Public evidence remains inspectable without leaking internal tasks.",
+        featuredSkills: ["MongoDB", "React"], featuredEvidenceIds: [internalEvidence.id], revision: 0,
+      },
+    });
+    assert.equal(showcaseDraft.status, 200, "showcase draft save failed");
+    const earlyPublish = await call(`/projects/${project.id}/showcase/publish`, {
+      method: "POST", token: leadToken, body: { revision: showcaseDraft.payload.data.revision },
+    });
+    assert.equal(earlyPublish.status, 409, "active project showcase published before completion");
+
     const removedContributor = await call(`/teams/${teamId}/members/${ids.contributor}`, { method: "DELETE", token: clientToken });
     assert.equal(removedContributor.status, 200, "team removal integration failed");
     const removedContributorDenied = await call(`/projects/${project.id}/tasks`, { token: contributorToken });
     assert.equal(removedContributorDenied.status, 403, "removed Team member retained project permission");
     const completedProject = await call(`/projects/${project.id}/complete`, { method: "POST", token: leadToken });
     assert.equal(completedProject.status, 200, "project completion failed");
+    const publishedShowcase = await call(`/projects/${project.id}/showcase/publish`, {
+      method: "POST", token: leadToken, body: { revision: showcaseDraft.payload.data.revision },
+    });
+    assert.equal(publishedShowcase.status, 200, "completed public project showcase publish failed");
+    const publicShowcase = await call(`/showcase/${teamSlug}/${project.slug}`);
+    assert.equal(publicShowcase.status, 200, "public showcase route failed");
+    const publicText = JSON.stringify(publicShowcase.payload.data);
+    assert.equal(publicText.includes("Exercise API lifecycle"), false, "public showcase leaked task title");
+    assert.equal(publicText.includes("activity"), false, "public showcase leaked internal activity");
 
     const privateUpdate = await call(`/teams/${teamId}`, {
       method: "PATCH", token: freelancerToken, body: { visibility: "private", tagline: "Contextual API roles" },
@@ -234,7 +291,7 @@ const run = async () => {
       const logout = await call("/auth/logout", { method: "POST", token });
       assert.equal(logout.status, 200);
     }
-    process.stdout.write("MongoDB API verification passed: account roles, marketplace reads, Teams, Projects, participant RBAC, tasks, milestones, privacy/IDOR, revocation, completion, transfer, and archive.\n");
+    process.stdout.write("MongoDB API verification passed: account roles, marketplace reads, Teams, Projects, participant RBAC, tasks, milestones, Phase 5 evidence/repositories/showcase/profile opt-in, privacy/IDOR, revocation, completion, transfer, and archive.\n");
   } finally {
     await cleanup();
   }

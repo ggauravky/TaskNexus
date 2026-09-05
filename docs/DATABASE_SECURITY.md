@@ -25,6 +25,10 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 - Project write DTOs use explicit allowlists. `team_id`, `project_id`, `created_by`, task status, and participant role cannot be mass-assigned through generic updates.
 - Project assignment and status mutations use compare-and-set revisions; participant removal increments an assignment epoch so a concurrent assignment cannot commit contradictory state.
 - Repository and demo links accept bounded HTTPS URLs only.
+- GitHub URLs are parsed into exact public GitHub shapes before the backend constructs fixed `api.github.com` read-only requests; user input never becomes a provider host. Credentials, query strings, fragments, nested repository paths, private repositories, patch text, and provider email identity are rejected or excluded.
+- GitHub verification has a dedicated strict rate limiter. `GITHUB_TOKEN`, when configured, remains backend-only and is never serialized or logged.
+- Contribution claimants are derived from the authenticated user, not request fields. System evidence is immutable; only the claimant may verify or revoke user evidence.
+- Public showcase DTOs are allowlists assembled independently of internal Project DTOs. Publication requires a public Team, public completed Project, a current revision, and active selected evidence.
 
 ## Deployment operations
 
@@ -36,6 +40,8 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 6. Smoke-test authentication, profiles, tasks, submissions, notifications, and administration APIs.
 7. Run `npm --prefix backend run verify:teams` against the dedicated non-production target and confirm disposable records are removed.
 8. Run `npm --prefix backend run verify:projects` and confirm Project transaction, authorization, privacy, concurrency, query-plan, and cleanup checks pass.
+9. Run `npm --prefix backend run verify:phase5` and confirm evidence transactions, deduplication races, provider verification, publication privacy, profile opt-in, query-plan, and cleanup checks pass.
+10. Run `npm --prefix backend run verify:github` when outbound GitHub access is available; the check is read-only and uses stable public fixtures.
 
 The backend fails startup if MongoDB cannot connect. It never silently falls back to JSON files or process memory.
 

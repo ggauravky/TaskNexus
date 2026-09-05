@@ -31,6 +31,9 @@ MongoDB is the durable source of truth. Application UUID/string identifiers are 
 | `project_tasks` | Collaboration work, separate from marketplace tasks | project/status/time; project/due date; assignee/status; project/milestone |
 | `project_milestones` | Project delivery checkpoints | project/status; project/target date |
 | `project_activity` | Meaningful Project history | project/created time; actor/time |
+| `contribution_evidence` | Append-oriented contribution facts and user claims | unique project/source; user/status/time; project/status/time; project/user/status/time |
+| `project_repositories` | Canonical public GitHub repositories linked to a Project | unique project/provider/owner/repository; project/created time |
+| `project_showcases` | One revisioned publication workspace per Project | unique project; team/status/published time |
 
 ## Relationship policy
 
@@ -49,6 +52,9 @@ MongoDB does not enforce foreign keys. Controllers and services validate resourc
 - Participant removal deactivates participation, unassigns open tasks, and writes activity/notification records together. Completed-task attribution is retained.
 - Team departure/removal deactivates all Project participations and unassigns open Project Tasks in the same transaction as the Team membership transition.
 - Milestone completion and Project task assignment/status effects write their durable activity/notifications atomically.
+- Project Task completion creates one evidence record per assignee in the same transaction; reopening revokes the active completion evidence instead of deleting it.
+- Project creation, participant activation, and role changes create internal evidence in their owning transaction.
+- Showcase publish/unpublish uses revision compare-and-set and writes Project activity plus publish notifications atomically.
 
 Transactions are sequential within a session; transaction-dependent operations are not grouped with `Promise.all`.
 
@@ -69,7 +75,12 @@ Membership status is `active`, `left`, or `removed`. Pending invitation/request 
 Team ──< Project ──< ProjectParticipant >── User
                   ├──< ProjectTask ──> optional ProjectMilestone
                   ├──< ProjectMilestone
-                  └──< ProjectActivity
+                  ├──< ProjectActivity
+                  ├──< ContributionEvidence >── User
+                  ├──< ProjectRepository
+                  └── ProjectShowcase
 ```
 
 Every Project relationship repeats `team_id` only where it materially supports integrity and indexed authorization. Services validate the parent Team/Project relationship. `ProjectTask.revision` provides compare-and-set mutation control; `ProjectParticipant.assignment_epoch` fences concurrent assignment against participant removal.
+
+`ContributionEvidence.source_key` is selected out by default and uniquely deduplicates a source within a Project. Evidence has independent verification (`internal_verified`, `external_verified`, `unverified`) and lifecycle (`active`, `revoked`, `superseded`) dimensions. `ProjectShowcase.revision` fences publication races, while `featured_evidence_ids` is capped at 12 active Project records. `ProjectParticipant.show_on_profile` is an explicit, user-controlled opt-in.

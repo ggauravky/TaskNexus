@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+.evidence-badge {
+  @apply inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em];
+}
+.evidence-badge.is-internal_verified {
+  @apply border-emerald-900/80 bg-emerald-950/50 text-emerald-300;
+}
+.evidence-badge.is-external_verified {
+  @apply border-indigo-800/80 bg-indigo-950/60 text-indigo-200;
+}
+.evidence-badge.is-unverified {
+  @apply border-amber-900/70 bg-amber-950/40 text-amber-300;
+}
+
 @layer base {
   :root {
     --radius: 0.5rem;

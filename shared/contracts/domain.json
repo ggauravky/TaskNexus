@@ -65,7 +65,8 @@
     "project_role_changed",
     "project_task_assigned",
     "project_task_completed",
-    "project_milestone_completed"
+    "project_milestone_completed",
+    "project_showcase_published"
   ],
   "notificationStatuses": ["unread", "read"],
   "notificationPriorities": ["low", "medium", "high"],
@@ -95,8 +96,20 @@
     "project_created", "project_updated", "project_status_changed",
     "participant_added", "participant_removed", "participant_role_changed",
     "task_created", "task_updated", "task_assigned", "task_status_changed", "task_completed",
-    "milestone_created", "milestone_updated", "milestone_completed"
+    "milestone_created", "milestone_updated", "milestone_completed",
+    "evidence_added", "evidence_revoked", "repository_linked", "repository_removed",
+    "repository_verified", "showcase_updated", "showcase_published", "showcase_unpublished"
   ],
+  "contributionEvidenceTypes": [
+    "project_participation", "project_role", "project_task_completion",
+    "github_commit", "github_pull_request", "external_link"
+  ],
+  "contributionVerificationLevels": ["internal_verified", "external_verified", "unverified"],
+  "contributionEvidenceStatuses": ["active", "revoked", "superseded"],
+  "contributionEvidenceOrigins": ["system", "user"],
+  "repositoryProviders": ["github"],
+  "repositoryVerificationStatuses": ["pending", "verified", "unavailable"],
+  "showcaseStatuses": ["draft", "published", "unpublished"],
   "projectTransitions": {
     "planning": ["active", "archived"],
     "active": ["completed", "archived"],

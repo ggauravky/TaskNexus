@@ -1,11 +1,12 @@
 const { randomUUID } = require("crypto");
 const mongoose = require("mongoose");
-const { Project, ProjectParticipant, Skill, Team, TeamMembership } = require("../models");
+const { ContributionEvidence, Project, ProjectParticipant, Skill, Team, TeamMembership } = require("../models");
 const { toApp } = require("../models/helpers");
 const projectData = require("../data/projectData");
 const teamData = require("../data/teamData");
 const authz = require("./projectAuthorization");
 const { createProjectActivity } = require("./projectDomain");
+const { createParticipationEvidence, createRoleEvidence } = require("./contributionService");
 const { projectDetail, projectSummary } = require("../serializers/projectSerializers");
 const { errors } = require("../utils/appError");
 const { projectError, projectErrors } = require("../utils/projectErrors");
@@ -79,10 +80,12 @@ const createProject = async (teamId, userId, input) => {
       if (team.visibility === "private") payload.visibility = "team";
       await validateSkills(skillIds, session);
       await Project.create([payload], { session });
-      await ProjectParticipant.create([{
+      const [participant] = await ProjectParticipant.create([{
         _id: randomUUID(), team_id: teamId, project_id: payload._id, user_id: userId,
         role: "lead", status: "active", joined_at: new Date(),
       }], { session });
+      await createParticipationEvidence(session, toApp(participant), userId);
+      await createRoleEvidence(session, toApp(participant), userId);
       await createProjectActivity(session, {
         team_id: teamId, project_id: payload._id, actor_id: userId, type: "project_created",
       });
@@ -129,7 +132,8 @@ const getProject = async (projectId, userId, options = {}) => {
   ]);
   const profiles = await teamData.profileSummaries(participantRows.items.map((item) => item.user_id), { publicOnly: true });
   const participants = participantRows.items.map((row) => ({
-    id: row.id, user_id: row.user_id, role: row.role, joined_at: row.joined_at, profile: profiles.get(row.user_id) || null,
+    id: row.id, user_id: row.user_id, role: row.role, joined_at: row.joined_at,
+    show_on_profile: Boolean(row.show_on_profile), profile: profiles.get(row.user_id) || null,
   }));
   return projectDetail(context.project, {
     team: context.team, effectivePublic: authz.isEffectivePublic(context),
@@ -193,9 +197,17 @@ const transitionProject = async (projectId, userId, targetStatus) => {
     const allowed = PROJECT_STATE_TRANSITIONS[context.project.status] || [];
     if (!allowed.includes(targetStatus)) throw errors.invalidTransition(`Project cannot move from ${context.project.status} to ${targetStatus}`);
     const now = new Date();
+    const completionEvidence = targetStatus === "completed" ? await ContributionEvidence.find({
+      project_id: projectId, status: "active",
+    }).sort({ occurred_at: -1 }).limit(100).select("_id").session(session).lean() : null;
+    const statusUpdates = { status: targetStatus, completed_at: targetStatus === "completed" ? now : null };
+    if (completionEvidence) {
+      statusUpdates.completion_evidence_ids = completionEvidence.map((item) => String(item._id));
+      statusUpdates.completion_evidence_captured_at = now;
+    }
     const updated = await Project.findOneAndUpdate(
       { _id: projectId, status: context.project.status },
-      { $set: { status: targetStatus, completed_at: targetStatus === "completed" ? now : null } },
+      { $set: statusUpdates },
       { session, returnDocument: "after", runValidators: true },
     ).lean();
     if (!updated) throw projectErrors.staleWrite();

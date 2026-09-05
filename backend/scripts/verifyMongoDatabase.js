@@ -57,6 +57,17 @@ const relationships = [
   [models.ProjectActivity, "team_id", models.Team, "project activity team"],
   [models.ProjectActivity, "actor_id", models.User, "project activity actor"],
   [models.ProjectActivity, "target_user_id", models.User, "project activity target"],
+  [models.ContributionEvidence, "project_id", models.Project, "contribution project"],
+  [models.ContributionEvidence, "team_id", models.Team, "contribution team"],
+  [models.ContributionEvidence, "user_id", models.User, "contribution subject"],
+  [models.ContributionEvidence, "created_by", models.User, "contribution creator"],
+  [models.ProjectRepository, "project_id", models.Project, "repository project"],
+  [models.ProjectRepository, "team_id", models.Team, "repository team"],
+  [models.ProjectRepository, "added_by", models.User, "repository actor"],
+  [models.ProjectShowcase, "project_id", models.Project, "showcase project"],
+  [models.ProjectShowcase, "team_id", models.Team, "showcase team"],
+  [models.ProjectShowcase, "created_by", models.User, "showcase creator"],
+  [models.ProjectShowcase, "updated_by", models.User, "showcase updater"],
 ];
 
 const verifyDeclaredIndexes = async (Model) => {
@@ -101,6 +112,12 @@ const run = async () => {
   if (!JSON.stringify(taskPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Project task query did not use an index");
   const activityPlan = await models.ProjectActivity.find({ project_id: "__verification__" }).sort({ created_at: -1 }).explain("queryPlanner");
   if (!JSON.stringify(activityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Project activity query did not use an index");
+  const evidencePlan = await models.ContributionEvidence.find({ user_id: "__verification__", status: "active" }).sort({ occurred_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(evidencePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Contribution history query did not use an index");
+  const projectEvidencePlan = await models.ContributionEvidence.find({ project_id: "__verification__", status: "active" }).sort({ occurred_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(projectEvidencePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Project evidence query did not use an index");
+  const showcasePlan = await models.ProjectShowcase.find({ team_id: "__verification__", status: "published" }).sort({ published_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(showcasePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Public showcase query did not use an index");
   process.stdout.write(`MongoDB verification passed for ${databaseName()} (${Object.keys(counts).length} collections).\n`);
 };
 

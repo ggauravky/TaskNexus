@@ -68,9 +68,21 @@ const publicFormLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const githubVerificationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.GITHUB_VERIFICATION_MAX_REQUESTS) || 20,
+  message: {
+    success: false,
+    error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "GitHub verification limit exceeded; try again later" },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
   taskCreationLimiter,
   publicFormLimiter,
+  githubVerificationLimiter,
 };
