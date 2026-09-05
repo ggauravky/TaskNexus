@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Activity, ArrowLeft, Check, Clock3, Loader2, LockKeyhole, Settings2, ShieldCheck, UserPlus, UsersRound, X } from "lucide-react";
+import { Activity, ArrowLeft, Check, Clock3, FolderKanban, Loader2, LockKeyhole, Plus, Settings2, ShieldCheck, UserPlus, UsersRound, X } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import Dialog from "../components/common/Dialog";
+import CreateProjectDialog from "../components/projects/CreateProjectDialog";
+import ProjectCard from "../components/projects/ProjectCard";
 import ConfirmActionDialog from "../components/teams/ConfirmActionDialog";
 import TeamShell from "../components/teams/TeamShell";
 import { useAuth } from "../context/AuthContext";
@@ -16,11 +18,13 @@ const TeamDetailPage = () => {
   const [team, setTeam] = useState(null);
   const [members, setMembers] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [acting, setActing] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -30,6 +34,8 @@ const TeamDetailPage = () => {
       setTeam(nextTeam);
       const memberResponse = await api.get(`/teams/${nextTeam.id}/members`, { params: { limit: 50 } });
       setMembers(memberResponse.data.data || []);
+      const projectResponse = await api.get(`/teams/${nextTeam.id}/projects`, { params: { limit: 30 } });
+      setProjects(projectResponse.data.data || []);
       if (nextTeam.viewer_permissions?.view_activity) {
         const activityResponse = await api.get(`/teams/${nextTeam.id}/activity`, { params: { limit: 20 } });
         setActivity(activityResponse.data.data || []);
@@ -81,6 +87,9 @@ const TeamDetailPage = () => {
         <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-8">
             <TeamSection title="About"><p className="whitespace-pre-wrap text-sm leading-7 text-[#d0d6e0]">{team.description || "This team has not added a detailed description yet."}</p></TeamSection>
+            <TeamSection title="Projects" action={team.viewer_permissions?.create_projects ? <button type="button" onClick={() => setProjectOpen(true)} className="team-button-primary"><Plus className="h-4 w-4" /> Create project</button> : null}>
+              {projects.length ? <div className="grid gap-4 lg:grid-cols-2">{projects.map((project) => <ProjectCard key={project.id} project={project} />)}</div> : <div className="rounded-xl border border-dashed border-[#34343a] px-5 py-10 text-center"><FolderKanban className="mx-auto h-6 w-6 text-[#62666d]" /><h3 className="mt-3 text-sm font-medium text-[#d0d6e0]">No visible projects yet</h3><p className="mt-2 text-sm text-[#62666d]">The Team owner or an admin can create the first workspace.</p></div>}
+            </TeamSection>
             <TeamSection title="Members" action={<span className="text-xs text-[#62666d]">Safe profile summaries only</span>}>
               <div className="divide-y divide-[#23252a]">{members.map((member) => <MemberItem key={member.id} member={member} />)}</div>
             </TeamSection>
@@ -93,6 +102,7 @@ const TeamDetailPage = () => {
       </main>
       {requestOpen ? <JoinRequestDialog team={team} onClose={() => setRequestOpen(false)} onSent={async () => { setRequestOpen(false); await load(); }} /> : null}
       {leaveOpen ? <ConfirmActionDialog title="Leave this team?" description="Your membership will become inactive. You can only return through the team’s current join policy." confirmLabel="Leave team" destructive busy={acting} onClose={() => setLeaveOpen(false)} onConfirm={leave} /> : null}
+      {projectOpen ? <CreateProjectDialog team={team} onClose={() => setProjectOpen(false)} onCreated={(project) => navigate(`/teams/${team.slug}/projects/${project.slug}`)} /> : null}
     </TeamShell>
   );
 };

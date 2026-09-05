@@ -12,7 +12,7 @@ The backend is one Express application. Routes call controllers, controllers coo
 React → Express → services/data modules → Mongoose → MongoDB Atlas
 ```
 
-TaskNexus uses UUID/string values as MongoDB `_id` values. The API exposes them as `id`; no ObjectId compatibility layer exists. Independent or high-contention records—skills, education, submissions, comments, milestones, activity, and notifications—remain separate collections. Flexible task details and workflow metadata remain bounded nested objects.
+TaskNexus uses UUID/string values as MongoDB `_id` values. The API exposes them as `id`; no ObjectId compatibility layer exists. Independent or high-contention records—skills, education, submissions, comments, milestones, activity, Projects, Project Tasks, and notifications—remain separate collections. Flexible task details and workflow metadata remain bounded nested objects.
 
 Multi-document writes use MongoDB transactions. Task acceptance uses a conditional atomic update so only one freelancer can win. Team creation, membership transitions, invitation acceptance, request approval, and ownership transfer use transactions plus unique indexes. Production disables automatic index creation; indexes are synchronized as an explicit deployment step.
 
@@ -24,6 +24,7 @@ Multi-document writes use MongoDB transactions. Task acceptance uses a condition
 - Refresh token: rotating, HttpOnly cookie, matched to the user record
 - Authorization: API authentication, role checks, and resource ownership
 - Team authorization: active membership plus contextual `owner`, `admin`, or `member`; global account role never grants team access
+- Project authorization: active Team membership plus contextual `lead` or `contributor`; Team owner/admin retain Team-level management authority
 - Sensitive model fields: excluded from queries by default and omitted by DTO serializers
 
 ## Realtime, uploads, and email
@@ -47,4 +48,5 @@ Realtime uses authenticated Server-Sent Events. The hub is process-local and nee
 - Several dashboard modules remain large.
 - Realtime team notifications are durable immediately but the process-local SSE hub does not publish transaction-created team events until clients refresh/poll.
 - Teams currently calculate member counts; no denormalized counter is stored.
-- Projects and project-scoped permissions intentionally remain outside this baseline.
+- Project comments and realtime Project event publication are deferred.
+- Project task forms are intentionally compact and do not yet provide rich text or attachments.

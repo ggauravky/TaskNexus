@@ -26,6 +26,11 @@ MongoDB is the durable source of truth. Application UUID/string identifiers are 
 | `team_invitations` | Invitation lifecycle independent from membership | one pending team/user invitation; inbox/status/time |
 | `team_join_requests` | Request lifecycle independent from membership | one pending team/user request; team/status/time |
 | `team_activity` | Bounded, meaningful team history | team/created time; actor/time |
+| `projects` | Team-owned collaboration workspace | unique team/slug; team/status/time; visibility/status |
+| `project_participants` | Contextual Project membership | unique project/user; user/status; project/role |
+| `project_tasks` | Collaboration work, separate from marketplace tasks | project/status/time; project/due date; assignee/status; project/milestone |
+| `project_milestones` | Project delivery checkpoints | project/status; project/target date |
+| `project_activity` | Meaningful Project history | project/created time; actor/time |
 
 ## Relationship policy
 
@@ -40,6 +45,10 @@ MongoDB does not enforce foreign keys. Controllers and services validate resourc
 - Team creation writes the team, owner membership, and creation activity together.
 - Invitation acceptance and join-request approval conditionally transition one pending record, create/reactivate one membership, and write activity/notification records together.
 - Ownership transfer conditionally changes `team.owner_id`, demotes the previous owner, promotes one existing member, and writes activity/notification records together.
+- Project creation writes the Project, creator lead participation, and creation activity together.
+- Participant removal deactivates participation, unassigns open tasks, and writes activity/notification records together. Completed-task attribution is retained.
+- Team departure/removal deactivates all Project participations and unassigns open Project Tasks in the same transaction as the Team membership transition.
+- Milestone completion and Project task assignment/status effects write their durable activity/notifications atomically.
 
 Transactions are sequential within a session; transaction-dependent operations are not grouped with `Promise.all`.
 
@@ -53,3 +62,14 @@ User ──< TeamMembership >── Team
 ```
 
 Membership status is `active`, `left`, or `removed`. Pending invitation/request state never appears on membership documents. A unique compound team/user index preserves one relationship record, while a partial unique `team_id` index where `role=owner` and `status=active` prevents multiple active owners.
+
+## Project relationships
+
+```text
+Team ──< Project ──< ProjectParticipant >── User
+                  ├──< ProjectTask ──> optional ProjectMilestone
+                  ├──< ProjectMilestone
+                  └──< ProjectActivity
+```
+
+Every Project relationship repeats `team_id` only where it materially supports integrity and indexed authorization. Services validate the parent Team/Project relationship. `ProjectTask.revision` provides compare-and-set mutation control; `ProjectParticipant.assignment_epoch` fences concurrent assignment against participant removal.

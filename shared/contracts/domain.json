@@ -59,7 +59,13 @@
     "team_join_request_rejected",
     "team_member_removed",
     "team_role_changed",
-    "team_ownership_transferred"
+    "team_ownership_transferred",
+    "project_added",
+    "project_removed",
+    "project_role_changed",
+    "project_task_assigned",
+    "project_task_completed",
+    "project_milestone_completed"
   ],
   "notificationStatuses": ["unread", "read"],
   "notificationPriorities": ["low", "medium", "high"],
@@ -79,6 +85,35 @@
     "member_removed", "invitation_sent", "invitation_accepted", "join_request_created",
     "join_request_accepted", "join_request_rejected", "role_changed", "ownership_transferred"
   ],
+  "projectStatuses": ["planning", "active", "completed", "archived"],
+  "projectVisibilities": ["team", "public"],
+  "projectParticipantRoles": ["lead", "contributor"],
+  "projectParticipantStatuses": ["active", "removed"],
+  "projectTaskStatuses": ["todo", "in_progress", "blocked", "done"],
+  "projectMilestoneStatuses": ["planned", "in_progress", "completed"],
+  "projectActivityTypes": [
+    "project_created", "project_updated", "project_status_changed",
+    "participant_added", "participant_removed", "participant_role_changed",
+    "task_created", "task_updated", "task_assigned", "task_status_changed", "task_completed",
+    "milestone_created", "milestone_updated", "milestone_completed"
+  ],
+  "projectTransitions": {
+    "planning": ["active", "archived"],
+    "active": ["completed", "archived"],
+    "completed": ["active", "archived"],
+    "archived": []
+  },
+  "projectTaskTransitions": {
+    "todo": ["in_progress", "blocked"],
+    "in_progress": ["blocked", "done", "todo"],
+    "blocked": ["in_progress", "todo"],
+    "done": ["in_progress"]
+  },
+  "projectMilestoneTransitions": {
+    "planned": ["in_progress", "completed"],
+    "in_progress": ["planned", "completed"],
+    "completed": ["in_progress"]
+  },
   "skillCategories": [
     "languages", "frontend", "backend", "mobile", "database", "data-ai",
     "cloud-devops", "design", "product", "quality", "collaboration", "other"

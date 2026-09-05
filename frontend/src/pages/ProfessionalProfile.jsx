@@ -140,6 +140,7 @@ const ProfessionalProfile = () => {
           </button>
           <div className="flex items-center gap-2">
             <Link to="/teams" className="profile-quiet-button">Teams</Link>
+            <Link to="/projects" className="profile-quiet-button">Projects</Link>
             {publicUrl && form.visibility === "public" ? (
               <Link to={publicUrl} target="_blank" className="profile-quiet-button">
                 View public profile <ExternalLink className="h-4 w-4" aria-hidden="true" />

@@ -20,6 +20,11 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 - Team IDOR checks load the target team and active membership before private DTOs, rosters, activity, requests, invitations, or settings are returned.
 - Team updates use field allowlists. Ownership, roles, archival, invitations, requests, removal, and leaving use dedicated action endpoints.
 - A partial unique index prevents two active owners; compound/partial indexes prevent duplicate memberships and duplicate pending invitations/requests.
+- Project IDOR checks combine parent Team visibility, active Team membership, and active Project participation before workspace data is returned.
+- Direct Project Task and milestone IDs are resolved back through the Project authorization context; private cross-Team resources are concealed as not found.
+- Project write DTOs use explicit allowlists. `team_id`, `project_id`, `created_by`, task status, and participant role cannot be mass-assigned through generic updates.
+- Project assignment and status mutations use compare-and-set revisions; participant removal increments an assignment epoch so a concurrent assignment cannot commit contradictory state.
+- Repository and demo links accept bounded HTTPS URLs only.
 
 ## Deployment operations
 
@@ -30,6 +35,7 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 5. Run `npm --prefix backend run verify:mongodb-integration` against the non-production target.
 6. Smoke-test authentication, profiles, tasks, submissions, notifications, and administration APIs.
 7. Run `npm --prefix backend run verify:teams` against the dedicated non-production target and confirm disposable records are removed.
+8. Run `npm --prefix backend run verify:projects` and confirm Project transaction, authorization, privacy, concurrency, query-plan, and cleanup checks pass.
 
 The backend fails startup if MongoDB cannot connect. It never silently falls back to JSON files or process memory.
 

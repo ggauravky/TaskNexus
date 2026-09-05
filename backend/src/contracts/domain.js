@@ -39,6 +39,19 @@ const contracts = Object.freeze({
   TEAM_NOTIFICATION_TYPES: Object.freeze(Object.fromEntries(
     domain.notificationTypes.filter((value) => value.startsWith("team_")).map((value) => [value.toUpperCase(), value]),
   )),
+  PROJECT_STATUS: toEnum(domain.projectStatuses),
+  PROJECT_VISIBILITY: toEnum(domain.projectVisibilities),
+  PROJECT_PARTICIPANT_ROLE: toEnum(domain.projectParticipantRoles),
+  PROJECT_PARTICIPANT_STATUS: toEnum(domain.projectParticipantStatuses),
+  PROJECT_TASK_STATUS: toEnum(domain.projectTaskStatuses),
+  PROJECT_MILESTONE_STATUS: toEnum(domain.projectMilestoneStatuses),
+  PROJECT_ACTIVITY_TYPES: toEnum(domain.projectActivityTypes),
+  PROJECT_NOTIFICATION_TYPES: Object.freeze(Object.fromEntries(
+    domain.notificationTypes.filter((value) => value.startsWith("project_")).map((value) => [value.toUpperCase(), value]),
+  )),
+  PROJECT_STATE_TRANSITIONS: Object.freeze(domain.projectTransitions),
+  PROJECT_TASK_TRANSITIONS: Object.freeze(domain.projectTaskTransitions),
+  PROJECT_MILESTONE_TRANSITIONS: Object.freeze(domain.projectMilestoneTransitions),
   TASK_STATE_TRANSITIONS: Object.freeze(domain.taskTransitions),
 });
 

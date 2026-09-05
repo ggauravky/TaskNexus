@@ -11,7 +11,20 @@ The backend is authoritative for authorization and state transitions. Shared fro
 
 ## Identity and authorization
 
-`client`, `freelancer`, and `admin` remain global marketplace roles. Team permissions are derived only from an active `TeamMembership` and its contextual `owner`, `admin`, or `member` role. A global administrator receives no implicit access to a private team. Future Project permissions must follow the same contextual pattern rather than extending global account roles.
+`client`, `freelancer`, and `admin` remain global marketplace roles. Team permissions are derived only from an active `TeamMembership` and its contextual `owner`, `admin`, or `member` role. Project permissions combine that active Team membership with an optional active `ProjectParticipant` role. Team membership is the root boundary: Project participation can narrow context but can never restore authority after Team membership ends. A global administrator receives no implicit Team or Project access.
+
+## Collaboration hierarchy
+
+```text
+Team
+  └── Project
+       ├── ProjectParticipant
+       ├── ProjectTask
+       ├── ProjectMilestone
+       └── ProjectActivity
+```
+
+Marketplace `Task` and collaboration `ProjectTask` are separate aggregates, collections, routes, serializers, and state machines. Project creation and participant/revocation workflows use transactions; task mutations use compare-and-set revisions where concurrent writes matter.
 
 ## Event meanings
 

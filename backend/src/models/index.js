@@ -14,6 +14,10 @@ const RESERVED_TEAM_SLUGS = new Set([
   "admin", "api", "app", "auth", "create", "discover", "help", "invitations", "join",
   "me", "new", "profile", "requests", "settings", "support", "system", "tasknexus", "teams",
 ]);
+const RESERVED_PROJECT_SLUGS = new Set([
+  "activity", "admin", "api", "archive", "complete", "create", "members", "milestones",
+  "new", "overview", "projects", "settings", "tasks",
+]);
 const httpsUrl = (value) => value == null || /^https:\/\/[^\s]+$/i.test(value);
 
 const user = model("User", {
@@ -169,10 +173,15 @@ const notification = model("Notification", {
   status: { type: String, enum: domain.notificationStatuses, default: "unread" },
   priority: { type: String, enum: domain.notificationPriorities, default: "medium" },
   read_at: { type: Date, default: null }, metadata: json,
+  event_key: { type: String, default: null, select: false },
   created_at: { type: Date, default: Date.now },
 }, { collection: "notifications", timestamps: false });
 notification.schema.index({ recipient_id: 1, status: 1, created_at: -1 });
 notification.schema.index({ related_task_id: 1 });
+notification.schema.index(
+  { recipient_id: 1, event_key: 1 },
+  { unique: true, partialFilterExpression: { event_key: { $type: "string" } }, name: "one_project_notification_event" },
+);
 
 const team = model("Team", {
   _id: stringId(),
@@ -248,6 +257,81 @@ const teamActivity = model("TeamActivity", {
 teamActivity.schema.index({ team_id: 1, created_at: -1 });
 teamActivity.schema.index({ actor_id: 1, created_at: -1 });
 
+const project = model("Project", {
+  _id: stringId(),
+  team_id: { type: String, required: true },
+  name: { type: String, required: true, trim: true, minlength: 3, maxlength: 100 },
+  slug: {
+    type: String, required: true, lowercase: true, trim: true, minlength: 3, maxlength: 70, match: SLUG_PATTERN,
+    validate: { validator: (value) => !RESERVED_PROJECT_SLUGS.has(value), message: "Project slug is reserved" },
+  },
+  tagline: { type: String, trim: true, maxlength: 180, default: null },
+  description: { type: String, trim: true, maxlength: 5000, default: null },
+  status: { type: String, enum: domain.projectStatuses, default: "planning" },
+  visibility: { type: String, enum: domain.projectVisibilities, default: "team" },
+  created_by: { type: String, required: true },
+  start_date: { type: Date, default: null },
+  target_date: { type: Date, default: null },
+  completed_at: { type: Date, default: null },
+  skill_ids: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  tags: { type: [String], default: [], validate: (items) => items.length <= 8 },
+  repository_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  demo_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+}, { collection: "projects" });
+project.schema.index({ team_id: 1, slug: 1 }, { unique: true });
+project.schema.index({ team_id: 1, status: 1, updated_at: -1 });
+project.schema.index({ visibility: 1, status: 1, updated_at: -1 });
+project.schema.index({ skill_ids: 1, status: 1 });
+
+const projectParticipant = model("ProjectParticipant", {
+  _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  user_id: { type: String, required: true }, role: { type: String, enum: domain.projectParticipantRoles, required: true },
+  status: { type: String, enum: domain.projectParticipantStatuses, default: "active" },
+  joined_at: { type: Date, default: Date.now }, ended_at: { type: Date, default: null },
+  assignment_epoch: { type: Number, min: 0, default: 0, select: false },
+}, { collection: "project_participants" });
+projectParticipant.schema.index({ project_id: 1, user_id: 1 }, { unique: true });
+projectParticipant.schema.index({ user_id: 1, status: 1, updated_at: -1 });
+projectParticipant.schema.index({ project_id: 1, role: 1, status: 1 });
+projectParticipant.schema.index({ team_id: 1, user_id: 1, status: 1 });
+
+const projectTask = model("ProjectTask", {
+  _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  title: { type: String, required: true, trim: true, minlength: 2, maxlength: 180 },
+  description: { type: String, trim: true, maxlength: 5000, default: null },
+  status: { type: String, enum: domain.projectTaskStatuses, default: "todo" },
+  priority: { type: String, enum: domain.taskPriorities, default: "medium" },
+  created_by: { type: String, required: true },
+  assignee_ids: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  due_date: { type: Date, default: null }, milestone_id: { type: String, default: null },
+  completed_at: { type: Date, default: null }, revision: { type: Number, min: 0, default: 0 },
+}, { collection: "project_tasks" });
+projectTask.schema.index({ project_id: 1, status: 1, updated_at: -1 });
+projectTask.schema.index({ project_id: 1, due_date: 1 });
+projectTask.schema.index({ assignee_ids: 1, status: 1 });
+projectTask.schema.index({ project_id: 1, milestone_id: 1 });
+
+const projectMilestone = model("ProjectMilestone", {
+  _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  name: { type: String, required: true, trim: true, minlength: 2, maxlength: 140 },
+  description: { type: String, trim: true, maxlength: 2000, default: null },
+  status: { type: String, enum: domain.projectMilestoneStatuses, default: "planned" },
+  target_date: { type: Date, default: null }, completed_at: { type: Date, default: null },
+  created_by: { type: String, required: true },
+}, { collection: "project_milestones" });
+projectMilestone.schema.index({ project_id: 1, status: 1 });
+projectMilestone.schema.index({ project_id: 1, target_date: 1 });
+
+const projectActivity = model("ProjectActivity", {
+  _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  actor_id: { type: String, required: true }, type: { type: String, enum: domain.projectActivityTypes, required: true },
+  target_user_id: { type: String, default: null }, entity_id: { type: String, default: null },
+  metadata: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }, created_at: { type: Date, default: Date.now },
+}, { collection: "project_activity", timestamps: false });
+projectActivity.schema.index({ project_id: 1, created_at: -1 });
+projectActivity.schema.index({ team_id: 1, created_at: -1 });
+projectActivity.schema.index({ actor_id: 1, created_at: -1 });
+
 const comment = model("TaskComment", {
   _id: { type: String, required: true }, task_id: { type: String, required: true }, author_id: { type: String, default: null },
   author_name: { type: String, required: true }, body: { type: String, default: "" },
@@ -307,4 +391,6 @@ module.exports = {
   ServiceBooking: booking.register(), SupportContribution: support.register(), AuditLog: audit.register(),
   Team: team.register(), TeamMembership: teamMembership.register(), TeamInvitation: teamInvitation.register(),
   TeamJoinRequest: teamJoinRequest.register(), TeamActivity: teamActivity.register(),
+  Project: project.register(), ProjectParticipant: projectParticipant.register(), ProjectTask: projectTask.register(),
+  ProjectMilestone: projectMilestone.register(), ProjectActivity: projectActivity.register(),
 };

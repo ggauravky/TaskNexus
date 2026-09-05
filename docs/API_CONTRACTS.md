@@ -84,6 +84,41 @@ Invitations use `/api/teams/:id/invitations`, `/api/team-invitations`, and expli
 
 Team summaries expose `id`, `slug`, name/presentation fields, visibility, join policy, calculated member count, public owner summary, and viewer relationship. Team detail adds bounded description, safe member preview, and server-derived permissions. Raw membership, user, and profile documents are never returned.
 
+## Projects
+
+```text
+GET    /api/projects
+GET    /api/teams/:teamId/projects
+POST   /api/teams/:teamId/projects
+GET    /api/projects/by-slug/:teamSlug/:projectSlug
+GET    /api/projects/:id
+PATCH  /api/projects/:id
+POST   /api/projects/:id/status
+POST   /api/projects/:id/complete
+POST   /api/projects/:id/archive
+GET    /api/projects/:id/participants
+GET    /api/projects/:id/participant-candidates
+POST   /api/projects/:id/participants
+PATCH  /api/projects/:id/participants/:userId/role
+DELETE /api/projects/:id/participants/:userId
+GET    /api/projects/:id/tasks
+POST   /api/projects/:id/tasks
+GET    /api/project-tasks/:id
+PATCH  /api/project-tasks/:id
+POST   /api/project-tasks/:id/status
+POST   /api/project-tasks/:id/assignees
+DELETE /api/project-tasks/:id/assignees/:userId
+GET    /api/projects/:id/milestones
+POST   /api/projects/:id/milestones
+PATCH  /api/project-milestones/:id
+DELETE /api/project-milestones/:id
+GET    /api/projects/:id/activity
+```
+
+Project summary/detail DTOs expose the parent Team summary, effective visibility, safe Profile V2 participant summaries, bounded progress summaries, and server-derived `viewer_permissions`. Workspace task, milestone, and activity routes require active Team membership plus the appropriate Project context. Direct private-resource IDOR is concealed as `PROJECT_NOT_FOUND`.
+
+Project Task writes use an integer `revision` for compare-and-set updates. Assignment accepts only active Project participants whose parent Team membership is still active. Status, role, completion, and archival changes use dedicated action endpoints rather than generic field spreading.
+
 ## Pagination query
 
 Collection endpoints accept `page`, `limit`, `sortBy`, `sortOrder`, and

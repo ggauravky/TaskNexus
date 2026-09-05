@@ -7,6 +7,7 @@
     "verify:database": "npm --prefix backend run verify:database",
     "verify:mongodb-integration": "npm --prefix backend run verify:mongodb-integration",
     "verify:api-integration": "npm --prefix backend run verify:api-integration",
+    "verify:projects": "npm --prefix backend run verify:projects",
     "verify:teams": "npm --prefix backend run verify:teams"
   }
 }

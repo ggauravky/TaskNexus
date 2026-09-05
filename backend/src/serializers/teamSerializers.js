@@ -8,6 +8,7 @@ const teamPermissions = (role) => ({
   remove_members: role === "owner" || role === "admin",
   transfer_ownership: role === "owner",
   archive_team: role === "owner",
+  create_projects: role === "owner" || role === "admin",
 });
 
 const teamSummary = (team, { memberCount = 0, owner = null, relationship = null } = {}) => ({

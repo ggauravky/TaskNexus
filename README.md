@@ -1,6 +1,6 @@
 # TaskNexus
 
-TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports task briefs, role-aware dashboards, task progress, comments, attachments, milestones, notifications, professional profiles, contextual collaboration teams, public service requests, and operational administration.
+TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports marketplace task briefs, professional profiles, contextual Teams, Team-owned collaboration Projects, Project Tasks, milestones, notifications, public service requests, and operational administration.
 
 ## Current product scope
 
@@ -8,9 +8,10 @@ TaskNexus is a React and Express workspace for clients, freelancers, and adminis
 - Freelancers browse or accept eligible work, update progress, collaborate, submit work, view earnings records, and publish professional profiles.
 - Administrators review users, tasks, audit information, and aggregate platform data.
 - Authenticated users may create, discover, join, and manage teams through contextual `owner`, `admin`, and `member` roles that are independent from account roles.
+- Team owners and admins may create Projects; Project leads and contributors collaborate through scoped participants, assignments, task lifecycles, milestones, and activity.
 - Public pages include services, blog, support jar, login, registration, and privacy-controlled profiles at `/u/:username`.
 
-Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Team Projects, Project Tasks, broad People Discovery, opportunities, and AI features remain future work.
+Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Contribution scoring/showcases, broad People Discovery, opportunities, and AI features remain future work.
 
 ## Stack
 
@@ -69,6 +70,7 @@ npm --prefix backend run database:seed
 npm --prefix backend run verify:database
 npm --prefix backend run verify:mongodb-integration
 npm --prefix backend run verify:teams
+npm --prefix backend run verify:projects
 npm --prefix backend run verify:api-integration
 ```
 
@@ -80,9 +82,10 @@ Index synchronization is an explicit deployment operation. Production startup do
 npm run verify
 npm run verify:database
 npm run verify:teams
+npm run verify:projects
 ```
 
-The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams` creates disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, and cleanup.
+The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams` and `verify:projects` create disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, and cleanup.
 
 ## Deployment
 
@@ -93,4 +96,4 @@ The first command runs backend lint/tests and frontend lint/build. The database 
 
 Local attachment storage is private but not durable across all deployment events. Durable object storage remains later infrastructure work.
 
-See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), and [Team authorization](docs/TEAM_AUTHORIZATION.md).
+See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), [Team authorization](docs/TEAM_AUTHORIZATION.md), and [Project authorization](docs/PROJECT_AUTHORIZATION.md).

@@ -75,6 +75,18 @@ These values describe the intended current API and database contract. Changes th
 
 Account roles (`client`, `freelancer`, `admin`) are never team authorization roles. Team permissions are derived from active `team_memberships` records.
 
+## Project contracts
+
+- Project status: `planning`, `active`, `completed`, `archived`
+- Project visibility: `team`, `public`
+- Project role: `lead`, `contributor`
+- Project participant status: `active`, `removed`
+- Project Task status: `todo`, `in_progress`, `blocked`, `done`
+- Project Task priority: `low`, `medium`, `high`, `urgent`
+- Project milestone status: `planned`, `in_progress`, `completed`
+
+Project lifecycle and Project Task transitions are defined in `shared/contracts/domain.json`. Project status changes use action endpoints, never generic metadata PATCH. Marketplace Task statuses remain a separate contract.
+
 ## Field naming
 
 - API identifiers use `id`; MongoDB stores the same string as `_id` internally.
