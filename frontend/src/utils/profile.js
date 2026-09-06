@@ -2,7 +2,7 @@ export const PROFILE_INPUT_FIELDS = [
   "username", "headline", "bio", "avatarUrl", "location", "timezone",
   "availability", "collaborationCommitment", "githubUrl", "linkedinUrl",
   "portfolioUrl", "interests", "preferredRoles", "visibility",
-  "onboardingCompleted",
+  "onboardingCompleted", "discoverable",
 ];
 
 export const toEditableProfile = (bundle) => ({

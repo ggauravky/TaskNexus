@@ -68,6 +68,16 @@ const relationships = [
   [models.ProjectShowcase, "team_id", models.Team, "showcase team"],
   [models.ProjectShowcase, "created_by", models.User, "showcase creator"],
   [models.ProjectShowcase, "updated_by", models.User, "showcase updater"],
+  [models.TeamOpening, "team_id", models.Team, "opening team"],
+  [models.TeamOpening, "created_by", models.User, "opening creator"],
+  [models.TeamOpening, "closed_by", models.User, "opening closer"],
+  [models.CollaborationRequest, "sender_id", models.User, "collaboration sender"],
+  [models.CollaborationRequest, "recipient_id", models.User, "collaboration recipient"],
+  [models.CollaborationRequest, "team_id", models.Team, "collaboration team"],
+  [models.CollaborationRequest, "team_opening_id", models.TeamOpening, "collaboration opening"],
+  [models.CollaborationRequest, "project_id", models.Project, "collaboration project"],
+  [models.UserBlock, "blocker_id", models.User, "block actor"],
+  [models.UserBlock, "blocked_user_id", models.User, "blocked user"],
 ];
 
 const verifyDeclaredIndexes = async (Model) => {
@@ -118,6 +128,12 @@ const run = async () => {
   if (!JSON.stringify(projectEvidencePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Project evidence query did not use an index");
   const showcasePlan = await models.ProjectShowcase.find({ team_id: "__verification__", status: "published" }).sort({ published_at: -1 }).explain("queryPlanner");
   if (!JSON.stringify(showcasePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Public showcase query did not use an index");
+  const peoplePlan = await models.UserProfile.find({ discoverable: true, visibility: "public", availability: "open" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(peoplePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("People discovery query did not use an index");
+  const openingPlan = await models.TeamOpening.find({ status: "open", role: "backend_developer" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(openingPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Team opening discovery query did not use an index");
+  const inboxPlan = await models.CollaborationRequest.find({ recipient_id: "__verification__", status: "pending" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(inboxPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Collaboration inbox query did not use an index");
   process.stdout.write(`MongoDB verification passed for ${databaseName()} (${Object.keys(counts).length} collections).\n`);
 };
 

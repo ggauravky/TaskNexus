@@ -16,6 +16,7 @@
         "verify:projects": "node scripts/verifyProjectsIntegration.js",
         "verify:phase5": "node scripts/verifyPhase5Integration.js",
         "verify:github": "node scripts/verifyGitHubProvider.js",
+        "verify:discovery": "node scripts/verifyDiscoveryIntegration.js",
         "qa:phase5-browser": "node scripts/phase5BrowserFixture.js",
         "provision:admin": "node scripts/createAdmin.js",
         "test": "jest --runInBand",

@@ -23,6 +23,7 @@ const publicRoutes = require("./routes/public.routes");
 const profileRoutes = require("./routes/profile.routes");
 const teamRoutes = require("./routes/team.routes");
 const projectRoutes = require("./routes/project.routes");
+const discoveryRoutes = require("./routes/discovery.routes");
 
 // Create Express app
 const app = express();
@@ -113,6 +114,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/realtime", realtimeRoutes);
 app.use("/api", teamRoutes);
 app.use("/api", projectRoutes);
+app.use("/api", discoveryRoutes);
 
 // 404 handler
 app.use(notFound);

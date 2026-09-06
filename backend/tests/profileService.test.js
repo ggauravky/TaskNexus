@@ -18,6 +18,9 @@ jest.mock("../src/data/userData", () => ({
 jest.mock("../src/services/showcaseService", () => ({
   listPublicProfileProjects: jest.fn().mockResolvedValue([]),
 }));
+jest.mock("../src/services/discoveryService", () => ({
+  publicContext: jest.fn().mockResolvedValue({ evidence: new Map(), projectCounts: new Map() }),
+}));
 
 const profileData = require("../src/data/profileData");
 const userData = require("../src/data/userData");

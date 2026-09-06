@@ -59,6 +59,8 @@ const profile = model("UserProfile", {
   interests: { type: [String], default: [], validate: (items) => items.length <= 12 },
   preferred_roles: { type: [String], default: [], validate: (items) => items.length <= 8 },
   visibility: { type: String, enum: domain.profileVisibilities, default: "private" },
+  discoverable: { type: Boolean, default: false },
+  collaboration_revision: { type: Number, default: 0, min: 0, select: false },
   onboarding_completed: { type: Boolean, default: false },
 }, { collection: "user_profiles" });
 profile.schema.index(
@@ -66,6 +68,9 @@ profile.schema.index(
   { unique: true, partialFilterExpression: { username: { $type: "string" } } },
 );
 profile.schema.index({ username: 1, visibility: 1 });
+profile.schema.index({ discoverable: 1, visibility: 1, availability: 1, updated_at: -1 });
+profile.schema.index({ discoverable: 1, preferred_roles: 1, updated_at: -1 });
+profile.schema.index({ discoverable: 1, interests: 1, updated_at: -1 });
 
 const skill = model("Skill", {
   _id: stringId(),
@@ -256,6 +261,44 @@ const teamActivity = model("TeamActivity", {
 }, { collection: "team_activity", timestamps: false });
 teamActivity.schema.index({ team_id: 1, created_at: -1 });
 teamActivity.schema.index({ actor_id: 1, created_at: -1 });
+
+const teamOpening = model("TeamOpening", {
+  _id: stringId(), team_id: { type: String, required: true },
+  title: { type: String, required: true, trim: true, minlength: 3, maxlength: 120 },
+  description: { type: String, trim: true, maxlength: 2000, default: null },
+  role: { type: String, required: true, enum: domain.collaborationRoles, maxlength: 60 },
+  required_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 8 },
+  preferred_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 8 },
+  commitment: { type: String, enum: [...domain.collaborationCommitments, null], default: null },
+  status: { type: String, enum: domain.teamOpeningStatuses, default: "open" },
+  created_by: { type: String, required: true }, closed_by: { type: String, default: null },
+  closed_at: { type: Date, default: null }, revision: { type: Number, min: 0, default: 0 },
+}, { collection: "team_openings" });
+teamOpening.schema.index({ team_id: 1, status: 1, created_at: -1 });
+teamOpening.schema.index({ status: 1, role: 1, created_at: -1 });
+teamOpening.schema.index({ status: 1, required_skill_ids: 1, created_at: -1 });
+
+const collaborationRequest = model("CollaborationRequest", {
+  _id: stringId(), sender_id: { type: String, required: true }, recipient_id: { type: String, required: true },
+  team_id: { type: String, default: null }, team_opening_id: { type: String, default: null },
+  project_id: { type: String, default: null }, context_key: { type: String, required: true, maxlength: 240, select: false },
+  message: { type: String, trim: true, maxlength: 500, default: null },
+  status: { type: String, enum: domain.collaborationRequestStatuses, default: "pending" },
+  responded_at: { type: Date, default: null }, cancelled_at: { type: Date, default: null },
+}, { collection: "collaboration_requests" });
+collaborationRequest.schema.index({ recipient_id: 1, status: 1, created_at: -1 });
+collaborationRequest.schema.index({ sender_id: 1, status: 1, created_at: -1 });
+collaborationRequest.schema.index({ team_opening_id: 1, status: 1, created_at: -1 });
+collaborationRequest.schema.index(
+  { sender_id: 1, recipient_id: 1, context_key: 1 },
+  { unique: true, partialFilterExpression: { status: "pending" }, name: "one_pending_collaboration_context" },
+);
+
+const userBlock = model("UserBlock", {
+  _id: stringId(), blocker_id: { type: String, required: true }, blocked_user_id: { type: String, required: true },
+}, { collection: "user_blocks" });
+userBlock.schema.index({ blocker_id: 1, blocked_user_id: 1 }, { unique: true });
+userBlock.schema.index({ blocked_user_id: 1, blocker_id: 1 });
 
 const project = model("Project", {
   _id: stringId(),
@@ -457,6 +500,7 @@ module.exports = {
   ServiceBooking: booking.register(), SupportContribution: support.register(), AuditLog: audit.register(),
   Team: team.register(), TeamMembership: teamMembership.register(), TeamInvitation: teamInvitation.register(),
   TeamJoinRequest: teamJoinRequest.register(), TeamActivity: teamActivity.register(),
+  TeamOpening: teamOpening.register(), CollaborationRequest: collaborationRequest.register(), UserBlock: userBlock.register(),
   Project: project.register(), ProjectParticipant: projectParticipant.register(), ProjectTask: projectTask.register(),
   ProjectMilestone: projectMilestone.register(), ProjectActivity: projectActivity.register(),
   ContributionEvidence: contributionEvidence.register(), ProjectRepository: projectRepository.register(),

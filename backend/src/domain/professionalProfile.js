@@ -1,4 +1,5 @@
 const { errors } = require("../utils/appError");
+const { raw: domain } = require("../contracts/domain");
 
 const USERNAME_PATTERN = /^[a-z][a-z0-9_-]{2,29}$/;
 const RESERVED_USERNAMES = new Set([
@@ -10,23 +11,14 @@ const PROFILE_VISIBILITIES = new Set(["public", "private"]);
 const AVAILABILITIES = new Set(["open", "limited", "unavailable"]);
 const COMMITMENTS = new Set(["exploring", "few_hours", "part_time", "full_time"]);
 const PROFICIENCIES = new Set(["beginner", "intermediate", "advanced"]);
-const INTERESTS = new Set([
-  "open_source", "startups", "ai_ml", "web_platform", "mobile", "data",
-  "devops", "design_systems", "accessibility", "developer_tools",
-  "climate_tech", "education", "data_science", "hackathons", "saas", "cloud",
-  "cybersecurity",
-]);
-const COLLABORATION_ROLES = new Set([
-  "builder", "designer", "product_lead", "project_lead", "reviewer",
-  "mentor", "researcher", "data_specialist", "frontend_developer",
-  "backend_developer", "full_stack_developer", "mobile_developer", "ml_engineer",
-  "data_analyst", "ui_ux_designer", "devops_engineer", "qa_engineer", "product",
-]);
+const INTERESTS = new Set(domain.profileInterests);
+const COLLABORATION_ROLES = new Set(domain.collaborationRoles);
 const PROFILE_FIELDS = new Set([
   "firstName", "lastName", "username", "headline", "bio", "avatarUrl",
   "location", "timezone", "availability", "collaborationCommitment",
   "githubUrl", "linkedinUrl", "portfolioUrl", "interests", "preferredRoles",
   "visibility", "onboardingCompleted",
+  "discoverable",
 ]);
 
 const fail = (field, message) => {
@@ -121,6 +113,7 @@ const normalizeProfileInput = (input, { requireUsername = false } = {}) => {
     interests: normalizeChoiceArray(input.interests, "interests", INTERESTS, 12),
     preferredRoles: normalizeChoiceArray(input.preferredRoles, "preferredRoles", COLLABORATION_ROLES, 8),
     visibility: choice(input.visibility, "visibility", PROFILE_VISIBILITIES),
+    discoverable: input.discoverable === undefined ? undefined : (typeof input.discoverable === "boolean" ? input.discoverable : fail("discoverable", "discoverable must be a boolean")),
   };
   if (input.onboardingCompleted !== undefined) {
     if (typeof input.onboardingCompleted !== "boolean") fail("onboardingCompleted", "onboardingCompleted must be a boolean");

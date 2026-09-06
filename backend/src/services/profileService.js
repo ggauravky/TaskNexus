@@ -2,6 +2,7 @@ const profileData = require("../data/profileData");
 const userData = require("../data/userData");
 const { errors } = require("../utils/appError");
 const { listPublicProfileProjects } = require("./showcaseService");
+const { publicContext } = require("./discoveryService");
 const {
   INTERESTS,
   COLLABORATION_ROLES,
@@ -54,11 +55,13 @@ const profileDto = (row) => ({
   interests: row?.interests || [],
   preferredRoles: row?.preferred_roles || [],
   visibility: row?.visibility || "private",
+  discoverable: Boolean(row?.discoverable),
   onboardingCompleted: Boolean(row?.onboarding_completed),
   updatedAt: row?.updated_at || null,
 });
 
 const publicSerializer = ({ user, profile, skills, education }) => ({
+  id: profile.user_id,
   username: profile.username,
   name: {
     first: user.profile?.firstName || "",
@@ -79,6 +82,7 @@ const publicSerializer = ({ user, profile, skills, education }) => ({
   },
   interests: profile.interests || [],
   preferredRoles: profile.preferred_roles || [],
+  discoverable: Boolean(profile.discoverable),
   skills: (skills || []).map(skillDto),
   education: (education || []).map(educationDto),
 });
@@ -117,7 +121,7 @@ const mapProfileColumns = (values) => {
     location: "location", timezone: "timezone", availability: "availability",
     collaborationCommitment: "collaboration_commitment", githubUrl: "github_url",
     linkedinUrl: "linkedin_url", portfolioUrl: "portfolio_url", interests: "interests",
-    preferredRoles: "preferred_roles", visibility: "visibility",
+    preferredRoles: "preferred_roles", visibility: "visibility", discoverable: "discoverable",
     onboardingCompleted: "onboarding_completed",
   };
   return Object.fromEntries(Object.entries(values)
@@ -138,13 +142,19 @@ const getOwnProfile = async (user) => serializeOwn(await getBundle(user.id, user
 
 const updateOwnProfile = async (user, input, { onboarding = false } = {}) => {
   const values = normalizeProfileInput(input, { requireUsername: onboarding });
+  const existingProfile = await profileData.findProfileByUserId(user.id);
   if (values.username && await profileData.isUsernameTaken(values.username, user.id)) {
     throw errors.conflict("Username is already in use", [{ field: "username", message: "Choose another username" }]);
   }
   if (values.onboardingCompleted && !values.username) {
-    const existing = await profileData.findProfileByUserId(user.id);
-    if (!existing?.username) throw errors.validation("A username is required to finish onboarding", [{ field: "username", message: "Choose a username" }]);
+    if (!existingProfile?.username) throw errors.validation("A username is required to finish onboarding", [{ field: "username", message: "Choose a username" }]);
   }
+  const effectiveVisibility = values.visibility ?? existingProfile?.visibility ?? "private";
+  const effectiveAvailability = values.availability ?? existingProfile?.availability ?? "unavailable";
+  if (values.discoverable && (effectiveVisibility !== "public" || effectiveAvailability === "unavailable")) {
+    throw errors.validation("Discovery requires a public profile and open or limited availability");
+  }
+  if (effectiveVisibility !== "public" || effectiveAvailability === "unavailable") values.discoverable = false;
 
   const legacyProfile = { ...(user.profile || {}) };
   if (values.firstName !== undefined) legacyProfile.firstName = values.firstName;
@@ -178,14 +188,19 @@ const getPublicProfile = async (usernameValue) => {
   const username = normalizeUsername(usernameValue, { required: true });
   const profile = await profileData.findProfileByUsername(username);
   if (!profile || profile.visibility !== "public") throw errors.notFound("Profile not found");
-  const [user, skills, education, projects] = await Promise.all([
+  const [user, skills, education, projects, context] = await Promise.all([
     userData.findUserById(profile.user_id),
     profileData.listUserSkills(profile.user_id),
     profileData.listEducation(profile.user_id),
     listPublicProfileProjects(profile.user_id),
+    publicContext([profile.user_id]),
   ]);
   if (!user || user.status !== "active") throw errors.notFound("Profile not found");
-  return { ...publicSerializer({ user, profile, skills, education }), projects };
+  return {
+    ...publicSerializer({ user, profile, skills, education }), projects,
+    evidenceSummary: context.evidence.get(profile.user_id) || { internal_task_contributions: 0, verified_github_pull_requests: 0, verified_external_evidence: 0 },
+    publishedProjectCount: context.projectCounts.get(profile.user_id) || 0,
+  };
 };
 
 const checkUsername = async (value, userId) => {

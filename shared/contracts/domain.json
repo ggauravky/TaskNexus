@@ -66,12 +66,27 @@
     "project_task_assigned",
     "project_task_completed",
     "project_milestone_completed",
-    "project_showcase_published"
+    "project_showcase_published",
+    "collaboration_request_received",
+    "collaboration_request_accepted",
+    "collaboration_request_declined",
+    "team_opening_interest"
   ],
   "notificationStatuses": ["unread", "read"],
   "notificationPriorities": ["low", "medium", "high"],
   "profileVisibilities": ["public", "private"],
   "profileAvailabilities": ["open", "limited", "unavailable"],
+  "profileInterests": [
+    "open_source", "startups", "ai_ml", "web_platform", "mobile", "data",
+    "devops", "design_systems", "accessibility", "developer_tools", "climate_tech",
+    "education", "data_science", "hackathons", "saas", "cloud", "cybersecurity"
+  ],
+  "collaborationRoles": [
+    "builder", "designer", "product_lead", "project_lead", "reviewer", "mentor",
+    "researcher", "data_specialist", "frontend_developer", "backend_developer",
+    "full_stack_developer", "mobile_developer", "ml_engineer", "data_analyst",
+    "ui_ux_designer", "devops_engineer", "qa_engineer", "product"
+  ],
   "collaborationCommitments": ["exploring", "few_hours", "part_time", "full_time"],
   "skillProficiencies": ["beginner", "intermediate", "advanced"],
   "teamVisibilities": ["public", "private"],
@@ -84,8 +99,11 @@
   "teamActivityTypes": [
     "team_created", "team_updated", "team_archived", "member_joined", "member_left",
     "member_removed", "invitation_sent", "invitation_accepted", "join_request_created",
-    "join_request_accepted", "join_request_rejected", "role_changed", "ownership_transferred"
+    "join_request_accepted", "join_request_rejected", "role_changed", "ownership_transferred",
+    "team_opening_created", "team_opening_updated", "team_opening_closed"
   ],
+  "teamOpeningStatuses": ["open", "closed"],
+  "collaborationRequestStatuses": ["pending", "accepted", "declined", "cancelled"],
   "projectStatuses": ["planning", "active", "completed", "archived"],
   "projectVisibilities": ["team", "public"],
   "projectParticipantRoles": ["lead", "contributor"],

@@ -26,6 +26,7 @@ Multi-document writes use MongoDB transactions. Task acceptance uses a condition
 - Team authorization: active membership plus contextual `owner`, `admin`, or `member`; global account role never grants team access
 - Project authorization: active Team membership plus contextual `lead` or `contributor`; Team owner/admin retain Team-level management authority
 - Contribution authorization: active Team membership is mandatory; active Project participation scopes contribution views/claims, while Project/Team managers control repository links and publication
+- Discovery authorization: authenticated bulk search plus explicit profile discoverability; Team owners/admins manage openings; request sender/recipient actions are ID-bound and global admin has no override
 - Sensitive model fields: excluded from queries by default and omitted by DTO serializers
 
 ## Realtime, uploads, and email
@@ -53,3 +54,5 @@ Realtime uses authenticated Server-Sent Events. The hub is process-local and nee
 - Project task forms are intentionally compact and do not yet provide rich text or attachments.
 - GitHub verification uses the public REST API and is subject to provider availability and rate limits; verification remains an explicit action.
 - Showcase media currently accepts a bounded HTTPS image URL; first-party durable media storage is deferred.
+- People discovery intentionally scans a bounded candidate set before in-process transparent ordering; cursor/search infrastructure is deferred until measured scale requires it.
+- Collaboration requests provide intent and Team-invitation handoff only; direct messaging is deliberately absent.

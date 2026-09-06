@@ -34,6 +34,9 @@ MongoDB is the durable source of truth. Application UUID/string identifiers are 
 | `contribution_evidence` | Append-oriented contribution facts and user claims | unique project/source; user/status/time; project/status/time; project/user/status/time |
 | `project_repositories` | Canonical public GitHub repositories linked to a Project | unique project/provider/owner/repository; project/created time |
 | `project_showcases` | One revisioned publication workspace per Project | unique project; team/status/published time |
+| `team_openings` | Structured roles a Team is seeking | team/status/time; status/role/time; required skills |
+| `collaboration_requests` | Person-to-person collaboration intent with optional context | recipient/status/time; sender/status/time; one pending sender/recipient/context |
+| `user_blocks` | Minimal anti-harassment boundary | unique blocker/blocked pair; reverse lookup |
 
 ## Relationship policy
 
@@ -55,6 +58,10 @@ MongoDB does not enforce foreign keys. Controllers and services validate resourc
 - Project Task completion creates one evidence record per assignee in the same transaction; reopening revokes the active completion evidence instead of deleting it.
 - Project creation, participant activation, and role changes create internal evidence in their owning transaction.
 - Showcase publish/unpublish uses revision compare-and-set and writes Project activity plus publish notifications atomically.
+- Opening create/close writes the opening and meaningful Team activity transactionally; edits use a revision compare-and-set.
+- Collaboration request creation validates both users and context, writes the pending request and notification together, and relies on a partial unique index for concurrent deduplication.
+- Accept/decline conditionally transitions only a recipient-owned pending request; cancel conditionally transitions only a sender-owned pending request. Neither creates membership.
+- Blocking creates the unique block and cancels pending requests between both users in one transaction.
 
 Transactions are sequential within a session; transaction-dependent operations are not grouped with `Promise.all`.
 
@@ -84,3 +91,13 @@ Team ──< Project ──< ProjectParticipant >── User
 Every Project relationship repeats `team_id` only where it materially supports integrity and indexed authorization. Services validate the parent Team/Project relationship. `ProjectTask.revision` provides compare-and-set mutation control; `ProjectParticipant.assignment_epoch` fences concurrent assignment against participant removal.
 
 `ContributionEvidence.source_key` is selected out by default and uniquely deduplicates a source within a Project. Evidence has independent verification (`internal_verified`, `external_verified`, `unverified`) and lifecycle (`active`, `revoked`, `superseded`) dimensions. `ProjectShowcase.revision` fences publication races, while `featured_evidence_ids` is capped at 12 active Project records. `ProjectParticipant.show_on_profile` is an explicit, user-controlled opt-in.
+
+## Discovery relationships
+
+```text
+UserProfile ── discoverable/public ──> People Discovery
+Team ──< TeamOpening ──< CollaborationRequest >── User
+User ──< UserBlock >── User
+```
+
+`UserProfile.discoverable` defaults to `false` independently of public profile visibility. Its selected-out `collaboration_revision` serializes request/block races without entering API DTOs. `TeamOpening` reuses canonical skill IDs, collaboration roles, and commitments. `CollaborationRequest.context_key` is selected out by default and supports partial pending-state uniqueness. Optional context IDs are validated by services before insertion.

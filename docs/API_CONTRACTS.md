@@ -148,6 +148,35 @@ Repository management and showcase publication require server-derived management
 
 The public showcase endpoint has a distinct allowlisted DTO: safe Team/Project summaries, published narrative/media, selected safe evidence, public participant profiles with factual counts, verified public repositories, and SEO fields. It never returns internal task titles/descriptions, activity, claimant metadata, source keys, hidden profiles, drafts, or revoked evidence.
 
+## People discovery, openings, and collaboration
+
+All bulk discovery routes require authentication.
+
+```text
+GET    /api/people
+GET    /api/team-openings
+GET    /api/teams/:teamId/openings
+POST   /api/teams/:teamId/openings
+PATCH  /api/team-openings/:id
+POST   /api/team-openings/:id/close
+GET    /api/team-openings/:id/candidates
+POST   /api/team-openings/:id/interest
+
+GET    /api/collaboration-requests
+POST   /api/collaboration-requests
+POST   /api/collaboration-requests/:id/accept
+POST   /api/collaboration-requests/:id/decline
+DELETE /api/collaboration-requests/:id
+
+GET    /api/user-blocks
+POST   /api/user-blocks
+DELETE /api/user-blocks/:userId
+```
+
+`GET /api/people` accepts bounded `search`, comma-separated `skills`, `roles`, `interests`, `availability`, explicit `skillMode=all|any`, two factual-evidence booleans, and pagination. Its dedicated DTO excludes account/contact/session data, private education, private Teams/Projects/evidence, and draft showcases. Team openings expose canonical role and safe skill/Team summaries. Only contextual Team owners/admins may create, edit, close, or search candidates.
+
+Request mutations are explicit actions. `recipientId` is allowlisted on create; sender/status/context ownership fields cannot be mass-assigned. The recipient alone accepts/declines and sender alone cancels. Opening interest creates a request referencing the opening. Accepted state records intent only.
+
 ## Pagination query
 
 Collection endpoints accept `page`, `limit`, `sortBy`, `sortOrder`, and

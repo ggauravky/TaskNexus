@@ -31,6 +31,12 @@ Marketplace `Task` and collaboration `ProjectTask` are separate aggregates, coll
 
 Contribution evidence is an append-oriented record of work, not a score. Internal facts originate from transactional Project actions. User claims start unverified, GitHub claims can be verified through a narrowly scoped provider, and revocation changes lifecycle state without deleting history. Public showcases are separate publication records and pass through a dedicated public serializer; they never reuse the internal Project DTO.
 
+## Discovery boundary
+
+Bulk People Discovery is authenticated and starts from `UserProfile.discoverable=true`, a public profile, an active account, and `open` or `limited` availability. Structured inputs are parsed into allowlisted primitives; escaped bounded text search and indexed MongoDB queries build a candidate set capped at 250. Skill semantics are explicit (`all` by default, optional `any`). Ordering uses text relevance, requested-skill matches, availability, profile update time, and username as deterministic tie-breakers. The API returns match facts and public evidence counts, never a hidden score.
+
+Team openings belong to Teams and inherit Team privacy. Owners/admins manage them; public discovery sees only open records for active public Teams. Opening candidate search reuses the same discovery boundary and excludes active Team members. Collaboration requests are person-to-person intent with optional validated Team, Project, or opening context. Acceptance never mutates membership or participation. Blocks remove actionable relationships and transactionally cancel pending requests without revealing which side blocked.
+
 ## External provider boundary
 
 The GitHub adapter parses exact `https://github.com/{owner}/{repository}` repository, commit, pull-request, and profile URLs. It rejects credentials, fragments, queries, unsupported hosts, and unexpected path shapes before constructing fixed `https://api.github.com` read-only requests. An optional backend-only `GITHUB_TOKEN` may authenticate those requests. Provider metadata is bounded and never supplies TaskNexus identity by email or patch content.

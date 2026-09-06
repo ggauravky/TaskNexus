@@ -63,6 +63,10 @@ These values describe the intended current API and database contract. Changes th
 - `team_role_changed`
 - `team_ownership_transferred`
 - `project_showcase_published`
+- `collaboration_request_received`
+- `collaboration_request_accepted`
+- `collaboration_request_declined`
+- `team_opening_interest`
 
 ## Team contracts
 
@@ -95,10 +99,19 @@ Project lifecycle and Project Task transitions are defined in `shared/contracts/
 - Lifecycle: `active`, `revoked`, `superseded`
 - Origin: `system`, `user`
 - Repository provider: `github`
-- Repository verification: `pending`, `verified`, `failed`
+- Repository verification: `pending`, `verified`, `unavailable`
 - Showcase status: `draft`, `published`, `unpublished`
 
 Verification and lifecycle are independent. Revoked records remain durable history. Counts are factual summaries and never scores or ranks.
+
+## Discovery contracts
+
+- Discoverability: boolean, default `false`; effective only with public visibility and `open` or `limited` availability
+- Team opening status: `open`, `closed`
+- Collaboration request status: `pending`, `accepted`, `declined`, `cancelled`
+- Skill mode: request-level `all` or `any`, with `all` as the default
+- Opening role and profile preferred roles: `shared/contracts/domain.json#collaborationRoles`
+- Discovery/team interests: `shared/contracts/domain.json#profileInterests`
 
 ## Field naming
 

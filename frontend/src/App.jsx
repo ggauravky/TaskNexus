@@ -35,6 +35,8 @@ const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage'));
 const ContributionsPage = lazy(() => import('./pages/ContributionsPage'));
 const ShowcaseEditorPage = lazy(() => import('./pages/ShowcaseEditorPage'));
 const PublicShowcasePage = lazy(() => import('./pages/PublicShowcasePage'));
+const PeoplePage = lazy(() => import('./pages/PeoplePage'));
+const CollaborationPage = lazy(() => import('./pages/CollaborationPage'));
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
 
@@ -54,7 +56,7 @@ const RouteMetadata = () => {
     useEffect(() => {
         const isShowcaseEditor = /^\/teams\/[a-z0-9-]+\/projects\/[a-z0-9-]+\/showcase$/i.test(pathname);
         const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile)(\/|$)/.test(pathname)
-            || pathname === '/teams' || pathname === '/projects' || pathname === '/contributions'
+            || pathname === '/teams' || pathname === '/projects' || pathname === '/contributions' || pathname === '/people' || pathname === '/collaboration'
             || /\/settings$/.test(pathname) || isShowcaseEditor;
         const isPublicProfile = /^\/u\/[a-z0-9_-]+$/i.test(pathname);
         const isPublicTeam = /^\/teams\/[a-z0-9-]+$/i.test(pathname);
@@ -254,6 +256,16 @@ function AppRoutes() {
             <Route path="/contributions" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
                     <ContributionsPage />
+                </ProtectedRoute>
+            } />
+            <Route path="/people" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <PeoplePage />
+                </ProtectedRoute>
+            } />
+            <Route path="/collaboration" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <CollaborationPage />
                 </ProtectedRoute>
             } />
             <Route path="/teams/:teamSlug/projects/:projectSlug/settings" element={

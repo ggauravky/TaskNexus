@@ -25,6 +25,8 @@ const contracts = Object.freeze({
   NOTIFICATION_PRIORITY: toEnum(domain.notificationPriorities),
   PROFILE_VISIBILITY: toEnum(domain.profileVisibilities),
   PROFILE_AVAILABILITY: toEnum(domain.profileAvailabilities),
+  PROFILE_INTEREST: toEnum(domain.profileInterests),
+  COLLABORATION_ROLE: toEnum(domain.collaborationRoles),
   COLLABORATION_COMMITMENT: toEnum(domain.collaborationCommitments),
   SKILL_PROFICIENCY: toEnum(domain.skillProficiencies),
   SKILL_CATEGORY: toEnum(domain.skillCategories),
@@ -36,6 +38,8 @@ const contracts = Object.freeze({
   TEAM_INVITATION_STATUS: toEnum(domain.teamInvitationStatuses),
   TEAM_JOIN_REQUEST_STATUS: toEnum(domain.teamJoinRequestStatuses),
   TEAM_ACTIVITY_TYPES: toEnum(domain.teamActivityTypes),
+  TEAM_OPENING_STATUS: toEnum(domain.teamOpeningStatuses),
+  COLLABORATION_REQUEST_STATUS: toEnum(domain.collaborationRequestStatuses),
   TEAM_NOTIFICATION_TYPES: Object.freeze(Object.fromEntries(
     domain.notificationTypes.filter((value) => value.startsWith("team_")).map((value) => [value.toUpperCase(), value]),
   )),

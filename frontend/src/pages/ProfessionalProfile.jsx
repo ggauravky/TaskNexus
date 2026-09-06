@@ -196,7 +196,7 @@ const ProfessionalProfile = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Location" value={form.location || ""} onChange={(value) => updateField("location", value)} maxLength={120} />
                 <Field label="Timezone" value={form.timezone || ""} onChange={(value) => updateField("timezone", value)} placeholder="Asia/Kolkata" maxLength={80} />
-                <Select label="Availability" value={form.availability} onChange={(value) => updateField("availability", value)} options={{ open: "Open to collaborate", limited: "Limited availability", unavailable: "Not available" }} />
+                <Select label="Availability" value={form.availability} onChange={(value) => setForm((current) => ({ ...current, availability: value, ...(value === "unavailable" ? { discoverable: false } : {}) }))} options={{ open: "Open to collaborate", limited: "Limited availability", unavailable: "Not available" }} />
                 <Select label="Time commitment" value={form.collaborationCommitment} onChange={(value) => updateField("collaborationCommitment", value)} options={{ exploring: "Exploring", few_hours: "A few hours weekly", part_time: "Part-time", full_time: "Full-time" }} />
               </div>
               <ChoiceGroup label="Interests" values={form.interests} options={INTEREST_LABELS} onToggle={(value) => toggleListValue("interests", value)} />
@@ -242,11 +242,12 @@ const ProfessionalProfile = () => {
                   ["public", Eye, "Public"],
                   ["private", EyeOff, "Private"],
                 ].map(([value, Icon, label]) => (
-                  <button key={value} type="button" onClick={() => updateField("visibility", value)} aria-pressed={form.visibility === value} className={`min-h-20 rounded-lg border p-3 text-left ${form.visibility === value ? "border-[#5e6ad2] bg-[#5e6ad2]/15 text-white" : "border-[#34343a] text-[#8a8f98] hover:bg-[#18191a]"}`}>
+                  <button key={value} type="button" onClick={() => setForm((current) => ({ ...current, visibility: value, ...(value === "private" ? { discoverable: false } : {}) }))} aria-pressed={form.visibility === value} className={`min-h-20 rounded-lg border p-3 text-left ${form.visibility === value ? "border-[#5e6ad2] bg-[#5e6ad2]/15 text-white" : "border-[#34343a] text-[#8a8f98] hover:bg-[#18191a]"}`}>
                     <Icon className="mb-2 h-4 w-4" aria-hidden="true" /><span className="text-sm font-medium">{label}</span>
                   </button>
                 ))}
               </div>
+              <div className="mt-4 border-t border-[#23252a] pt-4"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-medium text-[#d0d6e0]">Appear in People Discovery</p><p className="mt-1 text-xs leading-5 text-[#8a8f98]">Separate opt-in for authenticated search and collaboration requests.</p></div><button type="button" role="switch" aria-checked={Boolean(form.discoverable)} disabled={form.visibility !== "public" || form.availability === "unavailable"} onClick={() => updateField("discoverable", !form.discoverable)} className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-[#5e69d1] disabled:cursor-not-allowed disabled:opacity-40 ${form.discoverable ? "border-[#5e6ad2] bg-[#5e6ad2]" : "border-[#34343a] bg-[#141516]"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${form.discoverable ? "left-6" : "left-1"}`} /></button></div>{form.visibility !== "public" || form.availability === "unavailable" ? <p className="mt-3 text-xs leading-5 text-[#62666d]">Use a public profile and open or limited availability to enable discovery.</p> : null}</div>
               <p className="mt-3 text-xs leading-5 text-[#8a8f98]">Private profiles return the same not-found response as missing profiles. Email, phone, account role, status, and marketplace data are never in the public DTO.</p>
             </ProfileSection>
           </aside>

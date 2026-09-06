@@ -29,6 +29,11 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 - GitHub verification has a dedicated strict rate limiter. `GITHUB_TOKEN`, when configured, remains backend-only and is never serialized or logged.
 - Contribution claimants are derived from the authenticated user, not request fields. System evidence is immutable; only the claimant may verify or revoke user evidence.
 - Public showcase DTOs are allowlists assembled independently of internal Project DTOs. Publication requires a public Team, public completed Project, a current revision, and active selected evidence.
+- Bulk People Discovery requires authentication and explicit `discoverable=true`; private/unavailable profiles and block relationships are excluded before serialization.
+- Discovery queries parse only expected primitive filters, escape and bound text, cap the candidate scan, and never pass request query objects into Mongoose.
+- Collaboration request sender identity is derived from authentication. Recipient/context/status fields use explicit validation and action routes; partial uniqueness, cooldown, pending-count limits, and dedicated rate limits constrain spam.
+- Team opening mutations require contextual owner/admin membership. Private Team openings never enter global discovery, and global marketplace admin has no implicit override.
+- Blocks return neutral collaboration failures and cancel pending request state without exposing the blocker.
 
 ## Deployment operations
 
@@ -42,6 +47,7 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 8. Run `npm --prefix backend run verify:projects` and confirm Project transaction, authorization, privacy, concurrency, query-plan, and cleanup checks pass.
 9. Run `npm --prefix backend run verify:phase5` and confirm evidence transactions, deduplication races, provider verification, publication privacy, profile opt-in, query-plan, and cleanup checks pass.
 10. Run `npm --prefix backend run verify:github` when outbound GitHub access is available; the check is read-only and uses stable public fixtures.
+11. Run `npm --prefix backend run verify:discovery` and confirm privacy, filter accuracy, opening RBAC, request/block state, races, indexes, query plans, and disposable cleanup.
 
 The backend fails startup if MongoDB cannot connect. It never silently falls back to JSON files or process memory.
 

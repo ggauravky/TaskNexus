@@ -79,10 +79,28 @@ const githubVerificationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const discoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.DISCOVERY_MAX_REQUESTS) || 180,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Discovery request limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const collaborationRequestLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: parseInt(process.env.COLLABORATION_REQUEST_MAX_PER_DAY) || 30,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Collaboration request limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
   taskCreationLimiter,
   publicFormLimiter,
   githubVerificationLimiter,
+  discoveryLimiter,
+  collaborationRequestLimiter,
 };
