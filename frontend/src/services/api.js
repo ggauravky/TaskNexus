@@ -107,5 +107,4 @@ api.interceptors.response.use(
   }
 );
 
-export { api };
-export default api;
+export { api, api as default };
