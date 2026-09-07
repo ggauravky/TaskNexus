@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 const {
-  CollaborationRequest, Notification, Project, ProjectParticipant, Team, TeamMembership,
+  CollaborationRequest, Hackathon, HackathonParticipant, Notification, Project, ProjectParticipant, Team, TeamMembership,
   TeamOpening, User, UserBlock, UserProfile,
 } = require("../models");
 const { toApp, toApps } = require("../models/helpers");
@@ -41,21 +41,24 @@ const requestDto = (row, context = {}) => ({
   recipient: context.parties?.get(row.recipient_id) || { id: row.recipient_id },
   team: context.teams?.get(row.team_id) || null, opening: context.openings?.get(row.team_opening_id) || null,
   project: context.projects?.get(row.project_id) || null, message: row.message || null, status: row.status,
+  hackathon: context.hackathons?.get(row.hackathon_id) || null,
   created_at: row.created_at, updated_at: row.updated_at, responded_at: row.responded_at || null, cancelled_at: row.cancelled_at || null,
 });
 
 const decorate = async (rows) => {
   if (!rows.length) return [];
-  const [parties, teams, openings, projects] = await Promise.all([
+  const [parties, teams, openings, projects, hackathons] = await Promise.all([
     partyMap(rows.flatMap((row) => [row.sender_id, row.recipient_id])),
     Team.find({ _id: trustedIn(rows.map((row) => row.team_id).filter(Boolean)) }).select("_id name slug visibility").lean(),
     TeamOpening.find({ _id: trustedIn(rows.map((row) => row.team_opening_id).filter(Boolean)) }).select("_id title role status team_id").lean(),
     Project.find({ _id: trustedIn(rows.map((row) => row.project_id).filter(Boolean)) }).select("_id name slug team_id").lean(),
+    Hackathon.find({ _id: trustedIn(rows.map((row) => row.hackathon_id).filter(Boolean)) }).select("_id name slug status").lean(),
   ]);
   const teamMap = new Map(toApps(teams).map((row) => [row.id, { id: row.id, name: row.name, slug: row.slug }]));
   const openingMap = new Map(toApps(openings).map((row) => [row.id, { id: row.id, title: row.title, role: row.role, status: row.status }]));
   const projectMap = new Map(toApps(projects).map((row) => [row.id, { id: row.id, name: row.name, slug: row.slug }]));
-  return rows.map((row) => requestDto(row, { parties, teams: teamMap, openings: openingMap, projects: projectMap }));
+  const hackathonMap = new Map(toApps(hackathons).map((row) => [row.id, { id: row.id, name: row.name, slug: row.slug, status: row.status }]));
+  return rows.map((row) => requestDto(row, { parties, teams: teamMap, openings: openingMap, projects: projectMap, hackathons: hackathonMap }));
 };
 
 const ensureActive = async (userId, session = null) => {
@@ -72,44 +75,43 @@ const lockCollaborationPair = async (session, firstId, secondId) => {
 
 const ensureRecipientEligible = async (senderId, recipientId, session = null) => {
   if (!recipientId || recipientId === senderId) throw errors.validation("Choose another eligible collaborator");
-  const [user, profile, blocked] = await Promise.all([
-    User.findOne({ _id: recipientId, status: "active" }).session(session).select("_id").lean(),
-    UserProfile.findOne({ _id: recipientId, visibility: "public", discoverable: true, availability: trustedIn(["open", "limited"]) }).session(session).lean(),
-    UserBlock.exists({ $or: mongoose.trusted([{ blocker_id: senderId, blocked_user_id: recipientId }, { blocker_id: recipientId, blocked_user_id: senderId }]) }).session(session),
-  ]);
+  const user = await User.findOne({ _id: recipientId, status: "active" }).session(session).select("_id").lean();
+  const profile = await UserProfile.findOne({ _id: recipientId, visibility: "public", discoverable: true, availability: trustedIn(["open", "limited"]) }).session(session).lean();
+  const blocked = await UserBlock.exists({ $or: mongoose.trusted([{ blocker_id: senderId, blocked_user_id: recipientId }, { blocker_id: recipientId, blocked_user_id: senderId }]) }).session(session);
   if (!user || !profile || blocked) throw genericUnavailable();
 };
 
 const ensureContextRecipient = async (senderId, recipientId, session = null) => {
   if (!recipientId || recipientId === senderId) throw errors.validation("Choose another eligible collaborator");
-  const [user, blocked] = await Promise.all([
-    User.findOne({ _id: recipientId, status: "active" }).session(session).select("_id").lean(),
-    UserBlock.exists({ $or: mongoose.trusted([{ blocker_id: senderId, blocked_user_id: recipientId }, { blocker_id: recipientId, blocked_user_id: senderId }]) }).session(session),
-  ]);
+  const user = await User.findOne({ _id: recipientId, status: "active" }).session(session).select("_id").lean();
+  const blocked = await UserBlock.exists({ $or: mongoose.trusted([{ blocker_id: senderId, blocked_user_id: recipientId }, { blocker_id: recipientId, blocked_user_id: senderId }]) }).session(session);
   if (!user || blocked) throw genericUnavailable();
 };
 
 const validateContext = async (senderId, input, session) => {
-  const teamId = input.teamId || null; const openingId = input.teamOpeningId || null; const projectId = input.projectId || null;
-  if ([teamId, openingId, projectId].filter(Boolean).length > 1) throw errors.validation("Choose only one collaboration context");
+  const teamId = input.teamId || null; const openingId = input.teamOpeningId || null; const projectId = input.projectId || null; const hackathonId = input.hackathonId || null;
+  if ([teamId, openingId, projectId, hackathonId].filter(Boolean).length > 1) throw errors.validation("Choose only one collaboration context");
   if (openingId) throw errors.validation("Use the opening interest action for a Team opening");
   if (teamId) {
-    const [team, membership] = await Promise.all([
-      Team.findOne({ _id: teamId, status: "active" }).session(session).lean(),
-      TeamMembership.findOne({ team_id: teamId, user_id: senderId, status: "active" }).session(session).lean(),
-    ]);
+    const team = await Team.findOne({ _id: teamId, status: "active" }).session(session).lean();
+    const membership = await TeamMembership.findOne({ team_id: teamId, user_id: senderId, status: "active" }).session(session).lean();
     if (!team || !membership) throw errors.forbidden("Only active Team members may reference that Team");
-    return { teamId, openingId: null, projectId: null, key: `team:${teamId}` };
+    return { teamId, openingId: null, projectId: null, hackathonId: null, key: `team:${teamId}` };
   }
   if (projectId) {
-    const [project, participant] = await Promise.all([
-      Project.findOne({ _id: projectId, status: trustedIn(["planning", "active", "completed"]) }).session(session).lean(),
-      ProjectParticipant.findOne({ project_id: projectId, user_id: senderId, status: "active" }).session(session).lean(),
-    ]);
+    const project = await Project.findOne({ _id: projectId, status: trustedIn(["planning", "active", "completed"]) }).session(session).lean();
+    const participant = await ProjectParticipant.findOne({ project_id: projectId, user_id: senderId, status: "active" }).session(session).lean();
     if (!project || !participant) throw errors.forbidden("Only active Project participants may reference that Project");
-    return { teamId: project.team_id, openingId: null, projectId, key: `project:${projectId}` };
+    return { teamId: project.team_id, openingId: null, projectId, hackathonId: null, key: `project:${projectId}` };
   }
-  return { teamId: null, openingId: null, projectId: null, key: "general" };
+  if (hackathonId) {
+    const hackathon = await Hackathon.findOne({ _id: hackathonId, status: mongoose.trusted({ $nin: ["completed", "archived"] }), visibility: "public" }).session(session).lean();
+    const sender = await HackathonParticipant.findOne({ hackathon_id: hackathonId, user_id: senderId, status: mongoose.trusted({ $ne: "withdrawn" }) }).session(session).lean();
+    const recipient = await HackathonParticipant.findOne({ hackathon_id: hackathonId, user_id: input.recipientId, status: mongoose.trusted({ $ne: "withdrawn" }), looking_for_team: true, visible_on_hackathon: true }).session(session).lean();
+    if (!hackathon || !sender || !recipient) throw genericUnavailable();
+    return { teamId: null, openingId: null, projectId: null, hackathonId, key: `hackathon:${hackathonId}` };
+  }
+  return { teamId: null, openingId: null, projectId: null, hackathonId: null, key: "general" };
 };
 
 const ensureNoRecentDuplicate = async (senderId, recipientId, contextKey, session) => {
@@ -138,12 +140,12 @@ const createRequest = async (senderId, input) => {
       const request = await insertRequest(session, {
         sender_id: senderId, recipient_id: recipientId, team_id: context.teamId,
         team_opening_id: context.openingId, project_id: context.projectId,
-        context_key: context.key, message: messageValue(input.message),
+        hackathon_id: context.hackathonId, context_key: context.key, message: messageValue(input.message),
       });
       await createNotification(session, {
         recipient_id: recipientId, actor_id: senderId, type: "collaboration_request_received", entity_type: "collaboration_request", entity_id: request._id,
         content: { title: "New collaboration request", message: "A developer wants to collaborate with you.", actionUrl: "/collaboration" },
-        metadata: { request_id: request._id, team_id: context.teamId, project_id: context.projectId },
+        metadata: { request_id: request._id, team_id: context.teamId, project_id: context.projectId, hackathon_id: context.hackathonId },
       });
       return request._id;
     });
@@ -158,10 +160,8 @@ const createOpeningInterest = async (openingId, senderId, input = {}) => {
   try {
     const id = await withTransaction(async (session) => {
       await ensureActive(senderId, session);
-      const [opening, profile] = await Promise.all([
-        TeamOpening.findOne({ _id: openingId, status: "open" }).session(session).lean(),
-        UserProfile.findOne({ _id: senderId, visibility: "public", discoverable: true, availability: trustedIn(["open", "limited"]) }).session(session).lean(),
-      ]);
+      const opening = await TeamOpening.findOne({ _id: openingId, status: "open" }).session(session).lean();
+      const profile = await UserProfile.findOne({ _id: senderId, visibility: "public", discoverable: true, availability: trustedIn(["open", "limited"]) }).session(session).lean();
       if (!opening) throw errors.notFound("Team opening not found");
       if (!profile) throw errors.forbidden("Enable People Discovery before expressing interest");
       const team = await Team.findOne({ _id: opening.team_id, status: "active", visibility: "public" }).session(session).lean();
@@ -172,7 +172,7 @@ const createOpeningInterest = async (openingId, senderId, input = {}) => {
       await ensureContextRecipient(senderId, team.owner_id, session);
       const request = await insertRequest(session, {
         sender_id: senderId, recipient_id: team.owner_id, team_id: team._id, team_opening_id: openingId,
-        project_id: null, context_key: `opening:${openingId}`, message: messageValue(input.message),
+        project_id: null, hackathon_id: opening.hackathon_id || null, context_key: `opening:${openingId}`, message: messageValue(input.message),
       });
       const managers = await activeManagerIds(session, team._id);
       for (const managerId of managers.filter((id) => id !== senderId)) {

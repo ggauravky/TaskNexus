@@ -37,6 +37,11 @@ MongoDB is the durable source of truth. Application UUID/string identifiers are 
 | `team_openings` | Structured roles a Team is seeking | team/status/time; status/role/time; required skills |
 | `collaboration_requests` | Person-to-person collaboration intent with optional context | recipient/status/time; sender/status/time; one pending sender/recipient/context |
 | `user_blocks` | Minimal anti-harassment boundary | unique blocker/blocked pair; reverse lookup |
+| `hackathons` | Admin-curated event catalog, lifecycle, UTC dates, team constraints, and submission requirements | unique slug; visibility/status/deadline; mode/status/start; theme/skill discovery |
+| `hackathon_participants` | Per-user participation, event visibility, and Looking-for-Team opt-in | unique hackathon/user; hackathon/looking-for-team/status; user/status/time |
+| `hackathon_teams` | Relation from an existing Team to a Hackathon and optional existing Project | unique hackathon/team; hackathon/status/time; team/status/time; revision CAS |
+| `hackathon_submissions` | One revisioned submission workspace per Hackathon Team | unique hackathon-team; hackathon/status/time; immutable submitted state |
+| `hackathon_activity` | Append-oriented Hackathon transition history | hackathon/time; hackathon-team/time |
 
 ## Relationship policy
 
@@ -62,6 +67,10 @@ MongoDB does not enforce foreign keys. Controllers and services validate resourc
 - Collaboration request creation validates both users and context, writes the pending request and notification together, and relies on a partial unique index for concurrent deduplication.
 - Accept/decline conditionally transitions only a recipient-owned pending request; cancel conditionally transitions only a sender-owned pending request. Neither creates membership.
 - Blocking creates the unique block and cancels pending requests between both users in one transaction.
+- Hackathon participation create/update/withdraw writes the participant and activity together.
+- Hackathon Team registration validates current active Team size and writes registration, activity, and notification together.
+- Hackathon Project link/unlink uses the Team registration revision and changes related draft submission state plus activity atomically.
+- Hackathon submission draft writes readiness/checklist state and activity atomically; final submission conditionally changes one current revision and writes activity plus Team notifications together.
 
 Transactions are sequential within a session; transaction-dependent operations are not grouped with `Promise.all`.
 
@@ -101,3 +110,15 @@ User ──< UserBlock >── User
 ```
 
 `UserProfile.discoverable` defaults to `false` independently of public profile visibility. Its selected-out `collaboration_revision` serializes request/block races without entering API DTOs. `TeamOpening` reuses canonical skill IDs, collaboration roles, and commitments. `CollaborationRequest.context_key` is selected out by default and supports partial pending-state uniqueness. Optional context IDs are validated by services before insertion.
+
+## Hackathon relationships
+
+```text
+Hackathon ──< HackathonParticipant >── User
+          └──< HackathonTeam >──────── Team
+                       ├── optional Project
+                       └── one HackathonSubmission
+          └──< HackathonActivity
+```
+
+`HackathonTeam` is a registration relation, not a membership system. It never copies Team members. `HackathonSubmission` references the registered existing Team and linked existing Project. Requirements are bounded catalog definitions; the saved checklist is a deterministic snapshot recomputed from Project fields, HTTPS submission links, Team-size eligibility, and explicit confirmations. Revisions fence concurrent link, draft, and submit operations.

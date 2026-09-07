@@ -37,6 +37,8 @@ const ShowcaseEditorPage = lazy(() => import('./pages/ShowcaseEditorPage'));
 const PublicShowcasePage = lazy(() => import('./pages/PublicShowcasePage'));
 const PeoplePage = lazy(() => import('./pages/PeoplePage'));
 const CollaborationPage = lazy(() => import('./pages/CollaborationPage'));
+const HackathonsPage = lazy(() => import('./pages/HackathonsPage'));
+const HackathonDetailPage = lazy(() => import('./pages/HackathonDetailPage'));
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
 
@@ -62,10 +64,17 @@ const RouteMetadata = () => {
         const isPublicTeam = /^\/teams\/[a-z0-9-]+$/i.test(pathname);
         const isPublicProject = /^\/teams\/[a-z0-9-]+\/projects\/[a-z0-9-]+$/i.test(pathname);
         const isPublicShowcase = /^\/showcase\/[a-z0-9-]+\/[a-z0-9-]+$/i.test(pathname);
+        const isHackathonDetail = /^\/hackathons\/[a-z0-9-]+$/i.test(pathname);
         const metadata = PUBLIC_METADATA[pathname] || (isShowcaseEditor ? {
             title: 'Showcase Editor | TaskNexus',
             description: 'Manage the private publication workspace for a TaskNexus project.',
             noindex: true,
+        } : pathname === '/hackathons' ? {
+            title: 'Hackathons | TaskNexus',
+            description: 'Discover Hackathons, form Teams, and prepare evidence-backed submissions.',
+        } : isHackathonDetail ? {
+            title: 'Hackathon | TaskNexus',
+            description: 'Hackathon details, Team formation, and submission workspace.',
         } : isPublicProfile ? {
             title: 'Developer Profile | TaskNexus',
             description: 'A public TaskNexus professional profile.',
@@ -200,6 +209,8 @@ function AppRoutes() {
             <Route path="/teams/:slug" element={<TeamDetailPage />} />
             <Route path="/teams/:teamSlug/projects/:projectSlug" element={<ProjectDetailPage />} />
             <Route path="/showcase/:teamSlug/:projectSlug" element={<PublicShowcasePage />} />
+            <Route path="/hackathons" element={<HackathonsPage />} />
+            <Route path="/hackathons/:slug" element={<HackathonDetailPage />} />
             <Route path="/admin/login" element={
                 isAuthenticated && user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <AdminLogin />
             } />

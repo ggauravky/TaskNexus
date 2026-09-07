@@ -177,6 +177,38 @@ DELETE /api/user-blocks/:userId
 
 Request mutations are explicit actions. `recipientId` is allowlisted on create; sender/status/context ownership fields cannot be mass-assigned. The recipient alone accepts/declines and sender alone cancels. Opening interest creates a request referencing the opening. Accepted state records intent only.
 
+## Hackathon collaboration
+
+Public catalog reads are available without authentication; all personal/workspace actions require authentication. Catalog writes require the platform `admin` role, while Team-scoped writes require an active Team `owner` or `admin` membership.
+
+```text
+GET    /api/hackathons
+GET    /api/hackathons/:slug
+POST   /api/admin/hackathons
+PATCH  /api/admin/hackathons/:id
+POST   /api/admin/hackathons/:id/archive
+
+POST   /api/hackathons/:id/participation
+PATCH  /api/hackathons/:id/participation
+DELETE /api/hackathons/:id/participation
+GET    /api/hackathons/:id/people
+POST   /api/hackathons/:id/teams
+GET    /api/hackathons/:id/teams/me
+
+POST   /api/hackathon-teams/:id/withdraw
+POST   /api/hackathon-teams/:id/project
+DELETE /api/hackathon-teams/:id/project
+GET    /api/hackathon-teams/:id/submission
+PUT    /api/hackathon-teams/:id/submission
+POST   /api/hackathon-teams/:id/submission/submit
+```
+
+`GET /api/hackathons` supports bounded search, stored status, mode, theme, recommended skill, date, sort, pagination, and authenticated `my=true`. The detail DTO includes public catalog facts plus only the caller's own participation/Team context. Private or archived events are not exposed to ordinary public callers.
+
+Participation identity comes from the access token. Event People discovery further intersects visible Looking-for-Team participants with the existing Phase 6 discoverability/privacy/availability/block rules. Collaboration requests and Team Openings accept validated optional Hackathon context but keep their original state machines.
+
+Team registration accepts an existing `teamId`; it never accepts member/role data. Project linking accepts an existing same-Team `projectId` plus the current registration `revision`. Draft save accepts only HTTPS link/checklist fields and the current submission revision. Final submit requires `{ revision, confirm: true }`, recomputes readiness and deadline eligibility on the server, and makes the record immutable.
+
 ## Pagination query
 
 Collection endpoints accept `page`, `limit`, `sortBy`, `sortOrder`, and

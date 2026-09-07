@@ -18,7 +18,23 @@ const RESERVED_PROJECT_SLUGS = new Set([
   "activity", "admin", "api", "archive", "complete", "create", "members", "milestones",
   "new", "overview", "projects", "settings", "tasks",
 ]);
+const RESERVED_HACKATHON_SLUGS = new Set([
+  "admin", "api", "archive", "create", "discover", "hackathon", "hackathons", "me", "new", "settings", "submissions",
+]);
 const httpsUrl = (value) => value == null || /^https:\/\/[^\s]+$/i.test(value);
+
+const hackathonRequirement = new mongoose.Schema({
+  type: { type: String, required: true, enum: domain.hackathonRequirementTypes },
+  label: { type: String, required: true, trim: true, maxlength: 120 },
+  required: { type: Boolean, default: true },
+}, { _id: false });
+
+const hackathonChecklistItem = new mongoose.Schema({
+  type: { type: String, required: true, enum: domain.hackathonRequirementTypes },
+  label: { type: String, required: true, trim: true, maxlength: 120 },
+  required: { type: Boolean, default: true },
+  completed: { type: Boolean, default: false },
+}, { _id: false });
 
 const user = model("User", {
   _id: stringId(),
@@ -264,6 +280,7 @@ teamActivity.schema.index({ actor_id: 1, created_at: -1 });
 
 const teamOpening = model("TeamOpening", {
   _id: stringId(), team_id: { type: String, required: true },
+  hackathon_id: { type: String, default: null }, hackathon_team_id: { type: String, default: null },
   title: { type: String, required: true, trim: true, minlength: 3, maxlength: 120 },
   description: { type: String, trim: true, maxlength: 2000, default: null },
   role: { type: String, required: true, enum: domain.collaborationRoles, maxlength: 60 },
@@ -277,11 +294,13 @@ const teamOpening = model("TeamOpening", {
 teamOpening.schema.index({ team_id: 1, status: 1, created_at: -1 });
 teamOpening.schema.index({ status: 1, role: 1, created_at: -1 });
 teamOpening.schema.index({ status: 1, required_skill_ids: 1, created_at: -1 });
+teamOpening.schema.index({ hackathon_id: 1, status: 1, created_at: -1 });
 
 const collaborationRequest = model("CollaborationRequest", {
   _id: stringId(), sender_id: { type: String, required: true }, recipient_id: { type: String, required: true },
   team_id: { type: String, default: null }, team_opening_id: { type: String, default: null },
   project_id: { type: String, default: null }, context_key: { type: String, required: true, maxlength: 240, select: false },
+  hackathon_id: { type: String, default: null },
   message: { type: String, trim: true, maxlength: 500, default: null },
   status: { type: String, enum: domain.collaborationRequestStatuses, default: "pending" },
   responded_at: { type: Date, default: null }, cancelled_at: { type: Date, default: null },
@@ -289,6 +308,7 @@ const collaborationRequest = model("CollaborationRequest", {
 collaborationRequest.schema.index({ recipient_id: 1, status: 1, created_at: -1 });
 collaborationRequest.schema.index({ sender_id: 1, status: 1, created_at: -1 });
 collaborationRequest.schema.index({ team_opening_id: 1, status: 1, created_at: -1 });
+collaborationRequest.schema.index({ hackathon_id: 1, status: 1, created_at: -1 });
 collaborationRequest.schema.index(
   { sender_id: 1, recipient_id: 1, context_key: 1 },
   { unique: true, partialFilterExpression: { status: "pending" }, name: "one_pending_collaboration_context" },
@@ -441,6 +461,105 @@ const projectShowcase = model("ProjectShowcase", {
 projectShowcase.schema.index({ project_id: 1 }, { unique: true });
 projectShowcase.schema.index({ team_id: 1, status: 1, published_at: -1 });
 
+const hackathon = model("Hackathon", {
+  _id: stringId(),
+  name: { type: String, required: true, trim: true, minlength: 3, maxlength: 140 },
+  slug: {
+    type: String, required: true, lowercase: true, trim: true, minlength: 3, maxlength: 80, match: SLUG_PATTERN,
+    validate: { validator: (value) => !RESERVED_HACKATHON_SLUGS.has(value), message: "Hackathon slug is reserved" },
+  },
+  tagline: { type: String, trim: true, maxlength: 180, default: null },
+  description: { type: String, trim: true, maxlength: 6000, default: null },
+  organizer_name: { type: String, required: true, trim: true, maxlength: 160 },
+  website_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  registration_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  logo_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  cover_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  mode: { type: String, required: true, enum: domain.hackathonModes },
+  city: { type: String, trim: true, maxlength: 120, default: null },
+  venue: { type: String, trim: true, maxlength: 200, default: null },
+  registration_start: { type: Date, default: null },
+  registration_deadline: { type: Date, default: null },
+  event_start: { type: Date, required: true },
+  event_end: { type: Date, required: true },
+  submission_deadline: { type: Date, default: null },
+  team_min_size: { type: Number, min: 1, max: 50, default: null },
+  team_max_size: { type: Number, min: 1, max: 50, default: null },
+  status: { type: String, required: true, enum: domain.hackathonStatuses, default: "upcoming" },
+  visibility: { type: String, required: true, enum: domain.hackathonVisibilities, default: "public" },
+  allowed_roles: { type: [String], default: [], validate: (items) => items.length <= 12 && items.every((item) => domain.collaborationRoles.includes(item)) },
+  recommended_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 16 },
+  themes: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  submission_requirements: { type: [hackathonRequirement], default: [] },
+  created_by: { type: String, required: true },
+}, { collection: "hackathons" });
+hackathon.schema.path("submission_requirements").validate((items) => items.length <= 12, "Too many submission requirements");
+hackathon.schema.pre("validate", function validateHackathonDates() {
+  if (this.event_start && this.event_end && this.event_end <= this.event_start) this.invalidate("event_end", "Event end must be after event start");
+  if (this.registration_start && this.registration_deadline && this.registration_deadline <= this.registration_start) this.invalidate("registration_deadline", "Registration deadline must follow registration start");
+  if (this.registration_deadline && this.event_end && this.registration_deadline > this.event_end) this.invalidate("registration_deadline", "Registration deadline cannot follow event end");
+  if (this.submission_deadline && this.event_start && this.submission_deadline < this.event_start) this.invalidate("submission_deadline", "Submission deadline cannot precede event start");
+  if (this.team_min_size && this.team_max_size && this.team_min_size > this.team_max_size) this.invalidate("team_max_size", "Maximum team size must be at least the minimum");
+  if (this.mode === "online") { this.city = null; this.venue = null; }
+});
+hackathon.schema.index({ slug: 1 }, { unique: true });
+hackathon.schema.index({ visibility: 1, status: 1, registration_deadline: 1 });
+hackathon.schema.index({ visibility: 1, status: 1, event_start: 1 });
+hackathon.schema.index({ mode: 1, status: 1, event_start: 1 });
+hackathon.schema.index({ themes: 1, status: 1, event_start: 1 });
+hackathon.schema.index({ recommended_skill_ids: 1, status: 1, event_start: 1 });
+
+const hackathonParticipant = model("HackathonParticipant", {
+  _id: stringId(), hackathon_id: { type: String, required: true }, user_id: { type: String, required: true },
+  status: { type: String, enum: domain.hackathonParticipationStatuses, default: "interested" },
+  looking_for_team: { type: Boolean, default: false },
+  preferred_roles: { type: [String], default: [], validate: (items) => items.length <= 8 && items.every((item) => domain.collaborationRoles.includes(item)) },
+  preferred_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  commitment: { type: String, enum: domain.collaborationCommitments, default: "exploring" },
+  message: { type: String, trim: true, maxlength: 500, default: null },
+  visible_on_hackathon: { type: Boolean, default: false }, joined_at: { type: Date, default: Date.now },
+}, { collection: "hackathon_participants" });
+hackathonParticipant.schema.index({ hackathon_id: 1, user_id: 1 }, { unique: true });
+hackathonParticipant.schema.index({ hackathon_id: 1, looking_for_team: 1, status: 1, updated_at: -1 });
+hackathonParticipant.schema.index({ user_id: 1, status: 1, updated_at: -1 });
+
+const hackathonTeam = model("HackathonTeam", {
+  _id: stringId(), hackathon_id: { type: String, required: true }, team_id: { type: String, required: true },
+  registered_by: { type: String, required: true }, status: { type: String, enum: domain.hackathonTeamStatuses, default: "registered" },
+  project_id: { type: String, default: null }, eligibility_warning: { type: Boolean, default: false },
+  eligibility_message: { type: String, maxlength: 240, default: null }, withdrawn_at: { type: Date, default: null },
+  revision: { type: Number, min: 0, default: 0 },
+}, { collection: "hackathon_teams" });
+hackathonTeam.schema.index({ hackathon_id: 1, team_id: 1 }, { unique: true });
+hackathonTeam.schema.index({ hackathon_id: 1, status: 1, created_at: -1 });
+hackathonTeam.schema.index({ team_id: 1, status: 1, updated_at: -1 });
+
+const hackathonSubmission = model("HackathonSubmission", {
+  _id: stringId(), hackathon_id: { type: String, required: true }, hackathon_team_id: { type: String, required: true },
+  team_id: { type: String, required: true }, project_id: { type: String, required: true },
+  status: { type: String, enum: domain.hackathonSubmissionStatuses, default: "draft" },
+  repository_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  demo_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  presentation_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  video_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  submission_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  checklist: { type: [hackathonChecklistItem], default: [] },
+  submitted_by: { type: String, default: null }, submitted_at: { type: Date, default: null },
+  revision: { type: Number, min: 0, default: 0 },
+}, { collection: "hackathon_submissions" });
+hackathonSubmission.schema.path("checklist").validate((items) => items.length <= 12, "Too many checklist items");
+hackathonSubmission.schema.index({ hackathon_team_id: 1 }, { unique: true });
+hackathonSubmission.schema.index({ hackathon_id: 1, status: 1, updated_at: -1 });
+
+const hackathonActivity = model("HackathonActivity", {
+  _id: stringId(), hackathon_id: { type: String, required: true }, actor_id: { type: String, required: true },
+  type: { type: String, required: true, enum: domain.hackathonActivityTypes },
+  hackathon_team_id: { type: String, default: null }, team_id: { type: String, default: null }, project_id: { type: String, default: null },
+  metadata: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }, created_at: { type: Date, default: Date.now },
+}, { collection: "hackathon_activity", timestamps: false });
+hackathonActivity.schema.index({ hackathon_id: 1, created_at: -1 });
+hackathonActivity.schema.index({ hackathon_team_id: 1, created_at: -1 });
+
 const comment = model("TaskComment", {
   _id: { type: String, required: true }, task_id: { type: String, required: true }, author_id: { type: String, default: null },
   author_name: { type: String, required: true }, body: { type: String, default: "" },
@@ -505,4 +624,6 @@ module.exports = {
   ProjectMilestone: projectMilestone.register(), ProjectActivity: projectActivity.register(),
   ContributionEvidence: contributionEvidence.register(), ProjectRepository: projectRepository.register(),
   ProjectShowcase: projectShowcase.register(),
+  Hackathon: hackathon.register(), HackathonParticipant: hackathonParticipant.register(), HackathonTeam: hackathonTeam.register(),
+  HackathonSubmission: hackathonSubmission.register(), HackathonActivity: hackathonActivity.register(),
 };

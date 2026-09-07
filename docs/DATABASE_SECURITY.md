@@ -34,6 +34,12 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 - Collaboration request sender identity is derived from authentication. Recipient/context/status fields use explicit validation and action routes; partial uniqueness, cooldown, pending-count limits, and dedicated rate limits constrain spam.
 - Team opening mutations require contextual owner/admin membership. Private Team openings never enter global discovery, and global marketplace admin has no implicit override.
 - Blocks return neutral collaboration failures and cancel pending request state without exposing the blocker.
+- Hackathon catalog mutation is platform-admin-only and uses an explicit field allowlist; lifecycle, ownership, IDs, revisions, and submission state cannot be mass-assigned.
+- Hackathon public reads serialize public catalog fields only. Event teammate discovery requires both event visibility opt-in and the Phase 6 public/discoverable/available profile gates.
+- Team registration and every registration-scoped mutation resolve an active Team owner/admin relationship. Cross-Team Project IDs are rejected, and global admin status provides no Team override.
+- Registration and submission cutoffs are compared against server UTC time inside the transaction. Client clocks and stored lifecycle labels cannot bypass a deadline.
+- External event and submission links accept bounded HTTPS URLs only; the backend does not fetch organizer-supplied URLs.
+- Unique indexes and revision compare-and-set filters fence duplicate participation/registration and link/draft/final-submit races. Submitted entries cannot be edited or unlinked.
 
 ## Deployment operations
 
@@ -48,6 +54,7 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 9. Run `npm --prefix backend run verify:phase5` and confirm evidence transactions, deduplication races, provider verification, publication privacy, profile opt-in, query-plan, and cleanup checks pass.
 10. Run `npm --prefix backend run verify:github` when outbound GitHub access is available; the check is read-only and uses stable public fixtures.
 11. Run `npm --prefix backend run verify:discovery` and confirm privacy, filter accuracy, opening RBAC, request/block state, races, indexes, query plans, and disposable cleanup.
+12. Run `npm --prefix backend run verify:hackathons` and confirm catalog admin boundaries, event privacy, Team RBAC/size/deadlines, contextual reuse, Project IDOR/CAS, immutable submission, Atlas races, indexes, query plans, and disposable cleanup.
 
 The backend fails startup if MongoDB cannot connect. It never silently falls back to JSON files or process memory.
 

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
-const { CollaborationRequest, Skill, Team, TeamMembership, TeamOpening } = require("../models");
+const { CollaborationRequest, Hackathon, HackathonTeam, Skill, Team, TeamMembership, TeamOpening } = require("../models");
 const { raw: domain } = require("../contracts/domain");
 const { toApp, toApps } = require("../models/helpers");
 const authz = require("./teamAuthorization");
@@ -36,21 +36,25 @@ const openingDto = (opening, skills = new Map(), team = null, extra = {}) => ({
   preferred_skills: (opening.preferred_skill_ids || []).map((id) => skills.get(id)).filter(Boolean),
   commitment: opening.commitment || null, status: opening.status, revision: opening.revision || 0,
   team: team ? { id: team.id, name: team.name, slug: team.slug, avatar_url: team.avatar_url || null, primary_interests: team.primary_interests || [] } : null,
+  hackathon: extra.hackathon ? { id: extra.hackathon.id, slug: extra.hackathon.slug, name: extra.hackathon.name, status: extra.hackathon.status } : null,
+  hackathon_team_id: opening.hackathon_team_id || null,
   interested_count: extra.interestedCount || 0, created_at: opening.created_at, updated_at: opening.updated_at,
   closed_at: opening.closed_at || null,
 });
 
 const decorate = async (openings, { includePrivateTeams = false, includeCounts = false } = {}) => {
   if (!openings.length) return [];
-  const [skillRows, teamRows, counts] = await Promise.all([
+  const [skillRows, teamRows, hackathonRows, counts] = await Promise.all([
     Skill.find({ _id: trustedIn([...new Set(openings.flatMap((row) => [...row.required_skill_ids, ...row.preferred_skill_ids]))]) }).lean(),
     Team.find({ _id: trustedIn([...new Set(openings.map((row) => row.team_id))]), status: "active", ...(includePrivateTeams ? {} : { visibility: "public" }) }).lean(),
+    Hackathon.find({ _id: trustedIn([...new Set(openings.map((row) => row.hackathon_id).filter(Boolean))]), status: mongoose.trusted({ $ne: "archived" }) }).lean(),
     includeCounts ? CollaborationRequest.aggregate([{ $match: { team_opening_id: { $in: openings.map((row) => row.id) } } }, { $group: { _id: "$team_opening_id", count: { $sum: 1 } } }]) : [],
   ]);
   const skills = new Map(toApps(skillRows).map((row) => [row.id, { id: row.id, slug: row.slug, name: row.name, category: row.category }]));
   const teams = new Map(toApps(teamRows).map((row) => [row.id, row]));
+  const hackathons = new Map(toApps(hackathonRows).map((row) => [row.id, row]));
   const countMap = new Map(counts.map((row) => [row._id, row.count]));
-  return openings.filter((row) => teams.has(row.team_id)).map((row) => openingDto(row, skills, teams.get(row.team_id), { interestedCount: countMap.get(row.id) || 0 }));
+  return openings.filter((row) => teams.has(row.team_id)).map((row) => openingDto(row, skills, teams.get(row.team_id), { interestedCount: countMap.get(row.id) || 0, hackathon: hackathons.get(row.hackathon_id) || null }));
 };
 
 const getOpening = async (id, session = null) => {
@@ -62,6 +66,10 @@ const getOpening = async (id, session = null) => {
 const listPublicOpenings = async (query = {}) => {
   const options = parseListQuery(query, { allowedSorts: ["created_at"], defaultLimit: 18, maxLimit: 30 });
   const filter = { status: "open" };
+  if (query.hackathonId) {
+    if (!/^[0-9a-f-]{36}$/i.test(query.hackathonId)) throw errors.validation("Invalid Hackathon ID");
+    filter.hackathon_id = query.hackathonId;
+  }
   if (domain.collaborationRoles.includes(query.role)) filter.role = query.role;
   const teamFilter = { status: "active", visibility: "public" };
   if (query.interest && domain.profileInterests.includes(query.interest)) teamFilter.primary_interests = query.interest;
@@ -102,10 +110,16 @@ const createOpening = async (teamId, actorId, input) => {
   const payload = {
     _id: randomUUID(), team_id: teamId, title: text(input.title, 120, "Title", true), description: text(input.description, 2000, "Description"),
     role, required_skill_ids: required, preferred_skill_ids: preferred, commitment, status: "open", created_by: actorId,
+    hackathon_id: input.hackathonId || null, hackathon_team_id: input.hackathonTeamId || null,
   };
+  if (Boolean(payload.hackathon_id) !== Boolean(payload.hackathon_team_id)) throw errors.validation("Hackathon openings require both Hackathon and registration IDs");
   await withTransaction(async (session) => {
     await authz.getTeam(teamId, session);
     await authz.requireAdmin(teamId, actorId, session);
+    if (payload.hackathon_team_id) {
+      const registration = await HackathonTeam.findOne({ _id: payload.hackathon_team_id, hackathon_id: payload.hackathon_id, team_id: teamId, status: "registered" }).session(session).lean();
+      if (!registration) throw errors.forbidden("Hackathon opening context does not belong to this Team");
+    }
     await TeamOpening.create([payload], { session });
     await createActivity(session, { team_id: teamId, actor_id: actorId, type: "team_opening_created", metadata: { opening_id: payload._id, role } });
   });

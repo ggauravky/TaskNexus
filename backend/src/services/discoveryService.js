@@ -180,6 +180,10 @@ const discoverPeople = async (viewerId, rawQuery = {}, options = {}) => {
   });
   if (query.hasPublishedProjects) cards = cards.filter((card) => card.published_project_count > 0);
   if (query.hasExternalEvidence) cards = cards.filter((card) => card.evidence_summary.verified_external_evidence > 0);
+  if (options.allowedUserIds) {
+    const allowed = new Set(options.allowedUserIds);
+    cards = cards.filter((card) => allowed.has(card.id));
+  }
   const availabilityRank = { open: 0, limited: 1 };
   cards.sort((a, b) => {
     if (search) {

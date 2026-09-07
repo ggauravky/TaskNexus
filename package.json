@@ -11,6 +11,7 @@
     "verify:phase5": "npm --prefix backend run verify:phase5",
     "verify:github": "npm --prefix backend run verify:github",
     "verify:discovery": "npm --prefix backend run verify:discovery",
-    "verify:teams": "npm --prefix backend run verify:teams"
+    "verify:teams": "npm --prefix backend run verify:teams",
+    "verify:hackathons": "npm --prefix backend run verify:hackathons"
   }
 }

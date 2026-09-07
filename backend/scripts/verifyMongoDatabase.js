@@ -78,6 +78,26 @@ const relationships = [
   [models.CollaborationRequest, "project_id", models.Project, "collaboration project"],
   [models.UserBlock, "blocker_id", models.User, "block actor"],
   [models.UserBlock, "blocked_user_id", models.User, "blocked user"],
+  [models.Hackathon, "created_by", models.User, "hackathon creator"],
+  [models.HackathonParticipant, "hackathon_id", models.Hackathon, "hackathon participant event"],
+  [models.HackathonParticipant, "user_id", models.User, "hackathon participant user"],
+  [models.HackathonTeam, "hackathon_id", models.Hackathon, "hackathon team event"],
+  [models.HackathonTeam, "team_id", models.Team, "hackathon team"],
+  [models.HackathonTeam, "registered_by", models.User, "hackathon team registrar"],
+  [models.HackathonTeam, "project_id", models.Project, "hackathon team project"],
+  [models.HackathonSubmission, "hackathon_id", models.Hackathon, "hackathon submission event"],
+  [models.HackathonSubmission, "hackathon_team_id", models.HackathonTeam, "hackathon submission registration"],
+  [models.HackathonSubmission, "team_id", models.Team, "hackathon submission team"],
+  [models.HackathonSubmission, "project_id", models.Project, "hackathon submission project"],
+  [models.HackathonSubmission, "submitted_by", models.User, "hackathon submission actor"],
+  [models.HackathonActivity, "hackathon_id", models.Hackathon, "hackathon activity event"],
+  [models.HackathonActivity, "actor_id", models.User, "hackathon activity actor"],
+  [models.HackathonActivity, "hackathon_team_id", models.HackathonTeam, "hackathon activity registration"],
+  [models.HackathonActivity, "team_id", models.Team, "hackathon activity team"],
+  [models.HackathonActivity, "project_id", models.Project, "hackathon activity project"],
+  [models.TeamOpening, "hackathon_id", models.Hackathon, "opening hackathon"],
+  [models.TeamOpening, "hackathon_team_id", models.HackathonTeam, "opening hackathon team"],
+  [models.CollaborationRequest, "hackathon_id", models.Hackathon, "collaboration hackathon"],
 ];
 
 const verifyDeclaredIndexes = async (Model) => {
@@ -134,6 +154,16 @@ const run = async () => {
   if (!JSON.stringify(openingPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Team opening discovery query did not use an index");
   const inboxPlan = await models.CollaborationRequest.find({ recipient_id: "__verification__", status: "pending" }).sort({ created_at: -1 }).explain("queryPlanner");
   if (!JSON.stringify(inboxPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Collaboration inbox query did not use an index");
+  const hackathonPlan = await models.Hackathon.find({ visibility: "public", status: "registration_open" }).sort({ event_start: 1 }).explain("queryPlanner");
+  if (!JSON.stringify(hackathonPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon listing query did not use an index");
+  const myHackathonsPlan = await models.HackathonParticipant.find({ user_id: "__verification__", status: "participating" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(myHackathonsPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("My Hackathons query did not use an index");
+  const teammatePlan = await models.HackathonParticipant.find({ hackathon_id: "__verification__", looking_for_team: true, status: "participating" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(teammatePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon teammate query did not use an index");
+  const hackathonTeamPlan = await models.HackathonTeam.find({ hackathon_id: "__verification__", status: "registered" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(hackathonTeamPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon Team query did not use an index");
+  const hackathonSubmissionPlan = await models.HackathonSubmission.find({ hackathon_team_id: "__verification__" }).explain("queryPlanner");
+  if (!JSON.stringify(hackathonSubmissionPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon submission query did not use an index");
   process.stdout.write(`MongoDB verification passed for ${databaseName()} (${Object.keys(counts).length} collections).\n`);
 };
 

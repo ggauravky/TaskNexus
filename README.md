@@ -1,6 +1,6 @@
 # TaskNexus
 
-TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports marketplace task briefs, professional profiles, deterministic People Discovery, contextual Teams and openings, lightweight collaboration requests, Team-owned Projects, Project Tasks, evidence-backed contributions, public Project showcases, notifications, public service requests, and operational administration.
+TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports marketplace task briefs, professional profiles, deterministic People Discovery, contextual Teams and openings, lightweight collaboration requests, Team-owned Projects, Project Tasks, evidence-backed contributions, public Project showcases, participant-focused Hackathon collaboration, notifications, public service requests, and operational administration.
 
 ## Current product scope
 
@@ -13,9 +13,10 @@ TaskNexus is a React and Express workspace for clients, freelancers, and adminis
 - Completed public Projects can publish a separate privacy-safe showcase at `/showcase/:teamSlug/:projectSlug`; users explicitly opt published Projects into their public profiles.
 - Authenticated users may opt into `/people`, filter developers by canonical skills/roles/interests/availability, inspect factual public-work summaries, and send bounded collaboration requests. No score or AI ranking is calculated.
 - Public Teams may publish structured openings. Owners/admins manage openings and review deterministic non-member candidates; opening interest reuses collaboration requests and never grants membership.
+- Public Hackathons are discoverable at `/hackathons`. Participants may opt into event-scoped teammate discovery, register an existing eligible Team, publish contextual Team Openings, link an existing Team Project, and prepare a deadline-bound, revisioned submission. Hackathons do not introduce parallel membership, Project, or Task systems.
 - Public pages include services, blog, support jar, login, registration, privacy-controlled profiles at `/u/:username`, and published showcases.
 
-Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Contribution/developer scoring, jobs, chat, hackathon mode, and AI matching are intentionally excluded.
+Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Contribution/developer scoring, jobs, chat, organizer/judge infrastructure, and AI matching are intentionally excluded.
 
 ## Stack
 
@@ -79,6 +80,7 @@ npm --prefix backend run verify:projects
 npm --prefix backend run verify:phase5
 npm --prefix backend run verify:github
 npm --prefix backend run verify:discovery
+npm --prefix backend run verify:hackathons
 npm --prefix backend run verify:api-integration
 ```
 
@@ -94,9 +96,10 @@ npm run verify:projects
 npm run verify:phase5
 npm run verify:github
 npm run verify:discovery
+npm run verify:hackathons
 ```
 
-The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams`, `verify:projects`, `verify:phase5`, and `verify:discovery` create disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, and cleanup. `verify:github` performs read-only live checks against public GitHub repository, commit, and pull-request metadata.
+The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams`, `verify:projects`, `verify:phase5`, `verify:discovery`, and `verify:hackathons` create disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, deadlines, query plans, and cleanup. `verify:github` performs read-only live checks against public GitHub repository, commit, and pull-request metadata.
 
 ## Deployment
 
@@ -107,4 +110,4 @@ The first command runs backend lint/tests and frontend lint/build. The database 
 
 Local attachment storage is private but not durable across all deployment events. Durable object storage remains later infrastructure work.
 
-See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), [Team authorization](docs/TEAM_AUTHORIZATION.md), [Project authorization](docs/PROJECT_AUTHORIZATION.md), and [Contribution evidence](docs/CONTRIBUTION_EVIDENCE.md).
+See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), [Team authorization](docs/TEAM_AUTHORIZATION.md), [Project authorization](docs/PROJECT_AUTHORIZATION.md), [Contribution evidence](docs/CONTRIBUTION_EVIDENCE.md), [Hackathon mode](docs/HACKATHON_MODE.md), and [Hackathon submissions](docs/HACKATHON_SUBMISSIONS.md).

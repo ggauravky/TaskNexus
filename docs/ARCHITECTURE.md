@@ -37,6 +37,19 @@ Bulk People Discovery is authenticated and starts from `UserProfile.discoverable
 
 Team openings belong to Teams and inherit Team privacy. Owners/admins manage them; public discovery sees only open records for active public Teams. Opening candidate search reuses the same discovery boundary and excludes active Team members. Collaboration requests are person-to-person intent with optional validated Team, Project, or opening context. Acceptance never mutates membership or participation. Blocks remove actionable relationships and transactionally cancel pending requests without revealing which side blocked.
 
+## Hackathon collaboration boundary
+
+Hackathon mode is an orchestration layer over existing collaboration domains. `HackathonParticipant` stores event opt-in and privacy, while `HackathonTeam` relates one existing Team to one Hackathon and optionally to one Team-owned Project. Team membership and authorization remain exclusively in `TeamMembership`; Project work remains in `Project`, `ProjectParticipant`, `ProjectTask`, milestones, evidence, repositories, and showcases.
+
+```text
+Hackathon ──< HackathonParticipant >── UserProfile / People Discovery
+          └──< HackathonTeam >──────── Team ──< TeamOpening
+                       └── Project ──< ProjectTask / Evidence / Showcase
+                       └── HackathonSubmission
+```
+
+Public catalog reads use stored lifecycle status and exact UTC dates. Platform administrators alone maintain catalog records; global administrator status does not grant Team workspace authority. Team owners/admins register eligible Teams, link Projects, and control submissions. Server-side registration/submission deadlines, active-member counts, contextual ID checks, compare-and-set revisions, unique indexes, and MongoDB transactions protect state changes. Final submission is immutable.
+
 ## External provider boundary
 
 The GitHub adapter parses exact `https://github.com/{owner}/{repository}` repository, commit, pull-request, and profile URLs. It rejects credentials, fragments, queries, unsupported hosts, and unexpected path shapes before constructing fixed `https://api.github.com` read-only requests. An optional backend-only `GITHUB_TOKEN` may authenticate those requests. Provider metadata is bounded and never supplies TaskNexus identity by email or patch content.

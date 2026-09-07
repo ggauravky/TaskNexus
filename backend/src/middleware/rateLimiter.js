@@ -95,6 +95,22 @@ const collaborationRequestLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const hackathonMutationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.HACKATHON_MUTATION_MAX_PER_HOUR) || 60,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Hackathon action limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const hackathonSubmissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.HACKATHON_SUBMISSION_MAX_PER_HOUR) || 120,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Submission action limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
@@ -103,4 +119,6 @@ module.exports = {
   githubVerificationLimiter,
   discoveryLimiter,
   collaborationRequestLimiter,
+  hackathonMutationLimiter,
+  hackathonSubmissionLimiter,
 };

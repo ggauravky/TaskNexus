@@ -17,12 +17,13 @@ router.get("/people", discoveryLimiter, [
   query("hasPublishedProjects").optional().isBoolean(), query("hasExternalEvidence").optional().isBoolean(),
 ], validate, controller.listPeople);
 
-router.get("/team-openings", discoveryLimiter, pagination, validate, controller.listOpenings);
+router.get("/team-openings", discoveryLimiter, [...pagination, query("hackathonId").optional().isUUID()], validate, controller.listOpenings);
 router.get("/teams/:teamId/openings", discoveryLimiter, [uuid("teamId")], validate, controller.listTeamOpenings);
 router.post("/teams/:teamId/openings", [
   uuid("teamId"), body("title").isString().trim().isLength({ min: 3, max: 120 }), body("description").optional().isString().isLength({ max: 2000 }),
   body("role").isString().isLength({ max: 60 }), body("requiredSkillIds").optional().isArray({ max: 8 }), body("requiredSkillIds.*").optional().isUUID(),
   body("preferredSkillIds").optional().isArray({ max: 8 }), body("preferredSkillIds.*").optional().isUUID(), body("commitment").optional({ nullable: true }).isString(),
+  body("hackathonId").optional({ nullable: true }).isUUID(), body("hackathonTeamId").optional({ nullable: true }).isUUID(),
 ], validate, controller.createOpening);
 router.patch("/team-openings/:id", [
   uuid("id"), body("title").optional().isString().trim().isLength({ min: 3, max: 120 }), body("description").optional().isString().isLength({ max: 2000 }),
@@ -36,7 +37,7 @@ router.post("/team-openings/:id/interest", collaborationRequestLimiter, [uuid("i
 router.get("/collaboration-requests", pagination, validate, controller.listRequests);
 router.post("/collaboration-requests", collaborationRequestLimiter, [
   body("recipientId").isUUID(), body("message").optional().isString().isLength({ max: 500 }), body("teamId").optional({ nullable: true }).isUUID(),
-  body("projectId").optional({ nullable: true }).isUUID(), body("teamOpeningId").optional({ nullable: true }).isUUID(),
+  body("projectId").optional({ nullable: true }).isUUID(), body("teamOpeningId").optional({ nullable: true }).isUUID(), body("hackathonId").optional({ nullable: true }).isUUID(),
 ], validate, controller.createRequest);
 router.post("/collaboration-requests/:id/accept", [uuid("id")], validate, controller.acceptRequest);
 router.post("/collaboration-requests/:id/decline", [uuid("id")], validate, controller.declineRequest);

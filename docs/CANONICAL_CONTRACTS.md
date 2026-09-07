@@ -67,6 +67,10 @@ These values describe the intended current API and database contract. Changes th
 - `collaboration_request_accepted`
 - `collaboration_request_declined`
 - `team_opening_interest`
+- `hackathon_registration_confirmed`
+- `hackathon_team_registered`
+- `hackathon_submission_ready`
+- `hackathon_submission_submitted`
 
 ## Team contracts
 
@@ -112,6 +116,18 @@ Verification and lifecycle are independent. Revoked records remain durable histo
 - Skill mode: request-level `all` or `any`, with `all` as the default
 - Opening role and profile preferred roles: `shared/contracts/domain.json#collaborationRoles`
 - Discovery/team interests: `shared/contracts/domain.json#profileInterests`
+
+## Hackathon contracts
+
+- Lifecycle: `upcoming`, `registration_open`, `active`, `submission_closed`, `completed`, `archived`
+- Mode: `online`, `offline`, `hybrid`
+- Visibility: `public`, `private`
+- Participation: `interested`, `participating`, `withdrawn`
+- Team registration: `registered`, `withdrawn`
+- Submission: `draft`, `ready`, `submitted`
+- Requirements: `project_title`, `project_description`, `repository`, `demo`, `presentation`, `video`, `team_confirmed`, `required_form`, `submission_url`
+
+Lifecycle status is stored, while UTC dates independently enforce registration and submission cutoffs on the server. `HackathonTeam` relates an existing Team; it does not define Hackathon member roles. Team and Project authorization continues to use their canonical contracts.
 
 ## Field naming
 
