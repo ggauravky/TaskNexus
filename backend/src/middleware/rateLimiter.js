@@ -68,9 +68,81 @@ const publicFormLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const githubVerificationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.GITHUB_VERIFICATION_MAX_REQUESTS) || 20,
+  message: {
+    success: false,
+    error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "GitHub verification limit exceeded; try again later" },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const discoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.DISCOVERY_MAX_REQUESTS) || 180,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Discovery request limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const collaborationRequestLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: parseInt(process.env.COLLABORATION_REQUEST_MAX_PER_DAY) || 30,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Collaboration request limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const hackathonMutationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.HACKATHON_MUTATION_MAX_PER_HOUR) || 60,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Hackathon action limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const hackathonSubmissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.HACKATHON_SUBMISSION_MAX_PER_HOUR) || 120,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Submission action limit exceeded; try again later" } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const opportunitySearchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.OPPORTUNITY_SEARCH_MAX_REQUESTS) || 240,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Opportunity search limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const opportunityCandidateMutationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.OPPORTUNITY_CANDIDATE_MUTATION_MAX_PER_HOUR) || 180,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Opportunity action limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const opportunityCatalogLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.OPPORTUNITY_CATALOG_MAX_PER_HOUR) || 120,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Opportunity catalog limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
   taskCreationLimiter,
   publicFormLimiter,
+  githubVerificationLimiter,
+  discoveryLimiter,
+  collaborationRequestLimiter,
+  hackathonMutationLimiter,
+  hackathonSubmissionLimiter,
+  opportunitySearchLimiter,
+  opportunityCandidateMutationLimiter,
+  opportunityCatalogLimiter,
 };

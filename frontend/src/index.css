@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+.evidence-badge {
+  @apply inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em];
+}
+.evidence-badge.is-internal_verified {
+  @apply border-emerald-900/80 bg-emerald-950/50 text-emerald-300;
+}
+.evidence-badge.is-external_verified {
+  @apply border-indigo-800/80 bg-indigo-950/60 text-indigo-200;
+}
+.evidence-badge.is-unverified {
+  @apply border-amber-900/70 bg-amber-950/40 text-amber-300;
+}
+
 @layer base {
   :root {
     --radius: 0.5rem;
@@ -544,6 +557,67 @@
 
   .team-choice.is-active {
     @apply border-[#5e6ad2] bg-[#5e6ad2]/15 text-[#f7f8f8];
+  }
+
+  /* Phase 4 Team Project workspace */
+  .project-card {
+    @apply rounded-xl border border-[#23252a] bg-[#0f1011] p-5 transition-colors hover:border-[#34343a] hover:bg-[#141516];
+  }
+
+  .project-status {
+    @apply inline-flex min-h-6 shrink-0 items-center gap-1.5 rounded-md border border-[#34343a] bg-[#141516] px-2 py-1 text-[11px] leading-none text-[#d0d6e0];
+  }
+
+  .project-status-dot {
+    @apply h-1.5 w-1.5 rounded-full bg-[#8a8f98];
+  }
+
+  .project-status-dot.is-active,
+  .project-status-dot.is-completed {
+    @apply bg-[#828fff];
+  }
+
+  .project-status-dot.is-planning {
+    @apply border border-[#8a8f98] bg-transparent;
+  }
+
+  .project-tabs {
+    @apply -mx-1 mt-2 flex max-w-full gap-1 overflow-x-auto border-b border-[#23252a] px-1 pt-3;
+    scrollbar-width: thin;
+  }
+
+  .project-tab {
+    @apply relative min-h-11 shrink-0 px-3 text-sm text-[#8a8f98] outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5e69d1];
+  }
+
+  .project-tab.is-active {
+    @apply text-[#f7f8f8] after:absolute after:inset-x-2 after:bottom-0 after:h-px after:bg-[#828fff];
+  }
+
+  .project-board-column {
+    @apply min-w-0 rounded-xl border border-[#23252a] bg-[#0f1011] p-4;
+  }
+
+  .project-priority {
+    @apply inline-flex rounded-md border border-[#34343a] bg-[#18191a] px-2 py-1 text-[10px] font-medium tracking-wide text-[#8a8f98];
+  }
+
+  /* Phase 8 Opportunity platform */
+  .opportunity-eligibility {
+    @apply inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-medium;
+  }
+
+  .opportunity-eligibility.is-eligible {
+    @apply border-emerald-900 bg-emerald-950/30 text-emerald-300;
+  }
+
+  .opportunity-eligibility.is-possibly_eligible,
+  .opportunity-eligibility.is-unknown {
+    @apply border-amber-900 bg-amber-950/30 text-amber-200;
+  }
+
+  .opportunity-eligibility.is-not_eligible {
+    @apply border-red-900 bg-red-950/30 text-red-200;
   }
 }
 

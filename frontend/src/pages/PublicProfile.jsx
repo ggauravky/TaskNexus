@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft, BookOpen, Briefcase, Clock3, Github, Globe2,
-  Linkedin, Loader2, MapPin,
+  Linkedin, Loader2, MapPin, Send,
 } from "lucide-react";
 import PublicNavigation from "../components/marketing/PublicNavigation";
+import CollaborationRequestDialog from "../components/discovery/CollaborationRequestDialog";
+import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 
 const AVAILABILITY = { open: "Open to collaborate", limited: "Limited availability", unavailable: "Not available" };
@@ -26,9 +28,11 @@ const LABELS = {
 };
 
 const PublicProfile = () => {
+  const { isAuthenticated, user } = useAuth();
   const { username } = useParams();
   const [profile, setProfile] = useState(null);
   const [state, setState] = useState("loading");
+  const [requestOpen, setRequestOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -75,11 +79,13 @@ const PublicProfile = () => {
               {profile.location ? <Meta icon={MapPin} label="Location" value={profile.location} /> : null}
               {profile.timezone ? <Meta icon={Globe2} label="Timezone" value={profile.timezone} /> : null}
             </dl>
+            <div className="mt-5 grid grid-cols-3 gap-2 border-t border-[#23252a] pt-5 text-center"><div><strong className="block text-lg">{profile.publishedProjectCount || 0}</strong><span className="text-[10px] text-[#62666d]">projects</span></div><div><strong className="block text-lg">{profile.evidenceSummary?.internal_task_contributions || 0}</strong><span className="text-[10px] text-[#62666d]">task proofs</span></div><div><strong className="block text-lg">{profile.evidenceSummary?.verified_github_pull_requests || 0}</strong><span className="text-[10px] text-[#62666d]">verified PRs</span></div></div>
             <div className="mt-5 flex flex-wrap gap-2 border-t border-[#23252a] pt-5">
               {profile.links.github ? <SocialLink href={profile.links.github} label="GitHub" icon={Github} /> : null}
               {profile.links.linkedin ? <SocialLink href={profile.links.linkedin} label="LinkedIn" icon={Linkedin} /> : null}
               {profile.links.portfolio ? <SocialLink href={profile.links.portfolio} label="Portfolio" icon={Globe2} /> : null}
             </div>
+            {profile.discoverable && profile.availability !== "unavailable" && user?.id !== profile.id ? (isAuthenticated ? <button onClick={() => setRequestOpen(true)} className="team-button-primary mt-5 w-full"><Send className="h-4 w-4" /> Send collaboration request</button> : <Link to="/login" className="team-button-primary mt-5 w-full">Sign in to collaborate</Link>) : null}
           </aside>
         </section>
 
@@ -93,6 +99,9 @@ const PublicProfile = () => {
             </PublicSection>
             <PublicSection title="Additional skills" count={otherSkills.length}>
               <div className="flex flex-wrap gap-2">{otherSkills.map((skill) => <span key={skill.id} className="rounded-md border border-[#34343a] bg-[#0f1011] px-3 py-2 text-sm text-[#d0d6e0]">{skill.name} <span className="ml-1 text-xs capitalize text-[#62666d]">{skill.proficiency}</span></span>)}{otherSkills.length === 0 ? <Empty text="No additional skills listed." /> : null}</div>
+            </PublicSection>
+            <PublicSection title="Published projects" count={(profile.projects || []).length}>
+              <div className="grid gap-3 sm:grid-cols-2">{(profile.projects || []).map((project) => <Link key={project.url} to={project.url} className="rounded-xl border border-[#34343a] bg-[#0f1011] p-5 transition-colors hover:border-[#5e6ad2]"><p className="text-xs text-[#828fff]">{project.team.name}</p><h3 className="mt-2 font-medium text-[#f7f8f8]">{project.name}</h3><p className="mt-2 line-clamp-3 text-sm leading-6 text-[#8a8f98]">{project.summary}</p><span className="mt-4 inline-flex text-xs text-[#b7bdf8]">View evidence-backed showcase</span></Link>)}{!(profile.projects || []).length ? <Empty text="No published projects selected for this profile." /> : null}</div>
             </PublicSection>
             <PublicSection title="Education" count={profile.education.length}>
               <div className="divide-y divide-[#23252a] border-y border-[#23252a]">{profile.education.map((item) => <article key={item.id} className="grid gap-2 py-5 sm:grid-cols-[1fr_auto]"><div><h3 className="font-medium">{item.degreeCourse}</h3><p className="mt-1 text-sm text-[#8a8f98]">{item.institution}{item.fieldOfStudy ? `, ${item.fieldOfStudy}` : ""}</p>{item.description ? <p className="mt-3 text-sm leading-6 text-[#8a8f98]">{item.description}</p> : null}</div><p className="text-sm text-[#62666d]">{item.startYear} to {item.currentlyStudying ? "present" : item.endYear}</p></article>)}{profile.education.length === 0 ? <div className="py-5"><Empty text="No education listed." /></div> : null}</div>
@@ -110,6 +119,7 @@ const PublicProfile = () => {
           </aside>
         </div>
       </main>
+      {requestOpen ? <CollaborationRequestDialog person={{ id: profile.id, display_name: profile.name.display }} onClose={() => setRequestOpen(false)} /> : null}
     </div>
   );
 };

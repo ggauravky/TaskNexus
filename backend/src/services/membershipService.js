@@ -6,6 +6,7 @@ const authz = require("./teamAuthorization");
 const {
   activateMembership, cancelPendingAccess, createActivity, createNotification,
 } = require("./teamDomain");
+const { deactivateUserParticipations } = require("./projectDomain");
 const { errors } = require("../utils/appError");
 const { teamErrors } = require("../utils/teamErrors");
 const { isDuplicateKey, withTransaction } = require("../utils/transactions");
@@ -50,6 +51,7 @@ const leaveTeam = async (teamId, userId) => withTransaction(async (session) => {
     { session, returnDocument: "after", runValidators: true },
   ).lean();
   if (!row) throw teamErrors.notMember();
+  await deactivateUserParticipations(session, teamId, userId, userId);
   await createActivity(session, { team_id: teamId, actor_id: userId, target_user_id: userId, type: "member_left" });
   return toApp(row);
 });
@@ -87,6 +89,7 @@ const removeMember = async (teamId, targetUserId, actorId) => withTransaction(as
     { session, returnDocument: "after", runValidators: true },
   ).lean();
   if (!updated) throw teamErrors.notMember();
+  await deactivateUserParticipations(session, teamId, targetUserId, actorId);
   await createActivity(session, { team_id: teamId, actor_id: actorId, target_user_id: targetUserId, type: "member_removed" });
   await createNotification(session, {
     recipient_id: targetUserId, actor_id: actorId, type: "team_member_removed", entity_id: teamId,

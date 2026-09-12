@@ -12,7 +12,7 @@ The backend is one Express application. Routes call controllers, controllers coo
 React → Express → services/data modules → Mongoose → MongoDB Atlas
 ```
 
-TaskNexus uses UUID/string values as MongoDB `_id` values. The API exposes them as `id`; no ObjectId compatibility layer exists. Independent or high-contention records—skills, education, submissions, comments, milestones, activity, and notifications—remain separate collections. Flexible task details and workflow metadata remain bounded nested objects.
+TaskNexus uses UUID/string values as MongoDB `_id` values. The API exposes them as `id`; no ObjectId compatibility layer exists. Independent or high-contention records—skills, education, submissions, comments, milestones, activity, Projects, Project Tasks, contribution evidence, repository links, showcases, Hackathon participation/registration/submission/activity, and notifications—remain separate collections. Flexible task details and workflow metadata remain bounded nested objects.
 
 Multi-document writes use MongoDB transactions. Task acceptance uses a conditional atomic update so only one freelancer can win. Team creation, membership transitions, invitation acceptance, request approval, and ownership transfer use transactions plus unique indexes. Production disables automatic index creation; indexes are synchronized as an explicit deployment step.
 
@@ -24,6 +24,10 @@ Multi-document writes use MongoDB transactions. Task acceptance uses a condition
 - Refresh token: rotating, HttpOnly cookie, matched to the user record
 - Authorization: API authentication, role checks, and resource ownership
 - Team authorization: active membership plus contextual `owner`, `admin`, or `member`; global account role never grants team access
+- Project authorization: active Team membership plus contextual `lead` or `contributor`; Team owner/admin retain Team-level management authority
+- Contribution authorization: active Team membership is mandatory; active Project participation scopes contribution views/claims, while Project/Team managers control repository links and publication
+- Discovery authorization: authenticated bulk search plus explicit profile discoverability; Team owners/admins manage openings; request sender/recipient actions are ID-bound and global admin has no override
+- Hackathon authorization: platform admins manage the event catalog; participants control their opt-in; existing Team owner/admin RBAC controls registration, Project linking, and submissions
 - Sensitive model fields: excluded from queries by default and omitted by DTO serializers
 
 ## Realtime, uploads, and email
@@ -47,4 +51,13 @@ Realtime uses authenticated Server-Sent Events. The hub is process-local and nee
 - Several dashboard modules remain large.
 - Realtime team notifications are durable immediately but the process-local SSE hub does not publish transaction-created team events until clients refresh/poll.
 - Teams currently calculate member counts; no denormalized counter is stored.
-- Projects and project-scoped permissions intentionally remain outside this baseline.
+- Project comments and realtime Project event publication are deferred.
+- Project task forms are intentionally compact and do not yet provide rich text or attachments.
+- GitHub verification uses the public REST API and is subject to provider availability and rate limits; verification remains an explicit action.
+- Showcase media currently accepts a bounded HTTPS image URL; first-party durable media storage is deferred.
+- People discovery intentionally scans a bounded candidate set before in-process transparent ordering; cursor/search infrastructure is deferred until measured scale requires it.
+- Collaboration requests provide intent and Team-invitation handoff only; direct messaging is deliberately absent.
+- Hackathon status is stored and maintained by the catalog admin rather than derived automatically from dates; operational status changes require an explicit admin action.
+- Hackathon activity is durable but no organizer dashboard, judging, scoring, payments, attendance, or leaderboard exists.
+- Opportunity records are admin-curated; Organization ownership, recruiter membership, automated ingestion, and employer application workflows do not exist in Phase 8.
+- Eligibility uses normalized exact structured facts and deliberately leaves CGPA and professional experience unknown when no canonical profile field exists. AI matching and career scoring are excluded.

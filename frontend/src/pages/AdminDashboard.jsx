@@ -111,6 +111,9 @@ const AdminDashboard = () => {
               <button onClick={() => navigate('/teams')} className="btn-sm btn-secondary">
                 Teams
               </button>
+              <button onClick={() => navigate('/projects')} className="btn-sm btn-secondary">
+                Projects
+              </button>
               <button
                 onClick={handleLogout}
                 className="btn btn-secondary flex items-center"

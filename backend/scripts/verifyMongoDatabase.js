@@ -41,6 +41,69 @@ const relationships = [
   [models.TeamActivity, "team_id", models.Team, "team activity team"],
   [models.TeamActivity, "actor_id", models.User, "team activity actor"],
   [models.TeamActivity, "target_user_id", models.User, "team activity target"],
+  [models.Project, "team_id", models.Team, "project team"],
+  [models.Project, "created_by", models.User, "project creator"],
+  [models.ProjectParticipant, "project_id", models.Project, "project participant project"],
+  [models.ProjectParticipant, "team_id", models.Team, "project participant team"],
+  [models.ProjectParticipant, "user_id", models.User, "project participant user"],
+  [models.ProjectTask, "project_id", models.Project, "project task project"],
+  [models.ProjectTask, "team_id", models.Team, "project task team"],
+  [models.ProjectTask, "created_by", models.User, "project task creator"],
+  [models.ProjectTask, "milestone_id", models.ProjectMilestone, "project task milestone"],
+  [models.ProjectMilestone, "project_id", models.Project, "project milestone project"],
+  [models.ProjectMilestone, "team_id", models.Team, "project milestone team"],
+  [models.ProjectMilestone, "created_by", models.User, "project milestone creator"],
+  [models.ProjectActivity, "project_id", models.Project, "project activity project"],
+  [models.ProjectActivity, "team_id", models.Team, "project activity team"],
+  [models.ProjectActivity, "actor_id", models.User, "project activity actor"],
+  [models.ProjectActivity, "target_user_id", models.User, "project activity target"],
+  [models.ContributionEvidence, "project_id", models.Project, "contribution project"],
+  [models.ContributionEvidence, "team_id", models.Team, "contribution team"],
+  [models.ContributionEvidence, "user_id", models.User, "contribution subject"],
+  [models.ContributionEvidence, "created_by", models.User, "contribution creator"],
+  [models.ProjectRepository, "project_id", models.Project, "repository project"],
+  [models.ProjectRepository, "team_id", models.Team, "repository team"],
+  [models.ProjectRepository, "added_by", models.User, "repository actor"],
+  [models.ProjectShowcase, "project_id", models.Project, "showcase project"],
+  [models.ProjectShowcase, "team_id", models.Team, "showcase team"],
+  [models.ProjectShowcase, "created_by", models.User, "showcase creator"],
+  [models.ProjectShowcase, "updated_by", models.User, "showcase updater"],
+  [models.TeamOpening, "team_id", models.Team, "opening team"],
+  [models.TeamOpening, "created_by", models.User, "opening creator"],
+  [models.TeamOpening, "closed_by", models.User, "opening closer"],
+  [models.CollaborationRequest, "sender_id", models.User, "collaboration sender"],
+  [models.CollaborationRequest, "recipient_id", models.User, "collaboration recipient"],
+  [models.CollaborationRequest, "team_id", models.Team, "collaboration team"],
+  [models.CollaborationRequest, "team_opening_id", models.TeamOpening, "collaboration opening"],
+  [models.CollaborationRequest, "project_id", models.Project, "collaboration project"],
+  [models.UserBlock, "blocker_id", models.User, "block actor"],
+  [models.UserBlock, "blocked_user_id", models.User, "blocked user"],
+  [models.Hackathon, "created_by", models.User, "hackathon creator"],
+  [models.HackathonParticipant, "hackathon_id", models.Hackathon, "hackathon participant event"],
+  [models.HackathonParticipant, "user_id", models.User, "hackathon participant user"],
+  [models.HackathonTeam, "hackathon_id", models.Hackathon, "hackathon team event"],
+  [models.HackathonTeam, "team_id", models.Team, "hackathon team"],
+  [models.HackathonTeam, "registered_by", models.User, "hackathon team registrar"],
+  [models.HackathonTeam, "project_id", models.Project, "hackathon team project"],
+  [models.HackathonSubmission, "hackathon_id", models.Hackathon, "hackathon submission event"],
+  [models.HackathonSubmission, "hackathon_team_id", models.HackathonTeam, "hackathon submission registration"],
+  [models.HackathonSubmission, "team_id", models.Team, "hackathon submission team"],
+  [models.HackathonSubmission, "project_id", models.Project, "hackathon submission project"],
+  [models.HackathonSubmission, "submitted_by", models.User, "hackathon submission actor"],
+  [models.HackathonActivity, "hackathon_id", models.Hackathon, "hackathon activity event"],
+  [models.HackathonActivity, "actor_id", models.User, "hackathon activity actor"],
+  [models.HackathonActivity, "hackathon_team_id", models.HackathonTeam, "hackathon activity registration"],
+  [models.HackathonActivity, "team_id", models.Team, "hackathon activity team"],
+  [models.HackathonActivity, "project_id", models.Project, "hackathon activity project"],
+  [models.TeamOpening, "hackathon_id", models.Hackathon, "opening hackathon"],
+  [models.TeamOpening, "hackathon_team_id", models.HackathonTeam, "opening hackathon team"],
+  [models.CollaborationRequest, "hackathon_id", models.Hackathon, "collaboration hackathon"],
+  [models.Organization, "created_by", models.User, "organization creator"],
+  [models.Organization, "verified_by", models.User, "organization verifier"],
+  [models.Opportunity, "organization_id", models.Organization, "opportunity organization"],
+  [models.Opportunity, "created_by", models.User, "opportunity creator"],
+  [models.OpportunityCandidateState, "opportunity_id", models.Opportunity, "candidate state opportunity"],
+  [models.OpportunityCandidateState, "user_id", models.User, "candidate state owner"],
 ];
 
 const verifyDeclaredIndexes = async (Model) => {
@@ -79,6 +142,42 @@ const run = async () => {
   if (!planText.includes("IXSCAN")) throw new Error("Notification query did not use an index");
   const teamPlan = await models.Team.find({ visibility: "public", status: "active" }).sort({ created_at: -1 }).explain("queryPlanner");
   if (!JSON.stringify(teamPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Team discovery query did not use an index");
+  const projectPlan = await models.Project.find({ team_id: "__verification__", status: "active" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(projectPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Team project query did not use an index");
+  const taskPlan = await models.ProjectTask.find({ project_id: "__verification__", status: "todo" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(taskPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Project task query did not use an index");
+  const activityPlan = await models.ProjectActivity.find({ project_id: "__verification__" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(activityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Project activity query did not use an index");
+  const evidencePlan = await models.ContributionEvidence.find({ user_id: "__verification__", status: "active" }).sort({ occurred_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(evidencePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Contribution history query did not use an index");
+  const projectEvidencePlan = await models.ContributionEvidence.find({ project_id: "__verification__", status: "active" }).sort({ occurred_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(projectEvidencePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Project evidence query did not use an index");
+  const showcasePlan = await models.ProjectShowcase.find({ team_id: "__verification__", status: "published" }).sort({ published_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(showcasePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Public showcase query did not use an index");
+  const peoplePlan = await models.UserProfile.find({ discoverable: true, visibility: "public", availability: "open" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(peoplePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("People discovery query did not use an index");
+  const openingPlan = await models.TeamOpening.find({ status: "open", role: "backend_developer" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(openingPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Team opening discovery query did not use an index");
+  const inboxPlan = await models.CollaborationRequest.find({ recipient_id: "__verification__", status: "pending" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(inboxPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Collaboration inbox query did not use an index");
+  const hackathonPlan = await models.Hackathon.find({ visibility: "public", status: "registration_open" }).sort({ event_start: 1 }).explain("queryPlanner");
+  if (!JSON.stringify(hackathonPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon listing query did not use an index");
+  const myHackathonsPlan = await models.HackathonParticipant.find({ user_id: "__verification__", status: "participating" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(myHackathonsPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("My Hackathons query did not use an index");
+  const teammatePlan = await models.HackathonParticipant.find({ hackathon_id: "__verification__", looking_for_team: true, status: "participating" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(teammatePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon teammate query did not use an index");
+  const hackathonTeamPlan = await models.HackathonTeam.find({ hackathon_id: "__verification__", status: "registered" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(hackathonTeamPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon Team query did not use an index");
+  const hackathonSubmissionPlan = await models.HackathonSubmission.find({ hackathon_team_id: "__verification__" }).explain("queryPlanner");
+  if (!JSON.stringify(hackathonSubmissionPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon submission query did not use an index");
+  const opportunityPlan = await models.Opportunity.find({ type: "internship", status: "published" }).sort({ published_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(opportunityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Opportunity discovery query did not use an index");
+  const organizationOpportunityPlan = await models.Opportunity.find({ organization_id: "__verification__", status: "published" }).sort({ published_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(organizationOpportunityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Organization Opportunity query did not use an index");
+  const applicationPlan = await models.OpportunityCandidateState.find({ user_id: "__verification__", application_status: "applied" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(applicationPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Candidate application query did not use an index");
+  const savedOpportunityPlan = await models.OpportunityCandidateState.find({ user_id: "__verification__", saved: true }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(savedOpportunityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Saved Opportunity query did not use an index");
   process.stdout.write(`MongoDB verification passed for ${databaseName()} (${Object.keys(counts).length} collections).\n`);
 };
 

@@ -784,6 +784,9 @@ const FreelancerDashboard = () => {
               <button onClick={() => navigate('/teams')} className="btn-sm btn-secondary rounded-full px-4">
                 Teams
               </button>
+              <button onClick={() => navigate('/projects')} className="btn-sm btn-secondary rounded-full px-4">
+                Projects
+              </button>
               <button onClick={handleLogout} className="btn btn-secondary flex items-center rounded-full">
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout

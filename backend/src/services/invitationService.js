@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
-const { Team, TeamInvitation, TeamMembership, User, UserProfile, UserSkill, Skill } = require("../models");
-const { escapeRegex } = require("../data/mongoDataUtils");
+const { Team, TeamInvitation, TeamMembership, User } = require("../models");
 const teamData = require("../data/teamData");
 const authz = require("./teamAuthorization");
 const {
@@ -13,6 +12,7 @@ const { isDuplicateKey, withTransaction } = require("../utils/transactions");
 const { parseListQuery } = require("../utils/queryOptions");
 const { paginationMeta } = require("../utils/apiResponse");
 const { toApp, toApps } = require("../models/helpers");
+const { discoverPeople } = require("./discoveryService");
 
 const messageValue = (value) => {
   const message = String(value || "").trim();
@@ -123,21 +123,14 @@ const searchCandidates = async (teamId, actorId, query) => {
   await authz.requireAdmin(teamId, actorId);
   const search = String(query.search || "").trim().slice(0, 80);
   if (search.length < 2) return [];
-  const pattern = new RegExp(escapeRegex(search), "i");
-  const [profiles, users, skills] = await Promise.all([
-    UserProfile.find({ visibility: "public", $or: mongoose.trusted([{ username: pattern }, { headline: pattern }]) }).limit(30).lean(),
-    User.find({ status: "active", $or: mongoose.trusted([{ "profile.firstName": pattern }, { "profile.lastName": pattern }]) }).select("_id").limit(30).lean(),
-    Skill.find({ is_active: true, $or: mongoose.trusted([{ name: pattern }, { aliases: pattern }]) }).select("_id").limit(10).lean(),
-  ]);
-  const assignments = await UserSkill.find({ skill_id: mongoose.trusted({ $in: skills.map((item) => String(item._id)) }) }).select("user_id").limit(30).lean();
-  const ids = [...new Set([...profiles.map((item) => String(item._id)), ...users.map((item) => String(item._id)), ...assignments.map((item) => item.user_id)])].slice(0, 30);
-  const [memberships, invitations, summaries] = await Promise.all([
+  const discovered = await discoverPeople(actorId, { search, limit: 30, availability: "open,limited" });
+  const ids = discovered.items.map((item) => item.id);
+  const [memberships, invitations] = await Promise.all([
     TeamMembership.find({ team_id: teamId, user_id: mongoose.trusted({ $in: ids }), status: "active" }).lean(),
     TeamInvitation.find({ team_id: teamId, invited_user_id: mongoose.trusted({ $in: ids }), status: "pending" }).lean(),
-    teamData.profileSummaries(ids, { publicOnly: true }),
   ]);
   const excluded = new Set([...memberships.map((item) => item.user_id), ...invitations.map((item) => item.invited_user_id)]);
-  return ids.filter((id) => !excluded.has(id) && summaries.get(id)?.profile_visibility === "public").map((id) => summaries.get(id)).slice(0, 20);
+  return discovered.items.filter((item) => !excluded.has(item.id)).slice(0, 20);
 };
 
 module.exports = { cancelInvitation, listInbox, listTeamInvitations, respond, searchCandidates, sendInvitation };

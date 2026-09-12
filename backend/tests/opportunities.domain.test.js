@@ -1,0 +1,43 @@
+const domain = require("../../shared/contracts/domain.json");
+const contracts = require("../src/contracts/domain");
+const { Organization, Opportunity, OpportunityCandidateState } = require("../src/models");
+const { evaluateOpportunity } = require("../src/services/opportunityEligibilityService");
+const { _private } = require("../src/services/opportunityService");
+const { candidateStateDto, organizationPublicDto, opportunityCandidateDto } = require("../src/serializers/opportunitySerializers");
+
+const IDS = { org: "80000000-0000-4000-8000-000000000001", opportunity: "80000000-0000-4000-8000-000000000002", user: "80000000-0000-4000-8000-000000000003", js: "80000000-0000-4000-8000-000000000004", sql: "80000000-0000-4000-8000-000000000005" };
+const role = (overrides = {}) => new Opportunity({ _id: IDS.opportunity, organization_id: IDS.org, type: "internship", title: "Platform Engineering Intern", slug: "platform-engineering-intern", summary: "Build reliable product systems.", description: "A structured early-career role.", work_mode: "hybrid", locations: [{ city: "Bengaluru", country: "India" }], employment_type: "full_time", application_url: "https://careers.example.com/jobs/42", required_skill_ids: [IDS.js], preferred_skill_ids: [IDS.sql], eligibility: { eligible_degrees: ["B.Tech"], eligible_fields: ["Computer Science"], graduation_year_min: 2026, graduation_year_max: 2028, freshers_allowed: true, allowed_countries: ["India"] }, status: "draft", source_type: "official", source_url: "https://careers.example.com", created_by: IDS.user, ...overrides });
+const context = (overrides = {}) => ({ profile: { location: "Bengaluru, India" }, education: [{ degree_course: "B.Tech", field_of_study: "Computer Science", end_year: 2027 }], skillIds: new Set([IDS.js]), ...overrides });
+const skillMap = new Map([[IDS.js, { id: IDS.js, name: "JavaScript" }], [IDS.sql, { id: IDS.sql, name: "SQL" }]]);
+const hasIndex = (Model, keys, options = {}) => Model.schema.indexes().some(([actual, config]) => JSON.stringify(actual) === JSON.stringify(keys) && Object.entries(options).every(([key, value]) => config[key] === value));
+
+describe("Phase 8 canonical Opportunity contracts", () => {
+  test("generates every Opportunity enum from the shared contract", () => {
+    expect(Object.values(contracts.ORGANIZATION_TYPE)).toEqual(domain.organizationTypes); expect(Object.values(contracts.OPPORTUNITY_TYPE)).toEqual(domain.opportunityTypes); expect(Object.values(contracts.OPPORTUNITY_STATUS)).toEqual(domain.opportunityStatuses); expect(Object.values(contracts.WORK_MODE)).toEqual(domain.workModes); expect(Object.values(contracts.APPLICATION_STATUS)).toEqual(domain.applicationStatuses); expect(Object.values(contracts.ELIGIBILITY_RESULT)).toEqual(domain.eligibilityResults);
+  });
+  test("limits the catalog to internships and entry-level jobs", () => expect(domain.opportunityTypes).toEqual(["internship", "entry_level_job"]));
+});
+
+describe("Phase 8 model validation", () => {
+  test("accepts a structured Opportunity and candidate-owned state", async () => { await expect(role().validate()).resolves.toBeUndefined(); await expect(new OpportunityCandidateState({ _id: "80000000-0000-4000-8000-000000000006", opportunity_id: IDS.opportunity, user_id: IDS.user, saved: true, application_status: "assessment" }).validate()).resolves.toBeUndefined(); });
+  test("rejects unsafe URL protocols, unsupported types, reserved slugs, and missing physical location", async () => { await expect(role({ application_url: "http://example.com/apply" }).validate()).rejects.toThrow(); await expect(role({ type: "senior_job" }).validate()).rejects.toThrow(); await expect(role({ slug: "applications" }).validate()).rejects.toThrow("reserved"); await expect(role({ locations: [] }).validate()).rejects.toThrow("require a location"); });
+  test("rejects malformed compensation and eligibility ranges", async () => { await expect(role({ compensation: { min_amount: 90000, max_amount: 50000, currency: "INR", period: "month" } }).validate()).rejects.toThrow("Maximum compensation"); await expect(role({ eligibility: { graduation_year_min: 2028, graduation_year_max: 2026 } }).validate()).rejects.toThrow("Maximum graduation year"); });
+  test("rejects overlapping required and preferred skill facts", async () => await expect(role({ preferred_skill_ids: [IDS.js] }).validate()).rejects.toThrow("both required and preferred"));
+  test("requires publication time for published records", async () => await expect(role({ status: "published" }).validate()).rejects.toThrow("publication timestamp"));
+  test("validates Organizations independently from Teams", async () => { const org = new Organization({ _id: IDS.org, name: "Acme Labs", slug: "acme-labs", organization_type: "startup", website_url: "https://acme.example.com", created_by: IDS.user }); await expect(org.validate()).resolves.toBeUndefined(); expect(org.toObject()).not.toHaveProperty("owner_id"); });
+});
+
+describe("Phase 8 deterministic eligibility", () => {
+  test("uses explicit profile facts and reports skill gaps without a score", () => { const result = evaluateOpportunity(role().toObject(), context(), skillMap); expect(result.result).toBe("possibly_eligible"); expect(result.required_skills[0].result).toBe("pass"); expect(result.preferred_skills[0].result).toBe("gap"); expect(result).not.toHaveProperty("score"); });
+  test("returns not eligible only for an explicit formal mismatch", () => expect(evaluateOpportunity(role().toObject(), context({ education: [{ degree_course: "B.A.", field_of_study: "History", end_year: 2027 }] }), skillMap).result).toBe("not_eligible"));
+  test("returns unknown when structured candidate facts are unavailable", () => expect(evaluateOpportunity(role().toObject(), context({ education: [], profile: {}, skillIds: new Set() }), skillMap).result).toBe("unknown"));
+  test("never infers professional experience from projects or GitHub", () => { const result = evaluateOpportunity(role({ eligibility: { experience_min_months: 12 } }).toObject(), { ...context(), projects: [{ status: "completed" }], github: { commits: 900 } }, skillMap); expect(result.checks.find((item) => item.key === "experience").result).toBe("unknown"); });
+  test("keeps exact deterministic text normalization", () => expect(evaluateOpportunity(role().toObject(), context({ education: [{ degree_course: "b tech", field_of_study: "computer-science", end_year: 2027 }] }), skillMap).result).toBe("possibly_eligible"));
+});
+
+describe("Phase 8 input boundaries, DTOs, and indexes", () => {
+  test("accepts only credential-free HTTPS URLs and plain text", () => { expect(_private.httpsUrl("https://example.com/apply", "Application", true)).toBe("https://example.com/apply"); expect(() => _private.httpsUrl("javascript:alert(1)", "Application", true)).toThrow("HTTPS"); expect(() => _private.httpsUrl("https://user:pass@example.com", "Application", true)).toThrow("HTTPS"); expect(() => _private.plainText("<script>", 100, "Text")).toThrow("plain text"); });
+  test("does not expose actor, raw IDs, or private state in public DTOs", () => { const opportunity = { ...role().toObject(), id: IDS.opportunity }; const organization = { id: IDS.org, name: "Acme", slug: "acme", organization_type: "company", created_by: IDS.user }; const publicOrg = organizationPublicDto(organization); const dto = opportunityCandidateDto(opportunity, { organization, detail: true, isOpen: true }); expect(publicOrg).not.toHaveProperty("created_by"); expect(dto).not.toHaveProperty("created_by"); expect(dto).not.toHaveProperty("eligibility"); expect(dto).not.toHaveProperty("viewer_state"); expect(JSON.stringify(dto)).not.toContain(IDS.user); });
+  test("candidate DTO derives source and excludes user identity", () => { const dto = candidateStateDto({ id: "state", opportunity_id: IDS.opportunity, user_id: IDS.user, saved: true, application_status: "applied", revision: 2 }); expect(dto.source).toBe("user_tracked"); expect(dto).not.toHaveProperty("user_id"); });
+  test("declares query and race-critical indexes", () => { expect(hasIndex(Organization, { slug: 1 }, { unique: true })).toBe(true); expect(hasIndex(Opportunity, { slug: 1 }, { unique: true })).toBe(true); expect(hasIndex(Opportunity, { status: 1, published_at: -1 })).toBe(true); expect(hasIndex(Opportunity, { type: 1, status: 1, published_at: -1 })).toBe(true); expect(hasIndex(Opportunity, { required_skill_ids: 1, status: 1, published_at: -1 })).toBe(true); expect(hasIndex(OpportunityCandidateState, { user_id: 1, opportunity_id: 1 }, { unique: true })).toBe(true); expect(hasIndex(OpportunityCandidateState, { user_id: 1, application_status: 1, updated_at: -1 })).toBe(true); });
+});

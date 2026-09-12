@@ -17,9 +17,12 @@ const Dialog = ({
   panelClassName = "",
 }) => {
   const panelRef = useRef(null);
+  const returnFocusRef = useRef(
+    typeof document === "undefined" ? null : document.activeElement,
+  );
 
   useEffect(() => {
-    const previousFocus = document.activeElement;
+    const previousFocus = returnFocusRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 

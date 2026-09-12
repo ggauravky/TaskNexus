@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Loader2, Search, Send, ShieldCheck, UserMinus, UserRo
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import ConfirmActionDialog from "../components/teams/ConfirmActionDialog";
+import TeamOpeningsManager from "../components/teams/TeamOpeningsManager";
 import TeamShell from "../components/teams/TeamShell";
 import api from "../services/api";
 import { apiError, initials, TEAM_INTERESTS } from "../utils/teams";
@@ -106,7 +107,7 @@ const TeamSettingsPage = () => {
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       <Link to={`/teams/${team.slug}`} className="inline-flex items-center gap-2 text-sm text-[#8a8f98] hover:text-white"><ArrowLeft className="h-4 w-4" /> {team.name}</Link>
       <div className="mt-6 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-24 lg:self-start"><p className="team-eyebrow">Team settings</p><h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">Manage {team.name}</h1><nav className="mt-6 grid gap-1" aria-label="Settings sections">{[["general", "General"], ["access", "Access"], ["members", "Members"], ["invitations", "Invitations"], ["requests", "Join requests"], ...(viewerRole === "owner" ? [["danger", "Danger zone"]] : [])].map(([id, label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-2 text-sm text-[#8a8f98] hover:bg-[#141516] hover:text-white">{label}</a>)}</nav></aside>
+        <aside className="lg:sticky lg:top-24 lg:self-start"><p className="team-eyebrow">Team settings</p><h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">Manage {team.name}</h1><nav className="mt-6 grid gap-1" aria-label="Settings sections">{[["general", "General"], ["access", "Access"], ["members", "Members"], ["openings", "Openings"], ["invitations", "Invitations"], ["requests", "Join requests"], ...(viewerRole === "owner" ? [["danger", "Danger zone"]] : [])].map(([id, label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-2 text-sm text-[#8a8f98] hover:bg-[#141516] hover:text-white">{label}</a>)}</nav></aside>
         <div className="space-y-8">
           <SettingsSection id="general" title="General" copy="The public-facing identity and purpose of your team.">
             <form onSubmit={saveGeneral} className="grid gap-4 sm:grid-cols-2"><Field required label="Name" value={form.name} onChange={(value) => set("name", value)} maxLength={80} /><Field label="Tagline" value={form.tagline} onChange={(value) => set("tagline", value)} maxLength={160} /><label className="sm:col-span-2"><span className="team-label">Description</span><textarea className="team-input min-h-32 resize-y" value={form.description} onChange={(event) => set("description", event.target.value)} maxLength={3000} /></label><div className="sm:col-span-2 flex justify-end"><button disabled={saving} className="team-button-primary">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save general settings</button></div></form>
@@ -118,6 +119,10 @@ const TeamSettingsPage = () => {
 
           <SettingsSection id="members" title="Members" copy="Roles here are contextual and never change marketplace account roles.">
             <div className="divide-y divide-[#23252a]">{members.map((member) => <MemberManagementRow key={member.id} member={member} viewerRole={viewerRole} manageable={manageable(member)} busy={saving} onRole={changeRole} onRemove={() => setConfirm({ type: "remove", target: member })} onTransfer={() => setConfirm({ type: "transfer", target: member })} />)}</div>
+          </SettingsSection>
+
+          <SettingsSection id="openings" title="Openings" copy="Publish explicit role and skill requirements, then review deterministic non-member candidates.">
+            <TeamOpeningsManager team={team} />
           </SettingsSection>
 
           <SettingsSection id="invitations" title="Invitations" copy="Search a bounded set of discoverable TaskNexus profiles.">
