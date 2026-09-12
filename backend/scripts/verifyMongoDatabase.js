@@ -98,6 +98,12 @@ const relationships = [
   [models.TeamOpening, "hackathon_id", models.Hackathon, "opening hackathon"],
   [models.TeamOpening, "hackathon_team_id", models.HackathonTeam, "opening hackathon team"],
   [models.CollaborationRequest, "hackathon_id", models.Hackathon, "collaboration hackathon"],
+  [models.Organization, "created_by", models.User, "organization creator"],
+  [models.Organization, "verified_by", models.User, "organization verifier"],
+  [models.Opportunity, "organization_id", models.Organization, "opportunity organization"],
+  [models.Opportunity, "created_by", models.User, "opportunity creator"],
+  [models.OpportunityCandidateState, "opportunity_id", models.Opportunity, "candidate state opportunity"],
+  [models.OpportunityCandidateState, "user_id", models.User, "candidate state owner"],
 ];
 
 const verifyDeclaredIndexes = async (Model) => {
@@ -164,6 +170,14 @@ const run = async () => {
   if (!JSON.stringify(hackathonTeamPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon Team query did not use an index");
   const hackathonSubmissionPlan = await models.HackathonSubmission.find({ hackathon_team_id: "__verification__" }).explain("queryPlanner");
   if (!JSON.stringify(hackathonSubmissionPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Hackathon submission query did not use an index");
+  const opportunityPlan = await models.Opportunity.find({ type: "internship", status: "published" }).sort({ published_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(opportunityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Opportunity discovery query did not use an index");
+  const organizationOpportunityPlan = await models.Opportunity.find({ organization_id: "__verification__", status: "published" }).sort({ published_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(organizationOpportunityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Organization Opportunity query did not use an index");
+  const applicationPlan = await models.OpportunityCandidateState.find({ user_id: "__verification__", application_status: "applied" }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(applicationPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Candidate application query did not use an index");
+  const savedOpportunityPlan = await models.OpportunityCandidateState.find({ user_id: "__verification__", saved: true }).sort({ updated_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(savedOpportunityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Saved Opportunity query did not use an index");
   process.stdout.write(`MongoDB verification passed for ${databaseName()} (${Object.keys(counts).length} collections).\n`);
 };
 

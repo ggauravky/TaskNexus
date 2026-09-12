@@ -111,6 +111,27 @@ const hackathonSubmissionLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const opportunitySearchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.OPPORTUNITY_SEARCH_MAX_REQUESTS) || 240,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Opportunity search limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const opportunityCandidateMutationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.OPPORTUNITY_CANDIDATE_MUTATION_MAX_PER_HOUR) || 180,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Opportunity action limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const opportunityCatalogLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.OPPORTUNITY_CATALOG_MAX_PER_HOUR) || 120,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Opportunity catalog limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
@@ -121,4 +142,7 @@ module.exports = {
   collaborationRequestLimiter,
   hackathonMutationLimiter,
   hackathonSubmissionLimiter,
+  opportunitySearchLimiter,
+  opportunityCandidateMutationLimiter,
+  opportunityCatalogLimiter,
 };

@@ -122,3 +122,11 @@ Hackathon ──< HackathonParticipant >── User
 ```
 
 `HackathonTeam` is a registration relation, not a membership system. It never copies Team members. `HackathonSubmission` references the registered existing Team and linked existing Project. Requirements are bounded catalog definitions; the saved checklist is a deterministic snapshot recomputed from Project fields, HTTPS submission links, Team-size eligibility, and explicit confirmations. Revisions fence concurrent link, draft, and submit operations.
+
+## Opportunity relationships
+
+```text
+Organization ──< Opportunity ──< OpportunityCandidateState >── User
+```
+
+`organizations` stores public catalog identity, verification, lifecycle, and revision. `opportunities` stores role type, content, location/work facts, compensation, HTTPS application/source provenance, structured eligibility, lifecycle timestamps, catalog revision, and an internal candidate-write fence. `opportunity_candidate_states` stores one user's saved flag and optional self-reported application stage, notes, URL snapshot, timestamps, and revision under a unique user/opportunity index. Candidate records are never employer records and survive Opportunity close.

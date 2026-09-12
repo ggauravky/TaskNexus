@@ -1,6 +1,6 @@
 # TaskNexus
 
-TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports marketplace task briefs, professional profiles, deterministic People Discovery, contextual Teams and openings, lightweight collaboration requests, Team-owned Projects, Project Tasks, evidence-backed contributions, public Project showcases, participant-focused Hackathon collaboration, notifications, public service requests, and operational administration.
+TaskNexus is a React and Express workspace for clients, freelancers, and administrators. It supports marketplace task briefs, professional profiles, deterministic People Discovery, contextual Teams and openings, lightweight collaboration requests, Team-owned Projects, Project Tasks, evidence-backed contributions, public Project showcases, participant-focused Hackathon collaboration, internships and entry-level Opportunities, notifications, public service requests, and operational administration.
 
 ## Current product scope
 
@@ -14,9 +14,11 @@ TaskNexus is a React and Express workspace for clients, freelancers, and adminis
 - Authenticated users may opt into `/people`, filter developers by canonical skills/roles/interests/availability, inspect factual public-work summaries, and send bounded collaboration requests. No score or AI ranking is calculated.
 - Public Teams may publish structured openings. Owners/admins manage openings and review deterministic non-member candidates; opening interest reuses collaboration requests and never grants membership.
 - Public Hackathons are discoverable at `/hackathons`. Participants may opt into event-scoped teammate discovery, register an existing eligible Team, publish contextual Team Openings, link an existing Team Project, and prepare a deadline-bound, revisioned submission. Hackathons do not introduce parallel membership, Project, or Task systems.
+- Public internships and entry-level jobs are discoverable at `/opportunities`. Authenticated candidates receive conservative, deterministic eligibility explanations from structured education, location, and skill facts; they can save roles and privately track external applications at `/applications`.
+- Organizations are catalog entities, not Teams. Only administrators can create, verify, publish, close, or archive catalog records; Phase 8 adds no recruiter account, employer inbox, scraping, AI ranking, or resume scoring.
 - Public pages include services, blog, support jar, login, registration, privacy-controlled profiles at `/u/:username`, and published showcases.
 
-Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Contribution/developer scoring, jobs, chat, organizer/judge infrastructure, and AI matching are intentionally excluded.
+Payment records are workflow data; TaskNexus does not provide a production payment gateway or real escrow. Senior/general job listings, recruiter/ATS infrastructure, automated ingestion, chat, organizer/judge infrastructure, and AI matching are intentionally excluded.
 
 ## Stack
 
@@ -42,10 +44,10 @@ Copy `backend/.env.example` to `backend/.env.local` and `frontend/.env.example` 
 ```bash
 npm --prefix backend run database:indexes
 npm --prefix backend run database:seed
-npm --prefix backend run dev
+npm run dev
 ```
 
-Start the frontend in another terminal with `npm --prefix frontend run dev`.
+The root development command starts the backend at `http://localhost:5000` and the frontend at `http://localhost:5174`, waits for both services to become reachable, and keeps their logs visible in one terminal. `npm run qa:phase8` is an equivalent acceptance-QA alias.
 
 ## Important environment variables
 
@@ -81,6 +83,7 @@ npm --prefix backend run verify:phase5
 npm --prefix backend run verify:github
 npm --prefix backend run verify:discovery
 npm --prefix backend run verify:hackathons
+npm --prefix backend run verify:opportunities
 npm --prefix backend run verify:api-integration
 ```
 
@@ -97,9 +100,10 @@ npm run verify:phase5
 npm run verify:github
 npm run verify:discovery
 npm run verify:hackathons
+npm run verify:opportunities
 ```
 
-The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams`, `verify:projects`, `verify:phase5`, `verify:discovery`, and `verify:hackathons` create disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, deadlines, query plans, and cleanup. `verify:github` performs read-only live checks against public GitHub repository, commit, and pull-request metadata.
+The first command runs backend lint/tests and frontend lint/build. The database command checks connected collections, declared indexes, relationships, and representative query plans. `verify:teams`, `verify:projects`, `verify:phase5`, `verify:discovery`, `verify:hackathons`, and `verify:opportunities` create disposable Atlas records to verify transactions, contextual RBAC, privacy, concurrency, idempotency, deadlines, query plans, and cleanup. `verify:github` performs read-only live checks against public GitHub repository, commit, and pull-request metadata.
 
 ## Deployment
 
@@ -110,4 +114,4 @@ The first command runs backend lint/tests and frontend lint/build. The database 
 
 Local attachment storage is private but not durable across all deployment events. Durable object storage remains later infrastructure work.
 
-See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), [Team authorization](docs/TEAM_AUTHORIZATION.md), [Project authorization](docs/PROJECT_AUTHORIZATION.md), [Contribution evidence](docs/CONTRIBUTION_EVIDENCE.md), [Hackathon mode](docs/HACKATHON_MODE.md), and [Hackathon submissions](docs/HACKATHON_SUBMISSIONS.md).
+See [Architecture baseline](docs/ARCHITECTURE_BASELINE.md), [Data model](docs/DATA_MODEL.md), [Canonical contracts](docs/CANONICAL_CONTRACTS.md), [Team authorization](docs/TEAM_AUTHORIZATION.md), [Project authorization](docs/PROJECT_AUTHORIZATION.md), [Contribution evidence](docs/CONTRIBUTION_EVIDENCE.md), [Hackathon mode](docs/HACKATHON_MODE.md), [Opportunities](docs/OPPORTUNITIES.md), and [Opportunity eligibility](docs/OPPORTUNITY_ELIGIBILITY.md).

@@ -21,6 +21,12 @@ const RESERVED_PROJECT_SLUGS = new Set([
 const RESERVED_HACKATHON_SLUGS = new Set([
   "admin", "api", "archive", "create", "discover", "hackathon", "hackathons", "me", "new", "settings", "submissions",
 ]);
+const RESERVED_ORGANIZATION_SLUGS = new Set([
+  "admin", "api", "applications", "archive", "create", "me", "new", "opportunities", "organization", "organizations", "settings", "verify",
+]);
+const RESERVED_OPPORTUNITY_SLUGS = new Set([
+  "admin", "api", "applications", "archive", "close", "create", "me", "new", "opportunities", "publish", "saved", "settings",
+]);
 const httpsUrl = (value) => value == null || /^https:\/\/[^\s]+$/i.test(value);
 
 const hackathonRequirement = new mongoose.Schema({
@@ -34,6 +40,35 @@ const hackathonChecklistItem = new mongoose.Schema({
   label: { type: String, required: true, trim: true, maxlength: 120 },
   required: { type: Boolean, default: true },
   completed: { type: Boolean, default: false },
+}, { _id: false });
+
+const opportunityLocation = new mongoose.Schema({
+  country: { type: String, trim: true, maxlength: 80, default: null },
+  state: { type: String, trim: true, maxlength: 100, default: null },
+  city: { type: String, trim: true, maxlength: 100, default: null },
+  display: { type: String, trim: true, maxlength: 180, default: null },
+}, { _id: false });
+
+const opportunityCompensation = new mongoose.Schema({
+  min_amount: { type: Number, min: 0, max: 1000000000, default: null },
+  max_amount: { type: Number, min: 0, max: 1000000000, default: null },
+  currency: { type: String, uppercase: true, trim: true, minlength: 3, maxlength: 3, default: null },
+  period: { type: String, enum: domain.compensationPeriods, default: null },
+}, { _id: false });
+
+const opportunityEligibility = new mongoose.Schema({
+  eligible_degrees: { type: [String], default: [], validate: (items) => items.length <= 12 && items.every((item) => item.length <= 120) },
+  eligible_fields: { type: [String], default: [], validate: (items) => items.length <= 12 && items.every((item) => item.length <= 120) },
+  graduation_year_min: { type: Number, min: 1900, max: 2100, default: null },
+  graduation_year_max: { type: Number, min: 1900, max: 2100, default: null },
+  experience_min_months: { type: Number, min: 0, max: 600, default: null },
+  experience_max_months: { type: Number, min: 0, max: 600, default: null },
+  minimum_cgpa: { type: Number, min: 0, max: 10, default: null },
+  allowed_countries: { type: [String], default: [], validate: (items) => items.length <= 20 && items.every((item) => item.length <= 80) },
+  work_authorization_notes: { type: String, trim: true, maxlength: 500, default: null },
+  final_year_allowed: { type: Boolean, default: false },
+  freshers_allowed: { type: Boolean, default: false },
+  custom_notes: { type: String, trim: true, maxlength: 1000, default: null },
 }, { _id: false });
 
 const user = model("User", {
@@ -560,6 +595,96 @@ const hackathonActivity = model("HackathonActivity", {
 hackathonActivity.schema.index({ hackathon_id: 1, created_at: -1 });
 hackathonActivity.schema.index({ hackathon_team_id: 1, created_at: -1 });
 
+const organization = model("Organization", {
+  _id: stringId(),
+  name: { type: String, required: true, trim: true, minlength: 2, maxlength: 160 },
+  slug: {
+    type: String, required: true, lowercase: true, trim: true, minlength: 2, maxlength: 80, match: SLUG_PATTERN,
+    validate: { validator: (value) => !RESERVED_ORGANIZATION_SLUGS.has(value), message: "Organization slug is reserved" },
+  },
+  organization_type: { type: String, required: true, enum: domain.organizationTypes },
+  tagline: { type: String, trim: true, maxlength: 180, default: null },
+  description: { type: String, trim: true, maxlength: 6000, default: null },
+  logo_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  website_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  industry: { type: String, trim: true, maxlength: 120, default: null },
+  company_size: { type: String, trim: true, maxlength: 80, default: null },
+  headquarters: { type: opportunityLocation, default: null },
+  locations: { type: [opportunityLocation], default: [], validate: (items) => items.length <= 10 },
+  verification_status: { type: String, enum: domain.organizationVerificationStatuses, default: "unverified" },
+  verified_at: { type: Date, default: null }, verified_by: { type: String, default: null },
+  status: { type: String, enum: domain.organizationStatuses, default: "active" },
+  created_by: { type: String, required: true },
+  revision: { type: Number, min: 0, default: 0 },
+}, { collection: "organizations" });
+organization.schema.index({ slug: 1 }, { unique: true });
+organization.schema.index({ status: 1, name: 1 });
+organization.schema.index({ verification_status: 1, status: 1, name: 1 });
+
+const opportunity = model("Opportunity", {
+  _id: stringId(), organization_id: { type: String, required: true },
+  type: { type: String, required: true, enum: domain.opportunityTypes },
+  title: { type: String, required: true, trim: true, minlength: 3, maxlength: 180 },
+  slug: {
+    type: String, required: true, lowercase: true, trim: true, minlength: 3, maxlength: 100, match: SLUG_PATTERN,
+    validate: { validator: (value) => !RESERVED_OPPORTUNITY_SLUGS.has(value), message: "Opportunity slug is reserved" },
+  },
+  summary: { type: String, trim: true, maxlength: 320, default: null },
+  description: { type: String, trim: true, maxlength: 8000, default: null },
+  responsibilities: { type: [String], default: [], validate: (items) => items.length <= 20 && items.every((item) => item.length <= 500) },
+  requirements: { type: [String], default: [], validate: (items) => items.length <= 20 && items.every((item) => item.length <= 500) },
+  work_mode: { type: String, required: true, enum: domain.workModes },
+  locations: { type: [opportunityLocation], default: [], validate: (items) => items.length <= 10 },
+  employment_type: { type: String, enum: domain.employmentTypes, default: "full_time" },
+  duration: { type: String, trim: true, maxlength: 120, default: null },
+  compensation: { type: opportunityCompensation, default: null },
+  application_url: { type: String, required: true, maxlength: 500, validate: httpsUrl },
+  application_deadline: { type: Date, default: null }, start_date: { type: Date, default: null },
+  required_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 16 },
+  preferred_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 16 },
+  eligibility: { type: opportunityEligibility, default: () => ({}) },
+  status: { type: String, required: true, enum: domain.opportunityStatuses, default: "draft" },
+  source_type: { type: String, required: true, enum: domain.opportunitySourceTypes },
+  source_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  source_published_at: { type: Date, default: null }, last_verified_at: { type: Date, default: null },
+  published_at: { type: Date, default: null }, expires_at: { type: Date, default: null },
+  created_by: { type: String, required: true }, revision: { type: Number, min: 0, default: 0 },
+  candidate_write_revision: { type: Number, min: 0, default: 0, select: false },
+}, { collection: "opportunities" });
+opportunity.schema.pre("validate", function validateOpportunity() {
+  if (this.work_mode !== "remote" && !this.locations.length) this.invalidate("locations", "Hybrid and onsite Opportunities require a location");
+  if (this.compensation) {
+    const { min_amount: min, max_amount: max, currency, period } = this.compensation;
+    if (min != null && max != null && max < min) this.invalidate("compensation.max_amount", "Maximum compensation must be at least the minimum");
+    if ((min != null || max != null) && (!currency || !period)) this.invalidate("compensation", "Currency and period are required with compensation amounts");
+  }
+  const rules = this.eligibility || {};
+  if (rules.graduation_year_min && rules.graduation_year_max && rules.graduation_year_max < rules.graduation_year_min) this.invalidate("eligibility.graduation_year_max", "Maximum graduation year must follow the minimum");
+  if (rules.experience_min_months != null && rules.experience_max_months != null && rules.experience_max_months < rules.experience_min_months) this.invalidate("eligibility.experience_max_months", "Maximum experience must be at least the minimum");
+  if (this.required_skill_ids.some((id) => this.preferred_skill_ids.includes(id))) this.invalidate("preferred_skill_ids", "A skill cannot be both required and preferred");
+  if (this.status === "published" && !this.published_at) this.invalidate("published_at", "Published Opportunities require a publication timestamp");
+});
+opportunity.schema.index({ slug: 1 }, { unique: true });
+opportunity.schema.index({ status: 1, published_at: -1 });
+opportunity.schema.index({ type: 1, status: 1, published_at: -1 });
+opportunity.schema.index({ organization_id: 1, status: 1, published_at: -1 });
+opportunity.schema.index({ work_mode: 1, status: 1, published_at: -1 });
+opportunity.schema.index({ required_skill_ids: 1, status: 1, published_at: -1 });
+opportunity.schema.index({ application_deadline: 1, status: 1 });
+
+const opportunityCandidateState = model("OpportunityCandidateState", {
+  _id: stringId(), opportunity_id: { type: String, required: true }, user_id: { type: String, required: true },
+  saved: { type: Boolean, default: false },
+  application_status: { type: String, enum: [...domain.applicationStatuses, null], default: null },
+  applied_at: { type: Date, default: null }, notes: { type: String, trim: true, maxlength: 2000, default: null },
+  external_application_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  source: { type: String, enum: ["user_tracked"], default: "user_tracked" },
+  revision: { type: Number, min: 0, default: 0 },
+}, { collection: "opportunity_candidate_states" });
+opportunityCandidateState.schema.index({ user_id: 1, opportunity_id: 1 }, { unique: true });
+opportunityCandidateState.schema.index({ user_id: 1, application_status: 1, updated_at: -1 });
+opportunityCandidateState.schema.index({ user_id: 1, saved: 1, updated_at: -1 });
+
 const comment = model("TaskComment", {
   _id: { type: String, required: true }, task_id: { type: String, required: true }, author_id: { type: String, default: null },
   author_name: { type: String, required: true }, body: { type: String, default: "" },
@@ -626,4 +751,5 @@ module.exports = {
   ProjectShowcase: projectShowcase.register(),
   Hackathon: hackathon.register(), HackathonParticipant: hackathonParticipant.register(), HackathonTeam: hackathonTeam.register(),
   HackathonSubmission: hackathonSubmission.register(), HackathonActivity: hackathonActivity.register(),
+  Organization: organization.register(), Opportunity: opportunity.register(), OpportunityCandidateState: opportunityCandidateState.register(),
 };

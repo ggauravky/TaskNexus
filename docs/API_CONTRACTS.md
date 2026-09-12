@@ -220,3 +220,11 @@ Task search is performed by the database against the task title.
 Task work submission accepts an `Idempotency-Key` request header. If omitted,
 the server request ID is used. MongoDB stores the key under a unique partial
 index and returns the existing submission for a replay.
+
+## Opportunity platform
+
+Public reads: `GET /api/organizations`, `GET /api/organizations/:slug`, `GET /api/opportunities`, and `GET /api/opportunities/:slug`. Discovery accepts bounded pagination plus `search`, `type`, `skills`, `workMode`, `location`, `organization`, `graduationYear`, `freshersAllowed`, `compensationDisclosed`, and allowlisted `sortBy`.
+
+Authenticated candidate reads/writes: `GET /api/opportunities/me/saved`, `POST|DELETE /api/opportunities/:id/save`, `GET /api/applications`, and `PUT|DELETE /api/opportunities/:id/application`. User identity is token-derived. Application PUT accepts an allowlisted status, optional private notes, and the current revision for updates.
+
+Administrator catalog writes: `POST|PATCH /api/admin/organizations`, `POST /api/admin/organizations/:id/verify`, `POST|PATCH /api/admin/opportunities`, and publish/close/archive POST transitions. Update and transition DTOs require a revision. Public DTOs omit eligibility and candidate state; authenticated Opportunity DTOs add only the caller's eligibility and state.

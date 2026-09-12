@@ -601,6 +601,24 @@
   .project-priority {
     @apply inline-flex rounded-md border border-[#34343a] bg-[#18191a] px-2 py-1 text-[10px] font-medium tracking-wide text-[#8a8f98];
   }
+
+  /* Phase 8 Opportunity platform */
+  .opportunity-eligibility {
+    @apply inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-medium;
+  }
+
+  .opportunity-eligibility.is-eligible {
+    @apply border-emerald-900 bg-emerald-950/30 text-emerald-300;
+  }
+
+  .opportunity-eligibility.is-possibly_eligible,
+  .opportunity-eligibility.is-unknown {
+    @apply border-amber-900 bg-amber-950/30 text-amber-200;
+  }
+
+  .opportunity-eligibility.is-not_eligible {
+    @apply border-red-900 bg-red-950/30 text-red-200;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

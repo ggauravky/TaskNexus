@@ -1,4 +1,4 @@
-import { CalendarRange, Compass, FolderKanban, History, Inbox, LogIn, LogOut, UserRound, UsersRound } from "lucide-react";
+import { Briefcase as BriefcaseBusiness, CalendarRange, Compass, FolderKanban, History, Inbox, LogIn, LogOut, UserRound, UsersRound } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { dashboardFor } from "../../utils/teams";
@@ -23,6 +23,7 @@ const TeamShell = ({ children }) => {
               <NavLink to="/contributions" className={navClass}><History className="h-4 w-4" /> Contributions</NavLink>
               <NavLink to="/people" className={navClass}><Compass className="h-4 w-4" /> People</NavLink>
               <NavLink to="/hackathons" className={navClass}><CalendarRange className="h-4 w-4" /> Hackathons</NavLink>
+              <NavLink to="/opportunities" className={navClass}><BriefcaseBusiness className="h-4 w-4" /> Opportunities</NavLink>
               <NavLink to="/collaboration" className={navClass}><Inbox className="h-4 w-4" /> Requests</NavLink>
               <NavLink to="/profile" className={navClass}><UserRound className="h-4 w-4" /> Profile</NavLink>
             </nav>

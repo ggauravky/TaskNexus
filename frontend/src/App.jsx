@@ -39,6 +39,10 @@ const PeoplePage = lazy(() => import('./pages/PeoplePage'));
 const CollaborationPage = lazy(() => import('./pages/CollaborationPage'));
 const HackathonsPage = lazy(() => import('./pages/HackathonsPage'));
 const HackathonDetailPage = lazy(() => import('./pages/HackathonDetailPage'));
+const OpportunitiesPage = lazy(() => import('./pages/OpportunitiesPage'));
+const OpportunityDetailPage = lazy(() => import('./pages/OpportunityDetailPage'));
+const ApplicationsPage = lazy(() => import('./pages/ApplicationsPage'));
+const OrganizationPage = lazy(() => import('./pages/OrganizationPage'));
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
 
@@ -58,17 +62,26 @@ const RouteMetadata = () => {
     useEffect(() => {
         const isShowcaseEditor = /^\/teams\/[a-z0-9-]+\/projects\/[a-z0-9-]+\/showcase$/i.test(pathname);
         const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile)(\/|$)/.test(pathname)
-            || pathname === '/teams' || pathname === '/projects' || pathname === '/contributions' || pathname === '/people' || pathname === '/collaboration'
+            || pathname === '/teams' || pathname === '/projects' || pathname === '/contributions' || pathname === '/people' || pathname === '/collaboration' || pathname === '/applications'
             || /\/settings$/.test(pathname) || isShowcaseEditor;
         const isPublicProfile = /^\/u\/[a-z0-9_-]+$/i.test(pathname);
         const isPublicTeam = /^\/teams\/[a-z0-9-]+$/i.test(pathname);
         const isPublicProject = /^\/teams\/[a-z0-9-]+\/projects\/[a-z0-9-]+$/i.test(pathname);
         const isPublicShowcase = /^\/showcase\/[a-z0-9-]+\/[a-z0-9-]+$/i.test(pathname);
         const isHackathonDetail = /^\/hackathons\/[a-z0-9-]+$/i.test(pathname);
+        const isOpportunityDetail = /^\/opportunities\/[a-z0-9-]+$/i.test(pathname);
+        const isOrganizationDetail = /^\/organizations\/[a-z0-9-]+$/i.test(pathname);
         const metadata = PUBLIC_METADATA[pathname] || (isShowcaseEditor ? {
             title: 'Showcase Editor | TaskNexus',
             description: 'Manage the private publication workspace for a TaskNexus project.',
             noindex: true,
+        } : pathname === '/opportunities' ? {
+            title: 'Internships and Entry-Level Jobs | TaskNexus',
+            description: 'Discover structured internships and entry-level Opportunities with transparent eligibility guidance.',
+        } : isOpportunityDetail ? {
+            title: 'Opportunity | TaskNexus', description: 'Review an internship or entry-level Opportunity and its published requirements.',
+        } : isOrganizationDetail ? {
+            title: 'Organization | TaskNexus', description: 'View a public Organization profile and its open Opportunities.',
         } : pathname === '/hackathons' ? {
             title: 'Hackathons | TaskNexus',
             description: 'Discover Hackathons, form Teams, and prepare evidence-backed submissions.',
@@ -211,6 +224,9 @@ function AppRoutes() {
             <Route path="/showcase/:teamSlug/:projectSlug" element={<PublicShowcasePage />} />
             <Route path="/hackathons" element={<HackathonsPage />} />
             <Route path="/hackathons/:slug" element={<HackathonDetailPage />} />
+            <Route path="/opportunities" element={<OpportunitiesPage />} />
+            <Route path="/opportunities/:slug" element={<OpportunityDetailPage />} />
+            <Route path="/organizations/:slug" element={<OrganizationPage />} />
             <Route path="/admin/login" element={
                 isAuthenticated && user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <AdminLogin />
             } />
@@ -277,6 +293,11 @@ function AppRoutes() {
             <Route path="/collaboration" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
                     <CollaborationPage />
+                </ProtectedRoute>
+            } />
+            <Route path="/applications" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <ApplicationsPage />
                 </ProtectedRoute>
             } />
             <Route path="/teams/:teamSlug/projects/:projectSlug/settings" element={

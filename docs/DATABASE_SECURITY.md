@@ -55,6 +55,11 @@ TaskNexus uses a backend-only database architecture. Browsers call Express and n
 10. Run `npm --prefix backend run verify:github` when outbound GitHub access is available; the check is read-only and uses stable public fixtures.
 11. Run `npm --prefix backend run verify:discovery` and confirm privacy, filter accuracy, opening RBAC, request/block state, races, indexes, query plans, and disposable cleanup.
 12. Run `npm --prefix backend run verify:hackathons` and confirm catalog admin boundaries, event privacy, Team RBAC/size/deadlines, contextual reuse, Project IDOR/CAS, immutable submission, Atlas races, indexes, query plans, and disposable cleanup.
+13. Run `npm --prefix backend run verify:opportunities` and confirm Organization/admin boundaries, candidate privacy, deterministic eligibility, source/URL rules, duplicate/CAS/close races, history retention, indexes, query plans, and disposable cleanup.
+
+## Opportunity security boundary
+
+Catalog requests are allowlisted into explicit fields; raw request bodies never reach MongoDB operators. Bounded escaped regex search and `mongoose.trusted` operator construction prevent user-controlled NoSQL operators. HTTPS URLs reject credentials and non-HTTPS schemes. Candidate user IDs come only from verified access tokens, and private state queries always include that ID. Public serializers omit creator/verifier IDs, internal write fences, revisions, eligibility, application state, and notes. Admin catalog routes require the existing global administrator role and revisioned mutations.
 
 The backend fails startup if MongoDB cannot connect. It never silently falls back to JSON files or process memory.
 

@@ -25,6 +25,7 @@ const teamRoutes = require("./routes/team.routes");
 const projectRoutes = require("./routes/project.routes");
 const discoveryRoutes = require("./routes/discovery.routes");
 const hackathonRoutes = require("./routes/hackathon.routes");
+const opportunityRoutes = require("./routes/opportunity.routes");
 
 // Create Express app
 const app = express();
@@ -116,6 +117,7 @@ app.use("/api/realtime", realtimeRoutes);
 app.use("/api", teamRoutes);
 app.use("/api", projectRoutes);
 app.use("/api", hackathonRoutes);
+app.use("/api", opportunityRoutes);
 app.use("/api", discoveryRoutes);
 
 // 404 handler

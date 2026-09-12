@@ -5,6 +5,19 @@ import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
 
+const SERVER_UNREACHABLE_MESSAGE = 'Unable to reach the TaskNexus server. Please try again.';
+
+const authError = (error, fallback) => {
+    const errorData = error.response?.data?.error;
+
+    if (errorData?.message) return errorData;
+    if (!error.response && (error.request || error.code === 'ERR_NETWORK')) {
+        return { message: SERVER_UNREACHABLE_MESSAGE };
+    }
+
+    return { message: fallback };
+};
+
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
@@ -72,9 +85,9 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true, user };
         } catch (error) {
-            const message = error.response?.data?.error?.message || 'Login failed';
-            toast.error(message);
-            return { success: false, error: message };
+            const errorData = authError(error, 'Login failed');
+            toast.error(errorData.message);
+            return { success: false, error: errorData.message };
         }
     };
 
@@ -94,8 +107,7 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true, user };
         } catch (error) {
-            console.error('Registration error:', error.response?.data);
-            const errorData = error.response?.data?.error;
+            const errorData = authError(error, 'Registration failed');
 
             // Show detailed validation errors if available
             if (errorData?.details && Array.isArray(errorData.details)) {
@@ -103,11 +115,10 @@ export const AuthProvider = ({ children }) => {
                     toast.error(`${err.field}: ${err.message}`);
                 });
             } else {
-                const message = errorData?.message || 'Registration failed';
-                toast.error(message);
+                toast.error(errorData.message);
             }
 
-            return { success: false, error: errorData?.message || 'Registration failed', details: errorData?.details };
+            return { success: false, error: errorData.message, details: errorData.details };
         }
     };
 

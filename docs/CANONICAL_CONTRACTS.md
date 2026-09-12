@@ -129,6 +129,17 @@ Verification and lifecycle are independent. Revoked records remain durable histo
 
 Lifecycle status is stored, while UTC dates independently enforce registration and submission cutoffs on the server. `HackathonTeam` relates an existing Team; it does not define Hackathon member roles. Team and Project authorization continues to use their canonical contracts.
 
+## Opportunity contracts
+
+- Organization type: `company`, `startup`, `nonprofit`, `government`, `educational`, `other`; status: `active`, `archived`; verification: `unverified`, `verified`.
+- Opportunity type: `internship`, `entry_level_job`; lifecycle: `draft`, `published`, `closed`, `archived`.
+- Work mode: `remote`, `hybrid`, `onsite`; employment: `full_time`, `part_time`.
+- Eligibility: `eligible`, `possibly_eligible`, `not_eligible`, `unknown`; check facts: `pass`, `gap`, `fail`, `unknown`.
+- Candidate-reported application: `interested`, `applied`, `assessment`, `interview`, `offer`, `rejected`, `withdrawn`.
+- Provenance: `official`, `admin_curated`, `external`; compensation period: `hour`, `month`, `year`, `fixed`.
+
+These values originate only in `shared/contracts/domain.json`; generated frontend/backend maps must stay byte-for-byte aligned with the arrays.
+
 ## Field naming
 
 - API identifiers use `id`; MongoDB stores the same string as `_id` internally.

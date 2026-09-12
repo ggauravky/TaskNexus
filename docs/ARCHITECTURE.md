@@ -70,3 +70,9 @@ These concepts may originate from one action but are not interchangeable.
 ## Pagination
 
 Current list endpoints use bounded page/offset pagination with allowlisted sort fields. Composite MongoDB indexes serve task, notification, profile, and administration query patterns. Cursor pagination remains a later option for genuinely high-write feeds.
+
+## Opportunity platform boundary
+
+Organizations are controlled catalog identities and never inherit Team membership or roles. An Opportunity belongs to one Organization and supports only internship or entry-level-job types. Administrator CAS operations own draft, publish, close, and archive transitions. Public discovery reads only currently open published records.
+
+Candidate eligibility and state are private overlays. One batched read loads the caller's profile, education, skills, and candidate-state rows; deterministic checks then decorate the page in memory. `opportunity_candidate_states` uniquely owns one user's save/application relationship. External apply URLs remain HTTPS-only and TaskNexus never submits an application or exposes candidate state to an Organization.

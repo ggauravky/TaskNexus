@@ -59,3 +59,5 @@ Realtime uses authenticated Server-Sent Events. The hub is process-local and nee
 - Collaboration requests provide intent and Team-invitation handoff only; direct messaging is deliberately absent.
 - Hackathon status is stored and maintained by the catalog admin rather than derived automatically from dates; operational status changes require an explicit admin action.
 - Hackathon activity is durable but no organizer dashboard, judging, scoring, payments, attendance, or leaderboard exists.
+- Opportunity records are admin-curated; Organization ownership, recruiter membership, automated ingestion, and employer application workflows do not exist in Phase 8.
+- Eligibility uses normalized exact structured facts and deliberately leaves CGPA and professional experience unknown when no canonical profile field exists. AI matching and career scoring are excluded.
