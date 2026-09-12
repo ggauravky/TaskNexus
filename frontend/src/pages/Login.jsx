@@ -66,10 +66,6 @@ const Login = () => {
 
   return (
     <div className="auth-shell">
-      <div className="auth-orb auth-orb-one" />
-      <div className="auth-orb auth-orb-two" />
-      <div className="auth-orb auth-orb-three" />
-
       <div className="auth-wrapper">
         <section className="auth-brand-panel">
           <Link to="/" className="auth-brand">

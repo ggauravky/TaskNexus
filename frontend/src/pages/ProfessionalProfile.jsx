@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
-  ArrowLeft, BookOpen, Check, ExternalLink, Eye, EyeOff, Globe2,
+  BookOpen, Check, ExternalLink, Eye, EyeOff, Globe2,
   GraduationCap, Loader2, MapPin, Plus, Save, Shield, Sparkles, Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -32,11 +32,8 @@ const EMPTY_EDUCATION = {
   endYear: "", currentlyStudying: false, description: "", position: 0,
 };
 
-const dashboardFor = (role) => role === "freelancer" ? "/freelancer/dashboard" : role === "admin" ? "/admin/dashboard" : "/client/dashboard";
-
 const ProfessionalProfile = () => {
   const { user, updateUser } = useAuth();
-  const navigate = useNavigate();
   const [bundle, setBundle] = useState(null);
   const [form, setForm] = useState(null);
   const [skills, setSkills] = useState([]);
@@ -133,14 +130,8 @@ const ProfessionalProfile = () => {
 
   return (
     <div className="profile-shell min-h-[100dvh] bg-[#010102] text-[#f7f8f8]">
-      <header className="sticky top-0 z-30 border-b border-[#23252a] bg-[#010102]/95 backdrop-blur">
-        <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-          <button onClick={() => navigate(dashboardFor(user?.role))} className="profile-quiet-button">
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Workspace
-          </button>
-          <div className="flex items-center gap-2">
-            <Link to="/teams" className="profile-quiet-button">Teams</Link>
-            <Link to="/projects" className="profile-quiet-button">Projects</Link>
+      <div className="border-b border-[#23252a] bg-[#010102]">
+        <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-end gap-2 px-4 sm:px-6 lg:px-8">
             {publicUrl && form.visibility === "public" ? (
               <Link to={publicUrl} target="_blank" className="profile-quiet-button">
                 View public profile <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -150,9 +141,8 @@ const ProfessionalProfile = () => {
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
               {dirty ? "Save profile" : "Saved"}
             </button>
-          </div>
         </div>
-      </header>
+      </div>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <section className="grid gap-8 border-b border-[#23252a] pb-10 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-end">

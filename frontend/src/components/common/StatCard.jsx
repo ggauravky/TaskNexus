@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown } from 'lucide-react';
  */
 const StatCard = ({ title, value, icon, color = 'bg-primary-50', trend, trendUp = true }) => {
     return (
-        <div className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+        <div className="rounded-xl border border-[#23252a] bg-[#0f1011] p-5 transition-colors hover:border-[#34343a]">
             <div className="flex items-center justify-between mb-4">
                 <div className={`p-3 rounded-xl ${color}`}>
                     {icon}
@@ -18,8 +18,8 @@ const StatCard = ({ title, value, icon, color = 'bg-primary-50', trend, trendUp 
                     </span>
                 )}
             </div>
-            <h3 className="text-sm font-medium text-gray-600 mb-1">{title}</h3>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            <h3 className="mb-1 text-sm font-medium text-[#8a8f98]">{title}</h3>
+            <p className="text-2xl font-semibold text-[#f7f8f8]">{value}</p>
         </div>
     );
 };

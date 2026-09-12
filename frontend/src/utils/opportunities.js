@@ -7,6 +7,6 @@ export const formatDate = (value) => value ? new Intl.DateTimeFormat(undefined, 
 export const locationLabel = (item) => item?.display || [item?.city, item?.state, item?.country].filter(Boolean).join(", ");
 export const compensationLabel = (value) => {
   if (!value?.currency || (value.min_amount == null && value.max_amount == null)) return "Compensation not disclosed";
-  const amount = value.min_amount != null && value.max_amount != null ? `${value.min_amount.toLocaleString()}–${value.max_amount.toLocaleString()}` : (value.min_amount ?? value.max_amount).toLocaleString();
+  const amount = value.min_amount != null && value.max_amount != null ? `${value.min_amount.toLocaleString()} to ${value.max_amount.toLocaleString()}` : (value.min_amount ?? value.max_amount).toLocaleString();
   return `${value.currency} ${amount} / ${value.period}`;
 };

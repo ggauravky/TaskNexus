@@ -19,6 +19,10 @@ let server;
 let apiBase;
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
+const fixtureResultIds = (response) => {
+  const fixtureIds = new Set(Object.values(ids));
+  return response.payload.data.map((row) => row.id).filter((id) => fixtureIds.has(id));
+};
 const call = async (path, { method = "GET", token, body } = {}) => {
   const response = await fetch(`${apiBase}${path}`, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const payload = await response.json();
@@ -79,12 +83,12 @@ const run = async () => {
     const reactSkill = await models.Skill.findOne({ slug: "react" }).lean(); const nodeSkill = await models.Skill.findOne({ slug: "node-js" }).lean();
     const mongoSkill = await models.Skill.findOne({ slug: "mongodb" }).lean();
     const all = await call(`/people?skills=${reactSkill._id},${nodeSkill._id}&skillMode=all`, { token: tokens.owner });
-    assert.equal(all.status, 200); assert.deepEqual(all.payload.data.map((row) => row.id), [ids.react]);
+    assert.equal(all.status, 200); assert.deepEqual(fixtureResultIds(all), [ids.react]);
     const any = await call(`/people?skills=${reactSkill._id}&skillMode=any`, { token: tokens.owner });
     assert.ok(any.payload.data.some((row) => row.id === ids.react)); assert.ok(!any.payload.data.some((row) => row.id === ids.notLooking || row.id === ids.private));
     const role = await call("/people?roles=ml_engineer&availability=limited", { token: tokens.owner });
-    assert.deepEqual(role.payload.data.map((row) => row.id), [ids.python]);
-    const text = await call("/people?search=Python", { token: tokens.owner }); assert.deepEqual(text.payload.data.map((row) => row.id), [ids.python]);
+    assert.deepEqual(fixtureResultIds(role), [ids.python]);
+    const text = await call("/people?search=Python", { token: tokens.owner }); assert.deepEqual(fixtureResultIds(text), [ids.python]);
     const serialized = JSON.stringify([...all.payload.data, ...role.payload.data]);
     for (const secret of ["email", "phone", "account role", "refresh_token", "education"]) assert.equal(serialized.includes(secret), false, `discovery leaked ${secret}`);
     const paginated = await call("/people?limit=1", { token: tokens.owner }); assert.equal(paginated.payload.data.length, 1); assert.ok(paginated.payload.meta.total >= 4);

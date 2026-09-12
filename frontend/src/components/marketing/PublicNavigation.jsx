@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { ArrowRight, Menu, Sparkles, X } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 
 const links = [
+  { to: "/opportunities", label: "Opportunities" },
+  { to: "/hackathons", label: "Hackathons" },
   { to: "/services", label: "Services" },
   { to: "/blog", label: "Blog" },
   { to: "/support-jar", label: "Support Jar" },
 ];
 
-const PublicNavigation = ({ dark = false }) => {
+const PublicNavigation = ({ dark = true }) => {
   const [open, setOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const panelRef = useRef(null);
@@ -69,13 +71,11 @@ const PublicNavigation = ({ dark = false }) => {
   return (
     <nav aria-label="Primary navigation" className="relative z-40 mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
       <Link to="/" className="inline-flex items-center gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400">
-        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${dark ? "border border-white/10 bg-white/5 text-primary-300" : "bg-slate-950 text-white"}`}>
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-        </span>
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#5e6ad2] text-[11px] font-semibold text-white" aria-hidden="true">TN</span>
         <span className={`text-base font-semibold tracking-tight ${dark ? "text-white" : "text-slate-950"}`}>TaskNexus</span>
       </Link>
 
-      <div className="hidden items-center gap-1 md:flex">
+      <div className="hidden items-center gap-1 lg:flex">
         {links.map((item) => (
           <NavLink
             key={item.to}
@@ -89,7 +89,7 @@ const PublicNavigation = ({ dark = false }) => {
         ))}
       </div>
 
-      <div className="hidden items-center gap-2 md:flex">
+      <div className="hidden items-center gap-2 lg:flex">
         <Link to="/login" className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400 ${textClass}`}>
           Sign in
         </Link>
@@ -105,7 +105,7 @@ const PublicNavigation = ({ dark = false }) => {
         aria-expanded={open}
         aria-controls="mobile-public-menu"
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex h-11 w-11 items-center justify-center rounded-lg border md:hidden ${dark ? "border-white/10 bg-white/5 text-white" : "border-slate-200 bg-white text-slate-900"}`}
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-lg border lg:hidden ${dark ? "border-white/10 bg-white/5 text-white" : "border-slate-200 bg-white text-slate-900"}`}
       >
         {open ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
       </button>
@@ -114,7 +114,7 @@ const PublicNavigation = ({ dark = false }) => {
         <div
           ref={panelRef}
           id="mobile-public-menu"
-          className={`absolute left-4 right-4 top-[calc(100%+0.5rem)] rounded-xl border p-3 shadow-2xl md:hidden ${dark ? "border-white/10 bg-[#0f1011] text-white" : "border-slate-200 bg-white text-slate-950"}`}
+          className={`absolute left-4 right-4 top-[calc(100%+0.5rem)] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-xl border p-3 shadow-2xl lg:hidden ${dark ? "border-white/10 bg-[#0f1011] text-white" : "border-slate-200 bg-white text-slate-950"}`}
         >
           <div className="grid gap-1">
             {links.map((item) => (

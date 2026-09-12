@@ -40,7 +40,7 @@ const faqs = [
   },
   {
     question: "Is TaskNexus already a team and project network?",
-    answer: "Not yet. Team creation, project spaces, people discovery, and contribution proof are part of the planned product direction, not current features.",
+    answer: "Yes. Members can create teams, run project workspaces, discover collaborators, record contribution evidence, join hackathons, and explore published opportunities.",
   },
   {
     question: "Who can create an account?",
@@ -87,7 +87,7 @@ const LandingPage = () => (
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
             <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">A calmer place to move work forward</h2>
-            <p className="mt-4 text-base leading-7 text-slate-400">Current capabilities focus on task clarity, accountable progress, and collaboration around delivery.</p>
+            <p className="mt-4 text-base leading-7 text-slate-400">Current capabilities connect task clarity with teams, projects, contribution evidence, discovery, hackathons, and early-career opportunities.</p>
           </div>
           <div className="mt-12 grid gap-4 md:grid-cols-2">
             {capabilities.map(({ icon: Icon, title, copy, className = "" }, index) => (
@@ -120,7 +120,7 @@ const LandingPage = () => (
         <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
             <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">Trust comes from honest boundaries</h2>
-            <p className="mt-4 text-base leading-7 text-slate-400">TaskNexus is being prepared for broader collaboration features. This release only describes what the product supports now.</p>
+            <p className="mt-4 text-base leading-7 text-slate-400">TaskNexus describes only the collaboration and opportunity workflows the product supports now.</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <TrustItem icon={ShieldCheck} title="Controlled access" copy="Public users can create client or freelancer accounts. Admin access is provisioned separately." />

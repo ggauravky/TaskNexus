@@ -1,28 +1,33 @@
 import { Link } from 'react-router-dom';
 import { Home } from 'lucide-react';
+import PublicNavigation from '../components/marketing/PublicNavigation';
 
 /**
  * 404 Not Found Page
  */
 const NotFound = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center px-4">
-      <div className="text-center max-w-lg bg-white/90 border border-slate-100 shadow-xl rounded-3xl p-10">
-        <h1 className="text-8xl font-bold bg-gradient-to-r from-primary-600 to-cyan-600 bg-clip-text text-transparent">404</h1>
-        <h2 className="text-3xl font-semibold text-gray-900 mt-4 mb-2">
+    <div className="min-h-screen bg-[#010102] text-[#f7f8f8]">
+      <header className="border-b border-[#23252a]"><PublicNavigation dark /></header>
+      <main className="flex min-h-[calc(100dvh-4rem)] items-center justify-center px-4">
+      <div className="max-w-lg rounded-xl border border-[#23252a] bg-[#0f1011] p-8 text-center sm:p-10">
+        <p className="team-eyebrow">Error 404</p>
+        <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">This page is not here.</h1>
+        <h2 className="sr-only">
           Page Not Found
         </h2>
-        <p className="text-gray-600 mb-8">
+        <p className="mb-8 mt-4 text-sm leading-6 text-[#8a8f98]">
           The page you are looking for does not exist or has been moved.
         </p>
         <Link
           to="/"
-          className="btn btn-primary inline-flex items-center rounded-full px-6"
+          className="team-button-primary"
         >
           <Home className="w-4 h-4 mr-2" />
-          Go Back Home
+          Go back home
         </Link>
       </div>
+      </main>
     </div>
   );
 };

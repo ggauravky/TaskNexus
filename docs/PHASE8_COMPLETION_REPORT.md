@@ -123,7 +123,7 @@ Final local result after human acceptance:
 - 151 of 151 tests passed
 - Backend ESLint passed
 - Frontend ESLint passed
-- Vite production build passed with 1,498 transformed modules
+- Vite production build passed with 1,500 transformed modules
 - `git diff --check` passed
 
 The Phase 8 domain suite covers contracts, model validation, deterministic eligibility, public DTO safety, candidate-state DTOs, and indexes.
@@ -136,6 +136,11 @@ Post-acceptance live verification passed for database structure, MongoDB transac
 
 Human manual browser QA:
 **PASS**
+
+UI unification rendered-browser QA:
+**PASS**
+
+Browser acceptance was performed manually by the user after the complete application interface was unified against the `/teams` visual system. It was not reported as an automated browser result.
 
 The accepted checklist covered Opportunity hub/cards; type, work-mode, canonical-skill, location, search, and sort controls; compatible/incompatible/unknown eligibility; degree/year/skill explanations; disclaimer; full detail/source/external apply; save/unsave/duplicate safety; candidate application progression, rejection, withdrawal, notes, status tabs, and closed history; verified/unverified Organization pages; closed-role exclusion; long content; signed-out privacy; accessibility; console; and network behavior.
 
@@ -157,11 +162,11 @@ Manual acceptance passed meaningful single H1s, main/navigation landmarks, visib
 
 ## 32. Browser Console
 
-Human QA reported zero unresolved Phase 8 browser errors and zero unresolved Phase 8 warnings across discovery, detail, Organization, Applications, save/unsave, and application mutations.
+**PASS.** Human QA reported zero unresolved Phase 8 or UI-unification browser errors and zero unresolved warnings across discovery, detail, Organization, Applications, save/unsave, application mutations, shared navigation, and responsive layouts.
 
 ## 33. Network QA
 
-Human QA reported no failed ordinary Phase 8 API operations, repeated runaway requests, N+1 storm, or secrets in responses. Anonymous Opportunity DTOs omit candidate eligibility and viewer state; authenticated payloads belong only to the current candidate.
+**PASS.** Human QA reported no failed ordinary Phase 8 API operations, repeated runaway requests, N+1 storm, or secrets in responses. Anonymous Opportunity DTOs omit candidate eligibility and viewer state; authenticated payloads belong only to the current candidate.
 
 ## 34. Performance
 

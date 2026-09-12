@@ -394,7 +394,7 @@ const TaskCollaborationPanel = ({ task }) => {
                 </div>
                 <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-primary-500 to-cyan-500"
+                    className="h-full bg-[#5e6ad2]"
                     style={{ width: `${milestoneProgress}%` }}
                   />
                 </div>
