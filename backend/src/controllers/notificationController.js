@@ -26,14 +26,14 @@ exports.getNotifications = async (req, res, next) => {
     });
     const [result, unread] = await Promise.all([
       notificationData.listNotifications({ filters, ...options }),
-      notificationData.findNotifications({ recipient_id: req.user.id, status: "unread" }),
+      notificationData.countNotifications({ recipient_id: req.user.id, status: "unread" }),
     ]);
 
     res.status(200).json({
       success: true,
       data: {
         notifications: result.items.map(serializeNotification),
-        unreadCount: unread.length,
+        unreadCount: unread,
       },
       meta: { pagination: paginationMeta(result) },
     });
@@ -87,7 +87,7 @@ exports.markAllAsRead = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "All notifications marked as read",
-      data: { modifiedCount: result.length },
+      data: { modifiedCount: result.modifiedCount },
     });
   } catch (error) {
     logger.error("Error marking all notifications as read:", error);
@@ -138,7 +138,7 @@ exports.clearReadNotifications = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Read notifications cleared",
-      data: { deletedCount: result.length },
+      data: { deletedCount: result.deletedCount },
     });
   } catch (error) {
     logger.error("Error clearing read notifications:", error);

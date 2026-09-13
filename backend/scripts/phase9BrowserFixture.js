@@ -27,7 +27,7 @@ let server;
 let apiBase;
 
 const assertSafeTarget = () => {
-  if (process.env.NODE_ENV === "production") throw new Error("QA fixtures are disabled when NODE_ENV=production");
+  if ((process.env.APP_ENV || process.env.NODE_ENV) === "production") throw new Error("QA fixtures are disabled in production");
   if (databaseName() !== "tasknexus_v2") throw new Error("Phase 9 browser fixtures are restricted to the tasknexus_v2 staging database");
   if (!process.argv.includes(CONFIRMATION)) throw new Error(`Explicit staging confirmation is required: ${CONFIRMATION}`);
 };

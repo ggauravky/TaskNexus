@@ -109,8 +109,7 @@ const subscribeNewsletter = async (req, res, next) => {
       }
     } catch (error) {
       logger.warn("Newsletter contact sync failed", {
-        email,
-        message: error.message,
+        errorMessage: error.message,
       });
       contactSyncStatus = buildContactSyncFailure(error);
     }

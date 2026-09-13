@@ -5,10 +5,17 @@ const { authenticate } = require("../middleware/auth");
 const { requireAdmin } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
 const { body, param } = require("express-validator");
+const { adminMutationLimiter } = require("../middleware/rateLimiter");
 
 // All routes require authentication and admin role
 router.use(authenticate);
 router.use(requireAdmin);
+router.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    return adminMutationLimiter(req, res, next);
+  }
+  return next();
+});
 
 // Dashboard
 router.get("/dashboard", adminController.getDashboard);

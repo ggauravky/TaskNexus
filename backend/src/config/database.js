@@ -33,6 +33,8 @@ const connectDatabase = async () => {
       dbName: databaseName(),
       serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS) || 10000,
       connectTimeoutMS: Number(process.env.MONGODB_CONNECT_TIMEOUT_MS) || 10000,
+      socketTimeoutMS: Number(process.env.MONGODB_SOCKET_TIMEOUT_MS) || 45000,
+      heartbeatFrequencyMS: Number(process.env.MONGODB_HEARTBEAT_FREQUENCY_MS) || 10000,
       maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE) || 20,
       minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE) || 0,
       autoIndex: process.env.NODE_ENV !== "production",

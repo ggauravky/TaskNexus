@@ -26,6 +26,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.serena/
 *.swp
 *.swo
 

@@ -17,7 +17,7 @@ jest.mock("../src/data/userData", () => ({
 }));
 jest.mock("../src/data/auditLogData", () => ({
   log: jest.fn().mockResolvedValue(undefined),
-  findAuditLogs: jest.fn().mockResolvedValue([]),
+  listAuditLogs: jest.fn().mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 }),
 }));
 jest.mock("../src/services/email/emailService", () => ({
   sendLoginEmail: jest.fn().mockResolvedValue({ status: "skipped" }),
@@ -193,8 +193,10 @@ describe("Phase 0 authentication and authorization baseline", () => {
       ([, updates]) => typeof updates.refresh_token === "string",
     );
     expect(refreshUpdate).toBeDefined();
-    const originalRefreshToken = refreshUpdate[1].refresh_token;
-    users[0].refresh_token = originalRefreshToken;
+    const originalRefreshDigest = refreshUpdate[1].refresh_token;
+    const originalRefreshToken = loginResponse.headers["set-cookie"][0]
+      .match(/^refreshToken=([^;]+)/)[1];
+    users[0].refresh_token = originalRefreshDigest;
 
     const response = await request(app)
       .post("/api/auth/refresh")
@@ -204,7 +206,7 @@ describe("Phase 0 authentication and authorization baseline", () => {
     const tokenUpdates = userData.updateUser.mock.calls.filter(
       ([, updates]) => typeof updates.refresh_token === "string",
     );
-    expect(tokenUpdates.at(-1)[1].refresh_token).not.toBe(originalRefreshToken);
+    expect(tokenUpdates.at(-1)[1].refresh_token).not.toBe(originalRefreshDigest);
   });
 
   test("invalid refresh token is rejected", async () => {
@@ -234,8 +236,9 @@ describe("Phase 0 authentication and authorization baseline", () => {
       ([, updates]) => typeof updates.refresh_token === "string",
     );
     expect(refreshUpdate).toBeDefined();
-    const refreshCookie = refreshUpdate[1].refresh_token;
-    users[0].refresh_token = refreshCookie;
+    const refreshCookie = loginResponse.headers["set-cookie"][0]
+      .match(/^refreshToken=([^;]+)/)[1];
+    users[0].refresh_token = refreshUpdate[1].refresh_token;
 
     const response = await request(app)
       .post("/api/auth/logout")

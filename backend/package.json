@@ -8,18 +8,20 @@
         "dev": "nodemon server.js",
         "lint": "eslint . --ext .js --max-warnings 0",
         "verify:database": "node scripts/verifyMongoDatabase.js",
-        "database:indexes": "node scripts/syncMongoIndexes.js",
-        "database:seed": "node scripts/seedSkills.js",
-        "verify:mongodb-integration": "node scripts/verifyMongoIntegration.js",
-        "verify:api-integration": "node scripts/verifyMongoApi.js",
-        "verify:teams": "node scripts/verifyTeamsIntegration.js",
-        "verify:projects": "node scripts/verifyProjectsIntegration.js",
-        "verify:phase5": "node scripts/verifyPhase5Integration.js",
+        "database:indexes": "node scripts/syncMongoIndexes.js --confirm-tasknexus-v2-staging",
+        "database:indexes:production": "node scripts/createProductionIndexes.js --confirm-production-index-create",
+        "database:seed": "node scripts/seedSkills.js --confirm-tasknexus-v2-staging",
+        "verify:mongodb-integration": "node scripts/verifyMongoIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:api-integration": "node scripts/verifyMongoApi.js --confirm-tasknexus-v2-staging",
+        "verify:teams": "node scripts/verifyTeamsIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:projects": "node scripts/verifyProjectsIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:phase5": "node scripts/verifyPhase5Integration.js --confirm-tasknexus-v2-staging",
         "verify:github": "node --dns-result-order=ipv4first scripts/verifyGitHubProvider.js",
-        "verify:discovery": "node scripts/verifyDiscoveryIntegration.js",
-        "verify:hackathons": "node scripts/verifyHackathonIntegration.js",
-        "verify:opportunities": "node scripts/verifyOpportunityIntegration.js",
-        "verify:organizations": "node scripts/verifyOrganizationIntegration.js",
+        "verify:discovery": "node scripts/verifyDiscoveryIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:hackathons": "node scripts/verifyHackathonIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:opportunities": "node scripts/verifyOpportunityIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:organizations": "node scripts/verifyOrganizationIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:production": "node scripts/verifyProduction.js",
         "qa:phase5-browser": "node scripts/phase5BrowserFixture.js",
         "qa:phase6-browser": "node scripts/phase6BrowserFixture.js",
         "qa:phase7-browser": "node scripts/phase7BrowserFixture.js",
@@ -38,6 +40,9 @@
     ],
     "author": "TaskNexus Team",
     "license": "MIT",
+    "engines": {
+        "node": ">=20.19 <25"
+    },
     "dependencies": {
         "@getbrevo/brevo": "^5.0.4",
         "bcrypt": "^6.0.0",
@@ -60,5 +65,8 @@
         "jest": "^29.7.0",
         "nodemon": "^3.0.2",
         "supertest": "^6.3.3"
+    },
+    "overrides": {
+        "qs": "6.16.0"
     }
 }

@@ -1,48 +1,56 @@
 const winston = require("winston");
-const path = require("path");
+
+const SENSITIVE_KEY = /(authorization|cookie|password|secret|token|api[-_]?key|mongodb_uri)/i;
+const redactValue = (input, key = "", seen = new WeakSet()) => {
+  if (SENSITIVE_KEY.test(key)) return "[REDACTED]";
+  if (typeof input === "string") return input.replace(/Bearer\s+[^\s]+/gi, "Bearer [REDACTED]");
+  if (!input || typeof input !== "object") return input;
+  if (seen.has(input)) return "[Circular]";
+  seen.add(input);
+  if (Array.isArray(input)) return input.map((item) => redactValue(item, "", seen));
+  return Object.fromEntries(
+    Object.entries(input).map(([childKey, childValue]) => [childKey, redactValue(childValue, childKey, seen)]),
+  );
+};
+
+const redact = winston.format((info) => {
+  for (const key of Object.keys(info)) info[key] = redactValue(info[key], key);
+  return info;
+})();
 
 // Define log format
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
   winston.format.errors({ stack: true }),
   winston.format.splat(),
+  redact,
   winston.format.json()
 );
+
+const production = (process.env.APP_ENV || process.env.NODE_ENV) === "production";
+const test = (process.env.APP_ENV || process.env.NODE_ENV) === "test";
+const consoleFormat = production
+  ? logFormat
+  : winston.format.combine(
+    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    winston.format.errors({ stack: true }),
+    winston.format.splat(),
+    redact,
+    winston.format.printf(({ timestamp, level, message, service: _service, ...meta }) => {
+      const suffix = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
+      return `${timestamp} [${level}]: ${message}${suffix}`;
+    }),
+  );
 
 // Create logger instance
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: logFormat,
   defaultMeta: { service: "tasknexus-api" },
-  transports: [
-    // Write all logs to console
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ timestamp, level, message, ...meta }) => {
-          let msg = `${timestamp} [${level}]: ${message}`;
-          if (Object.keys(meta).length > 0 && meta.service) {
-            delete meta.service;
-            if (Object.keys(meta).length > 0) {
-              msg += ` ${JSON.stringify(meta)}`;
-            }
-          }
-          return msg;
-        })
-      ),
-    }),
-
-    // Write all logs with level 'error' and below to error.log
-    new winston.transports.File({
-      filename: path.join(__dirname, "../../logs/error.log"),
-      level: "error",
-    }),
-
-    // Write all logs to combined.log
-    new winston.transports.File({
-      filename: path.join(__dirname, "../../logs/combined.log"),
-    }),
-  ],
+  silent: test && process.env.LOG_TEST_LOGS !== "true",
+  // Production platforms collect stdout. Local file transports are deliberately
+  // avoided because container filesystems are ephemeral and can fill the disk.
+  transports: [new winston.transports.Console({ format: consoleFormat })],
 });
 
 // Create a stream object for Morgan

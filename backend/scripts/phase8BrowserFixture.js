@@ -1,12 +1,13 @@
 require("../src/config/loadEnv");
-const { randomUUID } = require("node:crypto");
+require("./lib/stagingSafety").assertStagingMutationAllowed();
+const { randomBytes, randomUUID } = require("node:crypto");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 const app = require("../src/app");
 const { connectDatabase, disconnectDatabase } = require("../src/config/database");
 const models = require("../src/models");
 
-const password = "TaskNexus-QA-2026!";
+const password = `Tn-QA-${randomBytes(18).toString("base64url")}9aA!`;
 const labels = ["candidateA", "candidateB", "candidateC"];
 const emails = {
   candidateA: "phase8-candidate-a@example.invalid",

@@ -9,6 +9,8 @@ const { apiLimiter } = require("./middleware/rateLimiter");
 const logger = require("./utils/logger");
 const requestContext = require("./middleware/requestContext");
 const { isDatabaseReady } = require("./config/database");
+const { parseOrigins } = require("./config/environment");
+const { errors } = require("./utils/appError");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
@@ -30,19 +32,27 @@ const organizationRoutes = require("./routes/organization.routes");
 
 // Create Express app
 const app = express();
+const production = (process.env.APP_ENV || process.env.NODE_ENV) === "production";
+
+app.disable("x-powered-by");
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || (production ? 1 : 0));
+if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
+
+// Establish correlation before parsers so malformed request bodies also carry
+// a request ID in their response and logs.
+app.use(requestContext);
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  referrerPolicy: { policy: "no-referrer" },
+  strictTransportSecurity: production ? undefined : false,
+}));
 
 // CORS configuration with an exact origin allowlist
 const normalizeOrigin = (origin) => (origin ? origin.replace(/\/$/, "") : origin);
-const parseAllowedOrigins = () =>
-  (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((o) => normalizeOrigin(o.trim()))
-    .filter(Boolean);
-
-const allowedOrigins = parseAllowedOrigins();
+const allowedOrigins = parseOrigins(process.env).map(normalizeOrigin);
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -54,7 +64,7 @@ const corsOptions = {
     // Exact allowlist match
     if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
 
-    return callback(new Error("Not allowed by CORS"));
+    return callback(errors.forbidden("Origin is not allowed by CORS"));
   },
   credentials: true,
   optionsSuccessStatus: 200,
@@ -63,12 +73,12 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Body parser middleware
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+const bodyLimit = Number(process.env.API_BODY_LIMIT_BYTES) || 1024 * 1024;
+app.use(express.json({ limit: bodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
 // Cookie parser
 app.use(cookieParser());
-app.use(requestContext);
 
 // Logging middleware
 const safeRequestFormat = (tokens, req, res) => {
@@ -90,18 +100,27 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan(safeRequestFormat, { stream: logger.stream }));
 }
 
-// Rate limiting (exclude SSE stream endpoint)
-app.use("/api/", (req, res, next) => {
-  if (req.path.startsWith("/realtime/stream")) {
-    return next();
-  }
-  return apiLimiter(req, res, next);
+// Liveness confirms only that the HTTP process can answer. Readiness is a
+// separate dependency-aware endpoint for the deployment platform.
+app.get("/health", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).json({ status: "ok", request_id: req.requestId });
 });
 
-// Health check route
-app.get("/health", (req, res) => {
+app.get("/api/ready", (req, res) => {
   const ready = isDatabaseReady();
-  res.status(ready ? 200 : 503).json({ status: ready ? "ok" : "unavailable" });
+  res.setHeader("Cache-Control", "no-store");
+  res.status(ready ? 200 : 503).json({
+    status: ready ? "ready" : "unavailable",
+    checks: { database: ready ? "ready" : "unavailable" },
+    request_id: req.requestId,
+  });
+});
+
+// Rate limiting (exclude the long-lived SSE stream endpoint).
+app.use("/api/", (req, res, next) => {
+  if (req.path.startsWith("/realtime/stream")) return next();
+  return apiLimiter(req, res, next);
 });
 
 // API routes

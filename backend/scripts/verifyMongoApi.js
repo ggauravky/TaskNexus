@@ -1,4 +1,5 @@
 require("../src/config/loadEnv");
+require("./lib/stagingSafety").assertStagingMutationAllowed();
 const assert = require("node:assert/strict");
 const { randomBytes, randomUUID } = require("node:crypto");
 const bcrypt = require("bcrypt");
@@ -6,7 +7,8 @@ const mongoose = require("mongoose");
 const { connectDatabase, disconnectDatabase } = require("../src/config/database");
 const models = require("../src/models");
 
-const apiBase = (process.argv[2] || "http://localhost:5000/api").replace(/\/$/, "");
+const configuredApiBase = process.argv.slice(2).find((argument) => !argument.startsWith("--"));
+const apiBase = (configuredApiBase || "http://localhost:5000/api").replace(/\/$/, "");
 const runId = randomUUID();
 const password = `Tn-${randomBytes(18).toString("base64url")}9aA`;
 const ids = { admin: randomUUID() };

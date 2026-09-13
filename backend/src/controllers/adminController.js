@@ -375,11 +375,18 @@ exports.getAuditLogs = async (req, res, next) => {
       filters.user_id = userId;
     }
 
-    const logs = await auditLogData.findAuditLogs(filters);
+    const options = parseListQuery(req.query, {
+      allowedSorts: ["timestamp"],
+      defaultSort: "timestamp",
+      defaultLimit: 50,
+      maxLimit: 100,
+    });
+    const result = await auditLogData.listAuditLogs({ filters, ...options });
 
     res.status(200).json({
       success: true,
-      data: logs,
+      data: result.items,
+      meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
     logger.error("Error fetching audit logs:", error);

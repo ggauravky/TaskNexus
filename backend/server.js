@@ -1,20 +1,24 @@
 require("./src/config/loadEnv");
+const { validateEnvironment } = require("./src/config/environment");
+let runtime;
+try {
+  runtime = validateEnvironment();
+} catch (error) {
+  process.stderr.write(`Startup configuration rejected: ${error.message}\n`);
+  process.exit(1);
+}
 const app = require("./src/app");
 const logger = require("./src/utils/logger");
 const { connectDatabase, disconnectDatabase } = require("./src/config/database");
+const realtimeHub = require("./src/services/realtimeHub");
 const fs = require("fs");
 const path = require("path");
 
 // Create necessary directories
 const createDirectories = () => {
-  const dirs = [
-    path.join(__dirname, "logs"),
-    path.resolve(process.env.UPLOAD_PATH || path.join(__dirname, "uploads")),
-    path.join(
-      path.resolve(process.env.UPLOAD_PATH || path.join(__dirname, "uploads")),
-      "comments",
-    ),
-  ];
+  if (runtime.uploadMode !== "local") return;
+  const uploadsRoot = path.resolve(process.env.UPLOAD_PATH || path.join(__dirname, "uploads"));
+  const dirs = [uploadsRoot, path.join(uploadsRoot, "comments")];
 
   dirs.forEach((dir) => {
     if (!fs.existsSync(dir)) {
@@ -35,37 +39,47 @@ const startServer = async () => {
     await connectDatabase();
 
     // Get port from environment or use default
-    const PORT = process.env.PORT || 5000;
+    const PORT = Number(process.env.PORT) || 5000;
 
     // Start listening
     const server = app.listen(PORT, () => {
-      logger.info(`=================================================`);
-      logger.info(`🚀 TaskNexus API Server Running`);
-      logger.info(`=================================================`);
-      logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
-      logger.info(`Port: ${PORT}`);
-      logger.info(`URL: http://localhost:${PORT}`);
-      logger.info(`Health Check: http://localhost:${PORT}/health`);
-      logger.info(`=================================================`);
+      logger.info("TaskNexus API listening", {
+        environment: runtime.appEnv,
+        port: PORT,
+        uploadMode: runtime.uploadMode,
+      });
     });
 
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
+    server.requestTimeout = 30000;
+
     // Graceful shutdown
+    let shuttingDown = false;
     const gracefulShutdown = async (signal) => {
-      logger.info(`\n${signal} received. Starting graceful shutdown...`);
+      if (shuttingDown) return;
+      shuttingDown = true;
+      logger.info("Graceful shutdown started", { signal });
+      realtimeHub.closeAll();
 
-      server.close(async () => {
-        logger.info("HTTP server closed");
-        await disconnectDatabase();
-        logger.info("MongoDB connection closed");
-        logger.info("Graceful shutdown completed");
-        process.exit(0);
-      });
-
-      // Force shutdown after 30 seconds
-      setTimeout(() => {
-        logger.error("Forced shutdown after timeout");
+      const forceTimer = setTimeout(() => {
+        logger.error("Forced shutdown after timeout", { signal });
         process.exit(1);
       }, 30000);
+      forceTimer.unref();
+
+      server.close(async (closeError) => {
+        try {
+          if (closeError) logger.error("HTTP server close failed", { errorMessage: closeError.message });
+          await disconnectDatabase();
+          clearTimeout(forceTimer);
+          logger.info("Graceful shutdown completed", { signal });
+          process.exit(closeError ? 1 : 0);
+        } catch (error) {
+          logger.error("Shutdown failed", { errorMessage: error.message });
+          process.exit(1);
+        }
+      });
     };
 
     // Handle shutdown signals
@@ -74,17 +88,17 @@ const startServer = async () => {
 
     // Handle uncaught exceptions
     process.on("uncaughtException", (error) => {
-      logger.error("Uncaught Exception:", error);
+      logger.error("Uncaught exception", { errorMessage: error.message, stack: error.stack });
       gracefulShutdown("UNCAUGHT_EXCEPTION");
     });
 
     // Handle unhandled promise rejections
-    process.on("unhandledRejection", (reason, promise) => {
-      logger.error("Unhandled Rejection at:", promise, "reason:", reason);
+    process.on("unhandledRejection", (reason) => {
+      logger.error("Unhandled rejection", { errorMessage: reason?.message || String(reason), stack: reason?.stack });
       gracefulShutdown("UNHANDLED_REJECTION");
     });
   } catch (error) {
-    logger.error("Failed to start server:", error);
+    logger.error("Failed to start server", { code: error.code, errorMessage: error.message });
     process.exit(1);
   }
 };

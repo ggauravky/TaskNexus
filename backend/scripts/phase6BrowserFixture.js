@@ -1,5 +1,6 @@
 require("../src/config/loadEnv");
-const { randomUUID } = require("node:crypto");
+require("./lib/stagingSafety").assertStagingMutationAllowed();
+const { randomBytes, randomUUID } = require("node:crypto");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 const { connectDatabase, disconnectDatabase } = require("../src/config/database");
@@ -7,7 +8,7 @@ const models = require("../src/models");
 
 const teamSlug = "phase6-browser-qa";
 const projectSlug = "discovery-proof";
-const password = "TaskNexus-QA-2026!";
+const password = `Tn-QA-${randomBytes(18).toString("base64url")}9aA!`;
 const labels = ["owner", "admin", "react", "python", "designer", "private"];
 const emails = Object.fromEntries(labels.map((label) => [label, `phase6-${label}@example.invalid`]));
 const trustedIn = (values) => mongoose.trusted({ $in: values });

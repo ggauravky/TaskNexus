@@ -4,7 +4,6 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { USER_ROLES } from './utils/constants';
-import { API_URL } from './utils/constants';
 
 // Page imports
 import LandingPage from './pages/LandingPage';
@@ -64,7 +63,8 @@ const RouteMetadata = () => {
     useEffect(() => {
         const isShowcaseEditor = /^\/teams\/[a-z0-9-]+\/projects\/[a-z0-9-]+\/showcase$/i.test(pathname);
         const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile)(\/|$)/.test(pathname)
-            || pathname === '/teams' || pathname === '/projects' || pathname === '/contributions' || pathname === '/people' || pathname === '/collaboration' || pathname === '/applications'
+            || pathname === '/teams' || pathname === '/projects' || pathname === '/contributions' || pathname === '/people' || pathname === '/collaboration' || pathname === '/applications' || pathname === '/organization-invitations'
+            || /^\/organizations\/[a-z0-9-]+\/workspace$/i.test(pathname)
             || /\/settings$/.test(pathname) || isShowcaseEditor;
         const isPublicProfile = /^\/u\/[a-z0-9_-]+$/i.test(pathname);
         const isPublicTeam = /^\/teams\/[a-z0-9-]+$/i.test(pathname);
@@ -115,6 +115,16 @@ const RouteMetadata = () => {
         if (description) description.setAttribute('content', metadata.description);
         if (robots) robots.setAttribute('content', metadata.noindex || isPrivate ? 'noindex, nofollow' : 'index, follow');
         if (canonical) canonical.setAttribute('href', `${SITE_URL}${pathname === '/' ? '/' : pathname}`);
+        const socialValues = {
+            'meta[property="og:title"]': metadata.title,
+            'meta[property="og:description"]': metadata.description,
+            'meta[property="og:url"]': `${SITE_URL}${pathname === '/' ? '/' : pathname}`,
+            'meta[name="twitter:title"]': metadata.title,
+            'meta[name="twitter:description"]': metadata.description,
+        };
+        Object.entries(socialValues).forEach(([selector, content]) => {
+            document.querySelector(selector)?.setAttribute('content', content);
+        });
     }, [pathname]);
 
     return null;
@@ -124,43 +134,9 @@ const RouteMetadata = () => {
  * Main App Component
  */
 function App() {
-    // Warm the backend (Render spins down) as soon as the app loads.
-    useEffect(() => {
-        const controller = new AbortController();
-        const warm = async () => {
-            try {
-                const base = API_URL.replace(/\/api\/?$/, '');
-                const healthUrl = `${base}/health`;
-                const apiHealthUrl = `${base}/api/health`;
-
-                const doPing = async (url) => {
-                    const res = await fetch(url, {
-                        signal: controller.signal,
-                        credentials: 'include',
-                        cache: 'no-cache',
-                    });
-                    return res.ok;
-                };
-
-                const ok = await doPing(healthUrl);
-                if (!ok) await doPing(apiHealthUrl);
-            } catch (err) {
-                const isAbort = err?.name === 'AbortError' || controller.signal.aborted;
-                if (isAbort) return;
-            }
-        };
-        warm();
-        return () => controller.abort();
-    }, []);
-
     return (
         <AuthProvider>
-            <Router
-                future={{
-                    v7_startTransition: true,
-                    v7_relativeSplatPath: true,
-                }}
-            >
+            <Router>
                 <div className="shell">
                     <RouteMetadata />
                     <Toaster

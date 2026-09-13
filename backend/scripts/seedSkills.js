@@ -1,4 +1,5 @@
 require("../src/config/loadEnv");
+require("./lib/stagingSafety").assertStagingMutationAllowed();
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 const { connectDatabase, disconnectDatabase } = require("../src/config/database");

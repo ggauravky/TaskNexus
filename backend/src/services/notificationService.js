@@ -213,11 +213,10 @@ class NotificationService {
    * Get unread count
    */
   static async getUnreadCount(userId) {
-    const notifications = await notificationData.findNotifications({
-        recipient_id: userId,
-        status: "unread",
+    return notificationData.countNotifications({
+      recipient_id: userId,
+      status: "unread",
     });
-    return notifications.length;
   }
 }
 

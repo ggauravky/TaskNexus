@@ -117,7 +117,7 @@ const sendAdminEmail = async ({ subject, htmlContent, textContent, tags, attachm
 
 const syncNewsletterContact = async ({ email, firstName, lastName }) => {
   if (!isBrevoConfigured()) {
-    logger.warn("Skipping Brevo contact sync because Brevo is not configured", { email });
+    logger.warn("Skipping Brevo contact sync because Brevo is not configured");
     return {
       status: "skipped",
       reason: EMAIL_SKIP_REASONS.NOT_CONFIGURED,
