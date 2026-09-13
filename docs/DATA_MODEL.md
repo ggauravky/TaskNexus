@@ -130,3 +130,17 @@ Organization ──< Opportunity ──< OpportunityCandidateState >── User
 ```
 
 `organizations` stores public catalog identity, verification, lifecycle, and revision. `opportunities` stores role type, content, location/work facts, compensation, HTTPS application/source provenance, structured eligibility, lifecycle timestamps, catalog revision, and an internal candidate-write fence. `opportunity_candidate_states` stores one user's saved flag and optional self-reported application stage, notes, URL snapshot, timestamps, and revision under a unique user/opportunity index. Candidate records are never employer records and survive Opportunity close.
+
+## Organization hiring relationships
+
+```text
+Organization ──< OrganizationMembership >── User
+             └──< OrganizationInvitation >── User
+             └──< organization_owned Opportunity
+                           └──< NativeApplication >── Candidate User
+                                      └──< ApplicationActivity
+```
+
+`Organization.management_mode` is `platform_managed` or `organization_managed`; managed Organizations hold `owner_id`. A partial unique Organization/role/status index and transactional transfers preserve exactly one active owner. Membership roles are only `owner`, `admin`, and `recruiter`.
+
+`NativeApplication` is unique by Opportunity/candidate and stores the application stage, optional 2,000-character plain-text cover note, selected Project/evidence IDs, a bounded consent snapshot, timestamps, and revision. Snapshot subdocuments include only display identity, headline/avatar, up to five education facts, twenty skills, five completed public evidence-backed Projects, and twelve public-safe evidence items. `ApplicationActivity` records submitted, stage-changed, and withdrawn facts; no separate Organization activity collection was added because existing `AuditLog` records Organization authority changes.

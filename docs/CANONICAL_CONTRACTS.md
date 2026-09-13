@@ -137,6 +137,11 @@ Lifecycle status is stored, while UTC dates independently enforce registration a
 - Eligibility: `eligible`, `possibly_eligible`, `not_eligible`, `unknown`; check facts: `pass`, `gap`, `fail`, `unknown`.
 - Candidate-reported application: `interested`, `applied`, `assessment`, `interview`, `offer`, `rejected`, `withdrawn`.
 - Provenance: `official`, `admin_curated`, `external`; compensation period: `hour`, `month`, `year`, `fixed`.
+- Organization management: `platform_managed`, `organization_managed`; contextual roles: `owner`, `admin`, `recruiter`.
+- Organization invitation: `pending`, `accepted`, `declined`, `cancelled`, `expired`.
+- Opportunity application mode: `external`, `tasknexus`; Organization-owned provenance: `organization_owned`.
+- Native application stage: `submitted`, `reviewing`, `shortlisted`, `assessment`, `interview`, `offer`, `rejected`, `withdrawn`.
+- Application activity: `submitted`, `stage_changed`, `withdrawn`.
 
 These values originate only in `shared/contracts/domain.json`; generated frontend/backend maps must stay byte-for-byte aligned with the arrays.
 

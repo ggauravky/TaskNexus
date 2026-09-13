@@ -43,6 +43,8 @@ const OpportunitiesPage = lazy(() => import('./pages/OpportunitiesPage'));
 const OpportunityDetailPage = lazy(() => import('./pages/OpportunityDetailPage'));
 const ApplicationsPage = lazy(() => import('./pages/ApplicationsPage'));
 const OrganizationPage = lazy(() => import('./pages/OrganizationPage'));
+const OrganizationWorkspacePage = lazy(() => import('./pages/OrganizationWorkspacePage'));
+const OrganizationInvitationsPage = lazy(() => import('./pages/OrganizationInvitationsPage'));
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
 
@@ -301,6 +303,16 @@ function AppRoutes() {
             <Route path="/applications" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
                     <ApplicationsPage />
+                </ProtectedRoute>
+            } />
+            <Route path="/organization-invitations" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <OrganizationInvitationsPage />
+                </ProtectedRoute>
+            } />
+            <Route path="/organizations/:slug/workspace" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <OrganizationWorkspacePage />
                 </ProtectedRoute>
             } />
             <Route path="/teams/:teamSlug/projects/:projectSlug/settings" element={

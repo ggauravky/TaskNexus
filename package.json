@@ -15,6 +15,8 @@
     "verify:discovery": "npm --prefix backend run verify:discovery",
     "verify:teams": "npm --prefix backend run verify:teams",
     "verify:hackathons": "npm --prefix backend run verify:hackathons",
-    "verify:opportunities": "npm --prefix backend run verify:opportunities"
+    "verify:opportunities": "npm --prefix backend run verify:opportunities",
+    "verify:organizations": "npm --prefix backend run verify:organizations",
+    "qa:phase9-browser": "npm --prefix backend run qa:phase9-browser --"
   }
 }

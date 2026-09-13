@@ -6,6 +6,10 @@ const organizationPublicDto = (organization, context = {}) => ({
   website_url: organization.website_url || null, industry: organization.industry || null, company_size: organization.company_size || null,
   headquarters: locationDto(organization.headquarters), locations: (organization.locations || []).map(locationDto),
   verification_status: organization.verification_status, active_opportunity_count: context.activeOpportunityCount ?? undefined,
+  management_mode: organization.management_mode || "platform_managed",
+  viewer_membership: context.membership ? { id: context.membership.id, role: context.membership.role, status: context.membership.status } : null,
+  viewer_permissions: context.permissions || undefined,
+  revision: context.membership ? organization.revision : undefined,
 });
 
 const compensationDto = (value) => value ? ({ min_amount: value.min_amount ?? null, max_amount: value.max_amount ?? null, currency: value.currency || null, period: value.period || null }) : null;
@@ -31,7 +35,7 @@ const opportunityPublicDto = (opportunity, context = {}) => ({
   responsibilities: context.detail ? opportunity.responsibilities || [] : undefined,
   requirements: context.detail ? opportunity.requirements || [] : undefined,
   work_mode: opportunity.work_mode, locations: (opportunity.locations || []).map(locationDto), employment_type: opportunity.employment_type,
-  duration: opportunity.duration || null, compensation: compensationDto(opportunity.compensation), application_url: opportunity.application_url,
+  duration: opportunity.duration || null, compensation: compensationDto(opportunity.compensation), application_mode: opportunity.application_mode || "external", application_url: opportunity.application_url || null,
   application_deadline: opportunity.application_deadline || null, start_date: opportunity.start_date || null,
   required_skills: context.requiredSkills || [], preferred_skills: context.preferredSkills || [],
   eligibility_rules: context.detail ? eligibilityRulesDto(opportunity.eligibility) : undefined,
@@ -45,6 +49,11 @@ const opportunityCandidateDto = (opportunity, context = {}) => ({
   ...(context.includeCandidate ? {
     eligibility: context.eligibility || null,
     viewer_state: candidateStateDto(context.state),
+    viewer_native_application: context.nativeApplication ? {
+      id: context.nativeApplication.id, stage: context.nativeApplication.stage,
+      submitted_at: context.nativeApplication.submitted_at, withdrawn_at: context.nativeApplication.withdrawn_at || null,
+      revision: context.nativeApplication.revision,
+    } : null,
   } : {}),
 });
 

@@ -132,6 +132,27 @@ const opportunityCatalogLimiter = rateLimit({
   standardHeaders: true, legacyHeaders: false,
 });
 
+const organizationInvitationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.ORGANIZATION_INVITATION_MAX_PER_HOUR) || 60,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Organization invitation limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const nativeApplicationSubmissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.NATIVE_APPLICATION_MAX_PER_HOUR) || 30,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Native application submission limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const applicationStageMutationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.APPLICATION_STAGE_MUTATION_MAX_PER_HOUR) || 180,
+  message: { success: false, error: { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: "Application stage update limit exceeded; try again later" } },
+  standardHeaders: true, legacyHeaders: false,
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
@@ -145,4 +166,7 @@ module.exports = {
   opportunitySearchLimiter,
   opportunityCandidateMutationLimiter,
   opportunityCatalogLimiter,
+  organizationInvitationLimiter,
+  nativeApplicationSubmissionLimiter,
+  applicationStageMutationLimiter,
 };

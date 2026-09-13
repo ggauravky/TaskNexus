@@ -228,3 +228,35 @@ Public reads: `GET /api/organizations`, `GET /api/organizations/:slug`, `GET /ap
 Authenticated candidate reads/writes: `GET /api/opportunities/me/saved`, `POST|DELETE /api/opportunities/:id/save`, `GET /api/applications`, and `PUT|DELETE /api/opportunities/:id/application`. User identity is token-derived. Application PUT accepts an allowlisted status, optional private notes, and the current revision for updates.
 
 Administrator catalog writes: `POST|PATCH /api/admin/organizations`, `POST /api/admin/organizations/:id/verify`, `POST|PATCH /api/admin/opportunities`, and publish/close/archive POST transitions. Update and transition DTOs require a revision. Public DTOs omit eligibility and candidate state; authenticated Opportunity DTOs add only the caller's eligibility and state.
+
+## Organization hiring workspace
+
+Initial platform control: `POST /api/admin/organizations/:id/grant-management` with `ownerUserId` and Organization `revision`.
+
+Contextual Organization endpoints:
+
+- `GET /api/organizations/:id/workspace`
+- `PATCH /api/organizations/:id`
+- `GET /api/organizations/:id/members`
+- `PATCH|DELETE /api/organizations/:id/members/:userId[/role]`
+- `POST /api/organizations/:id/transfer-ownership`
+- `POST /api/organizations/:id/archive-management`
+- `GET|POST /api/organizations/:id/invitations`
+- `DELETE /api/organizations/:id/invitations/:invitationId`
+- `GET /api/organization-invitations`
+- `POST /api/organization-invitations/:id/accept|decline`
+- `POST|PATCH /api/organizations/:id/opportunities[/:opportunityId]` and explicit publish/close/archive actions
+
+Native application endpoints:
+
+- `GET /api/native-applications/eligible-projects`
+- `POST /api/opportunities/:id/applications`
+- `GET /api/native-applications/me`
+- `GET /api/native-applications/:id`
+- `POST /api/native-applications/:id/withdraw`
+- `GET /api/organizations/:id/applications`
+- `GET /api/organizations/:id/opportunities/:opportunityId/applications`
+- `GET /api/organizations/:id/applications/:applicationId`
+- `POST /api/native-applications/:id/stage`
+
+Candidate and Organization identity are always token-derived. Submission requires explicit boolean consent; project/evidence IDs are bounded and authorization-checked. Stage and withdrawal commands require the current revision. DTOs are role-specific and never return raw Mongoose documents.

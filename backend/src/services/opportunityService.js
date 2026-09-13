@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
-const { Organization, Opportunity, OpportunityCandidateState, Skill } = require("../models");
+const { NativeApplication, Organization, OrganizationMembership, Opportunity, OpportunityCandidateState, Skill } = require("../models");
 const { raw: domain } = require("../contracts/domain");
 const { escapeRegex } = require("../data/mongoDataUtils");
 const { toApp, toApps } = require("../models/helpers");
@@ -10,6 +10,8 @@ const { parseListQuery } = require("../utils/queryOptions");
 const { isDuplicateKey, withTransaction } = require("../utils/transactions");
 const { evaluateOpportunity, loadCandidateContext } = require("./opportunityEligibilityService");
 const { candidateStateDto, organizationPublicDto, opportunityCandidateDto } = require("../serializers/opportunitySerializers");
+const organizationAuthz = require("./organizationAuthorization");
+const { organizationPermissions } = require("../serializers/organizationSerializers");
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -138,7 +140,8 @@ const opportunityInput = async (input, { partial = false, session = null } = {})
   set("employmentType", "employment_type", enumValue(input.employmentType, domain.employmentTypes, "employment type") || "full_time");
   set("duration", "duration", plainText(input.duration, 120, "Duration"));
   if (!partial || input.compensation !== undefined) result.compensation = compensationValue(input.compensation);
-  set("applicationUrl", "application_url", httpsUrl(input.applicationUrl, "Application URL", !partial));
+  set("applicationMode", "application_mode", enumValue(input.applicationMode, domain.opportunityApplicationModes, "application mode") || "external");
+  set("applicationUrl", "application_url", httpsUrl(input.applicationUrl, "Application URL"));
   for (const [inputKey, key, label] of [["applicationDeadline", "application_deadline", "Application deadline"], ["startDate", "start_date", "Start date"], ["sourcePublishedAt", "source_published_at", "Source publication time"], ["expiresAt", "expires_at", "Expiry time"]]) set(inputKey, key, dateValue(input[inputKey], label));
   if (!partial || input.requiredSkillIds !== undefined) result.required_skill_ids = await verifySkills(uniqueList(input.requiredSkillIds, 16, "Required skills"), session);
   if (!partial || input.preferredSkillIds !== undefined) result.preferred_skill_ids = await verifySkills(uniqueList(input.preferredSkillIds, 16, "Preferred skills"), session);
@@ -154,14 +157,17 @@ const openFilter = (now = new Date()) => ({ status: "published", $and: mongoose.
 const loadDecoration = async (opportunities, actorId = null, { detail = false } = {}) => {
   const ids = opportunities.map((row) => row.id); const orgIds = [...new Set(opportunities.map((row) => row.organization_id))];
   const skillIds = [...new Set(opportunities.flatMap((row) => [...(row.required_skill_ids || []), ...(row.preferred_skill_ids || [])]))];
-  const [organizations, skills, states, candidate] = await Promise.all([
+  const [organizations, skills, states, nativeApplications, candidate] = await Promise.all([
     Organization.find({ _id: trustedIn(orgIds) }).lean(), Skill.find({ _id: trustedIn(skillIds), is_active: true }).select("_id slug name category").lean(),
-    actorId ? OpportunityCandidateState.find({ user_id: actorId, opportunity_id: trustedIn(ids) }).lean() : [], actorId ? loadCandidateContext(actorId) : null,
+    actorId ? OpportunityCandidateState.find({ user_id: actorId, opportunity_id: trustedIn(ids) }).lean() : [],
+    actorId ? NativeApplication.find({ candidate_id: actorId, opportunity_id: trustedIn(ids) }).select("_id opportunity_id stage submitted_at withdrawn_at revision").lean() : [],
+    actorId ? loadCandidateContext(actorId) : null,
   ]);
   const orgMap = new Map(toApps(organizations).map((row) => [row.id, row])); const stateMap = new Map(toApps(states).map((row) => [row.opportunity_id, row]));
+  const nativeMap = new Map(toApps(nativeApplications).map((row) => [row.opportunity_id, row]));
   const skillMap = new Map(toApps(skills).map((row) => [row.id, { id: row.id, slug: row.slug, name: row.name, category: row.category }]));
   return opportunities.map((row) => {
-    const context = { detail, includeCandidate: Boolean(actorId), organization: orgMap.get(row.organization_id), requiredSkills: (row.required_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), preferredSkills: (row.preferred_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), state: stateMap.get(row.id) || null, isOpen: isOpen(row) };
+    const context = { detail, includeCandidate: Boolean(actorId), organization: orgMap.get(row.organization_id), requiredSkills: (row.required_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), preferredSkills: (row.preferred_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), state: stateMap.get(row.id) || null, nativeApplication: nativeMap.get(row.id) || null, isOpen: isOpen(row) };
     context.eligibility = candidate ? evaluateOpportunity(row, candidate, skillMap) : null;
     return opportunityCandidateDto(row, context);
   });
@@ -175,10 +181,11 @@ const listOrganizations = async (query = {}) => {
   const countMap = new Map(counts.map((row) => [row._id, row.count])); return { items: items.map((row) => organizationPublicDto(row, { activeOpportunityCount: countMap.get(row.id) || 0 })), meta: paginationMeta({ ...options, total }) };
 };
 
-const getOrganization = async (slug) => {
+const getOrganization = async (slug, actorId = null) => {
   const row = toApp(await Organization.findOne({ slug: String(slug).toLowerCase(), status: "active" }).lean()); if (!row) throw errors.notFound("Organization not found");
   const opportunities = toApps(await Opportunity.find({ organization_id: row.id, ...openFilter() }).sort({ published_at: -1, _id: 1 }).limit(50).lean());
-  return { ...organizationPublicDto(row, { activeOpportunityCount: opportunities.length }), opportunities: await loadDecoration(opportunities) };
+  const membership = actorId ? toApp(await OrganizationMembership.findOne({ organization_id: row.id, user_id: actorId, status: "active" }).lean()) : null;
+  return { ...organizationPublicDto(row, { activeOpportunityCount: opportunities.length, membership, permissions: organizationPermissions(membership?.role) }), opportunities: await loadDecoration(opportunities, actorId) };
 };
 
 const createOrganization = async (actorId, input) => {
@@ -244,8 +251,39 @@ const listOpportunities = async (query = {}, actorId = null) => {
 const getOpportunity = async (slug, actorId = null, actorRole = null) => {
   const row = toApp(await Opportunity.findOne({ slug: String(slug).toLowerCase() }).lean()); if (!row || row.status === "archived") throw errors.notFound("Opportunity not found");
   let state = null; if (actorId) state = toApp(await OpportunityCandidateState.findOne({ user_id: actorId, opportunity_id: row.id }).lean());
-  if (row.status !== "published" && actorRole !== "admin" && !state?.application_status && !state?.saved) throw errors.notFound("Opportunity not found");
-  const [result] = await loadDecoration([row], actorId, { detail: true }); return actorRole === "admin" ? { ...result, revision: row.revision } : result;
+  const membership = actorId ? await OrganizationMembership.exists({ organization_id: row.organization_id, user_id: actorId, status: "active" }) : null;
+  if (row.status !== "published" && actorRole !== "admin" && !membership && !state?.application_status && !state?.saved) throw errors.notFound("Opportunity not found");
+  const [result] = await loadDecoration([row], actorId, { detail: true }); return actorRole === "admin" || membership ? { ...result, revision: row.revision } : result;
+};
+
+const createManagedOpportunity = async (organizationId, actorId, input) => {
+  const organization = await organizationAuthz.getOrganization(organizationId);
+  await organizationAuthz.requireMember(organizationId, actorId);
+  if (organization.management_mode !== "organization_managed") throw errors.conflict("Organization management is not active");
+  return createOpportunity(actorId, {
+    ...input, organizationId, sourceType: "organization_owned",
+    applicationMode: input.applicationMode || "tasknexus",
+    applicationUrl: input.applicationMode === "external" ? input.applicationUrl : null,
+    sourceUrl: null,
+  });
+};
+
+const updateManagedOpportunity = async (organizationId, opportunityId, actorId, input) => {
+  await organizationAuthz.requireMember(organizationId, actorId);
+  const current = toApp(await Opportunity.findOne({ _id: opportunityId, organization_id: organizationId, source_type: "organization_owned", status: mongoose.trusted({ $ne: "archived" }) }).lean());
+  if (!current) throw errors.notFound("Organization-owned Opportunity not found");
+  const safeInput = { ...input };
+  delete safeInput.organizationId;
+  delete safeInput.sourceType;
+  delete safeInput.sourceUrl;
+  return updateOpportunity(opportunityId, actorId, safeInput);
+};
+
+const transitionManagedOpportunity = async (organizationId, opportunityId, actorId, input, status) => {
+  await organizationAuthz.requireMember(organizationId, actorId);
+  const exists = await Opportunity.exists({ _id: opportunityId, organization_id: organizationId, source_type: "organization_owned" });
+  if (!exists) throw errors.notFound("Organization-owned Opportunity not found");
+  return transitionOpportunity(opportunityId, actorId, input, status);
 };
 
 const assertCandidateWritable = (row, existing, action) => { if (!isOpen(row) && !(action === "application" && existing?.application_status)) throw errors.conflict("This Opportunity is no longer open for new candidate actions"); };
@@ -278,5 +316,9 @@ module.exports = {
   listOpportunities, listOrganizations, listSaved: (userId, query) => listCandidateStates(userId, query, true), publishOpportunity: (id, actorId, input) => transitionOpportunity(id, actorId, input, "published"),
   closeOpportunity: (id, actorId, input) => transitionOpportunity(id, actorId, input, "closed"), archiveOpportunity: (id, actorId, input) => transitionOpportunity(id, actorId, input, "archived"),
   saveApplication, saveOpportunity, unsaveOpportunity, updateOpportunity, updateOrganization, verifyOrganization,
+  createManagedOpportunity, updateManagedOpportunity,
+  publishManagedOpportunity: (organizationId, id, actorId, input) => transitionManagedOpportunity(organizationId, id, actorId, input, "published"),
+  closeManagedOpportunity: (organizationId, id, actorId, input) => transitionManagedOpportunity(organizationId, id, actorId, input, "closed"),
+  archiveManagedOpportunity: (organizationId, id, actorId, input) => transitionManagedOpportunity(organizationId, id, actorId, input, "archived"),
   _private: { eligibilityValue, httpsUrl, isOpen, locationValue, opportunityInput, organizationInput, plainText },
 };
