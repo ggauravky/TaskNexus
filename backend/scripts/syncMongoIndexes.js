@@ -1,4 +1,5 @@
 require("../src/config/loadEnv");
+require("./lib/stagingSafety").assertStagingMutationAllowed();
 const { connectDatabase, disconnectDatabase } = require("../src/config/database");
 const models = require("../src/models");
 

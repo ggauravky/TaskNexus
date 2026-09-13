@@ -100,10 +100,22 @@ const relationships = [
   [models.CollaborationRequest, "hackathon_id", models.Hackathon, "collaboration hackathon"],
   [models.Organization, "created_by", models.User, "organization creator"],
   [models.Organization, "verified_by", models.User, "organization verifier"],
+  [models.Organization, "owner_id", models.User, "organization owner"],
+  [models.OrganizationMembership, "organization_id", models.Organization, "organization membership organization"],
+  [models.OrganizationMembership, "user_id", models.User, "organization membership user"],
+  [models.OrganizationInvitation, "organization_id", models.Organization, "organization invitation organization"],
+  [models.OrganizationInvitation, "invited_user_id", models.User, "organization invited user"],
+  [models.OrganizationInvitation, "invited_by", models.User, "organization invitation actor"],
   [models.Opportunity, "organization_id", models.Organization, "opportunity organization"],
   [models.Opportunity, "created_by", models.User, "opportunity creator"],
   [models.OpportunityCandidateState, "opportunity_id", models.Opportunity, "candidate state opportunity"],
   [models.OpportunityCandidateState, "user_id", models.User, "candidate state owner"],
+  [models.NativeApplication, "opportunity_id", models.Opportunity, "native application opportunity"],
+  [models.NativeApplication, "organization_id", models.Organization, "native application organization"],
+  [models.NativeApplication, "candidate_id", models.User, "native application candidate"],
+  [models.ApplicationActivity, "application_id", models.NativeApplication, "application activity application"],
+  [models.ApplicationActivity, "organization_id", models.Organization, "application activity organization"],
+  [models.ApplicationActivity, "actor_id", models.User, "application activity actor"],
 ];
 
 const verifyDeclaredIndexes = async (Model) => {
@@ -178,6 +190,18 @@ const run = async () => {
   if (!JSON.stringify(applicationPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Candidate application query did not use an index");
   const savedOpportunityPlan = await models.OpportunityCandidateState.find({ user_id: "__verification__", saved: true }).sort({ updated_at: -1 }).explain("queryPlanner");
   if (!JSON.stringify(savedOpportunityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Saved Opportunity query did not use an index");
+  const organizationMemberPlan = await models.OrganizationMembership.find({ organization_id: "__verification__", status: "active" }).sort({ role: 1, joined_at: 1 }).explain("queryPlanner");
+  if (!JSON.stringify(organizationMemberPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Organization member query did not use an index");
+  const organizationInboxPlan = await models.OrganizationInvitation.find({ invited_user_id: "__verification__", status: "pending" }).sort({ created_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(organizationInboxPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Organization invitation inbox query did not use an index");
+  const organizationApplicantPlan = await models.NativeApplication.find({ organization_id: "__verification__", stage: "submitted" }).sort({ submitted_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(organizationApplicantPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Organization applicant query did not use an index");
+  const opportunityApplicantPlan = await models.NativeApplication.find({ opportunity_id: "__verification__", stage: "submitted" }).sort({ submitted_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(opportunityApplicantPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Opportunity applicant query did not use an index");
+  const candidateNativePlan = await models.NativeApplication.find({ candidate_id: "__verification__", stage: "submitted" }).sort({ submitted_at: -1 }).explain("queryPlanner");
+  if (!JSON.stringify(candidateNativePlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Candidate native application query did not use an index");
+  const applicationActivityPlan = await models.ApplicationActivity.find({ application_id: "__verification__" }).sort({ created_at: 1 }).explain("queryPlanner");
+  if (!JSON.stringify(applicationActivityPlan.queryPlanner?.winningPlan || {}).includes("IXSCAN")) throw new Error("Application activity query did not use an index");
   process.stdout.write(`MongoDB verification passed for ${databaseName()} (${Object.keys(counts).length} collections).\n`);
 };
 

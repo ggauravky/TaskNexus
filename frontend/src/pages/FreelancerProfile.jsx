@@ -154,15 +154,15 @@ const FreelancerProfile = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50">
+            <div className="legacy-profile-page flex min-h-screen items-center justify-center bg-[#010102] text-[#f7f8f8]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-            <header className="bg-white/90 backdrop-blur border-b border-slate-100 sticky top-0 z-10">
+        <div className="legacy-profile-page min-h-screen bg-[#010102] text-[#f7f8f8]">
+            <header className="border-b border-[#23252a] bg-[#010102]">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                         <button
@@ -192,7 +192,7 @@ const FreelancerProfile = () => {
                 <section className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                         <div className="flex items-center space-x-4">
-                            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary-500 to-cyan-500 text-white flex items-center justify-center text-2xl font-bold">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#5e6ad2] text-2xl font-semibold text-white">
                                 {(form.firstName?.[0] || 'F').toUpperCase()}
                             </div>
                             <div>
@@ -329,7 +329,7 @@ const FreelancerProfile = () => {
 
                     <aside className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 space-y-5">
                         <SectionTitle icon={Target} title="Live Profile Card" />
-                        <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-600 to-cyan-500 text-white shadow-lg space-y-3">
+                        <div className="space-y-3 rounded-xl border border-[#34343a] bg-[#141516] p-4 text-white">
                             <div className="flex items-center gap-3">
                                 <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center text-xl font-bold">
                                     {(form.firstName?.[0] || 'F').toUpperCase()}
@@ -365,9 +365,9 @@ const FreelancerProfile = () => {
                         <div className="space-y-3">
                             <SectionTitle icon={CheckCircle} title="Tips to boost visibility" />
                             <ul className="space-y-2 text-sm text-slate-600">
-                                <li>• Keep a clear title (e.g., “Senior React Engineer — dashboards & data viz”).</li>
-                                <li>• List 6–12 focused skills and your strongest industries.</li>
-                                <li>• Add a concise 3–4 sentence bio with measurable outcomes.</li>
+                                <li>• Keep a clear title (for example, “Senior React Engineer for dashboards and data visualization”).</li>
+                                <li>• List 6 to 12 focused skills and your strongest industries.</li>
+                                <li>• Add a concise 3 to 4 sentence bio with measurable outcomes.</li>
                             </ul>
                         </div>
                     </aside>

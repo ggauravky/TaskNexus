@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
-import { Sparkles } from "lucide-react";
 
 const groups = [
-  { title: "Product", links: [{ to: "/services", label: "Services" }] },
+  { title: "Product", links: [{ to: "/opportunities", label: "Opportunities" }, { to: "/hackathons", label: "Hackathons" }, { to: "/services", label: "Services" }] },
   { title: "Resources", links: [{ to: "/blog", label: "Blog" }, { to: "/support-jar", label: "Support Jar" }] },
   { title: "Access", links: [{ to: "/login", label: "Sign in" }, { to: "/register", label: "Create account" }, { to: "/admin/login", label: "Admin access" }] },
 ];
@@ -12,9 +11,7 @@ const PublicFooter = () => (
     <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.4fr_2fr] lg:px-8">
       <div>
         <Link to="/" className="inline-flex items-center gap-3 text-white">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-primary-300">
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
-          </span>
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#5e6ad2] text-[11px] font-semibold text-white" aria-hidden="true">TN</span>
           <span className="font-semibold">TaskNexus</span>
         </Link>
         <p className="mt-4 max-w-sm text-sm leading-6">A focused workspace for clearer tasks, visible progress, and accountable delivery.</p>

@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import Dialog from "../components/common/Dialog";
 import TeamCard from "../components/teams/TeamCard";
 import TeamShell from "../components/teams/TeamShell";
+import PageHeader from "../components/ui/PageHeader";
 import api from "../services/api";
 import { apiError, TEAM_INTERESTS } from "../utils/teams";
 
@@ -65,14 +66,12 @@ const TeamsPage = () => {
   return (
     <TeamShell>
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-        <header className="flex flex-col gap-6 border-b border-[#23252a] pb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="team-eyebrow">Team foundation</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">Find the people you build with.</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-[#8a8f98] sm:text-base">Create a focused team, join an open one, or request access. Team permissions stay independent from your marketplace account role.</p>
-          </div>
-          <button type="button" onClick={() => setCreateOpen(true)} className="team-button-primary shrink-0"><Plus className="h-4 w-4" /> Create team</button>
-        </header>
+        <PageHeader
+          eyebrow="Team foundation"
+          title="Find the people you build with."
+          description="Create a focused team, join an open one, or request access. Team permissions stay independent from your marketplace account role."
+          actions={<button type="button" onClick={() => setCreateOpen(true)} className="team-button-primary"><Plus className="h-4 w-4" /> Create team</button>}
+        />
 
         {loading ? <div className="flex min-h-64 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#828fff]" aria-label="Loading teams" /></div> : (
           <div className="mt-10 space-y-12">

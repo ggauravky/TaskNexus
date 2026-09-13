@@ -4,7 +4,7 @@ const { sendSuccess } = require("../utils/apiResponse");
 const action = (handler) => async (req, res, next) => { try { return await handler(req, res); } catch (error) { return next(error); } };
 
 exports.listOrganizations = action(async (req, res) => { const result = await service.listOrganizations(req.query); return sendSuccess(res, { data: result.items, meta: result.meta }); });
-exports.organizationDetail = action(async (req, res) => sendSuccess(res, { data: await service.getOrganization(req.params.slug) }));
+exports.organizationDetail = action(async (req, res) => sendSuccess(res, { data: await service.getOrganization(req.params.slug, req.userId) }));
 exports.createOrganization = action(async (req, res) => sendSuccess(res, { status: 201, data: await service.createOrganization(req.userId, req.body), message: "Organization created" }));
 exports.updateOrganization = action(async (req, res) => sendSuccess(res, { data: await service.updateOrganization(req.params.id, req.userId, req.body), message: "Organization updated" }));
 exports.verifyOrganization = action(async (req, res) => sendSuccess(res, { data: await service.verifyOrganization(req.params.id, req.userId, req.body), message: "Organization verification updated" }));

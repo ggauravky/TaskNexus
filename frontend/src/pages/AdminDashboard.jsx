@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
-  LogOut, Users, Briefcase, DollarSign, Clock, RefreshCw,
+  Users, Briefcase, DollarSign, Clock, RefreshCw,
   FileText
 } from 'lucide-react';
 import api from '../services/api';
@@ -14,7 +13,6 @@ import StatusBadge from '../components/common/StatusBadge';
  * Admin Dashboard with Real Data
  */
 const AdminDashboard = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -50,11 +48,6 @@ const AdminDashboard = () => {
     toast.success('Dashboard refreshed!');
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
   if (loading) {
     return <Loading fullScreen={true} text="Loading admin dashboard..." />;
   }
@@ -81,55 +74,15 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50">
-      {/* Header */}
-      <header className="bg-white/85 backdrop-blur border-b border-slate-100 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">TaskNexus</h1>
-              <p className="text-sm text-gray-600">Admin Dashboard</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {user?.profile?.firstName} {user?.profile?.lastName}
-                </p>
-                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
-              </div>
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="btn-sm btn-secondary flex items-center"
-              >
-                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-              <button onClick={() => navigate('/profile')} className="btn-sm btn-secondary">
-                Profile
-              </button>
-              <button onClick={() => navigate('/teams')} className="btn-sm btn-secondary">
-                Teams
-              </button>
-              <button onClick={() => navigate('/projects')} className="btn-sm btn-secondary">
-                Projects
-              </button>
-              <button
-                onClick={handleLogout}
-                className="btn btn-secondary flex items-center"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-[#010102] text-[#f7f8f8]">
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8 flex items-center justify-between gap-4 border-b border-[#23252a] pb-5">
+          <div><p className="team-eyebrow">Administration</p><p className="mt-1 text-sm text-[#8a8f98]">Platform operations and oversight</p></div>
+          <button onClick={handleRefresh} disabled={refreshing} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh</button>
+        </div>
         {/* Welcome Section */}
-        <div className="mb-8 rounded-2xl border border-slate-100 bg-gradient-to-r from-primary-600 to-cyan-600 p-6 text-white shadow-xl">
+        <div className="mb-8 rounded-xl border border-[#23252a] bg-[#0f1011] p-6 text-white">
           <h2 className="text-3xl font-bold mb-2">Admin Control Center</h2>
           <p className="text-primary-100">
             Manage tasks, users, and monitor platform performance in real time.

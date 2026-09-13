@@ -3,13 +3,18 @@ const path = require("path");
 const multer = require("multer");
 const crypto = require("crypto");
 const { BUSINESS_RULES } = require("../config/constants");
+const { errors } = require("../utils/appError");
+
+const appEnvironment = process.env.APP_ENV || process.env.NODE_ENV || "development";
+const uploadMode = process.env.UPLOAD_STORAGE_MODE || (appEnvironment === "production" ? "disabled" : "local");
+const uploadsEnabled = uploadMode === "local";
 
 const uploadsRoot = process.env.UPLOAD_PATH
   ? path.resolve(process.env.UPLOAD_PATH)
   : path.join(__dirname, "../../uploads");
 const commentsDir = path.join(uploadsRoot, "comments");
 
-if (!fs.existsSync(commentsDir)) {
+if (uploadsEnabled && !fs.existsSync(commentsDir)) {
   fs.mkdirSync(commentsDir, { recursive: true });
 }
 
@@ -59,13 +64,17 @@ const hasExpectedSignature = (buffer, mimeType) => {
   return false;
 };
 
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, commentsDir),
   filename: (req, file, cb) => {
     const extension = MIME_EXTENSIONS[file.mimetype];
     cb(null, `${crypto.randomUUID()}${extension}`);
   },
 });
+
+// Disabled mode still parses bounded multipart bodies in memory so text-only
+// comments continue to work, but it never writes uploaded bytes to ephemeral disk.
+const storage = uploadsEnabled ? diskStorage : multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = BUSINESS_RULES.ALLOWED_FILE_TYPES || [];
@@ -93,6 +102,12 @@ const validateUploadedFiles = async (req, res, next) => {
   const files = Array.isArray(req.files) ? req.files : [];
   if (files.length === 0) return next();
 
+  if (!uploadsEnabled) {
+    return next(errors.serviceUnavailable(
+      "File attachments are disabled until durable production storage is configured",
+    ));
+  }
+
   try {
     for (const file of files) {
       const handle = await fs.promises.open(file.path, "r");
@@ -119,4 +134,5 @@ module.exports = {
   commentAttachmentUpload,
   validateUploadedFiles,
   commentsDir,
+  uploadsEnabled,
 };

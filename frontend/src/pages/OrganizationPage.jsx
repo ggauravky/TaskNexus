@@ -1,4 +1,4 @@
-import { ArrowUpRight, Building2, Loader2, MapPin } from "lucide-react";
+import { ArrowUpRight, Building2, Loader2, MapPin, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import OpportunityCard from "../components/opportunities/OpportunityCard";
@@ -26,10 +26,11 @@ const OrganizationPage = () => {
     <header className="grid gap-6 border-b border-[#23252a] pb-8 sm:grid-cols-[auto_minmax(0,1fr)]">
       <div className="team-avatar h-16 w-16 text-lg">{data.logo_url ? <img src={data.logo_url} alt={`${data.name} logo`} className="h-full w-full rounded-xl object-cover" /> : data.name.slice(0, 2).toUpperCase()}</div>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><p className="team-eyebrow">{data.organization_type}</p>{data.verification_status === "verified" ? <span className="team-chip text-emerald-300">Verified catalog identity</span> : <span className="team-chip">Unverified catalog identity</span>}</div>
+        <div className="flex flex-wrap items-center gap-2"><p className="team-eyebrow">{data.organization_type}</p>{data.verification_status === "verified" ? <span className="team-chip text-emerald-300">Verified catalog identity</span> : <span className="team-chip">Unverified catalog identity</span>}{data.management_mode === "organization_managed" ? <span className="team-chip">Organization managed</span> : null}</div>
         <h1 className="mt-2 break-words text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">{data.name}</h1>
         {data.tagline ? <p className="mt-3 max-w-3xl text-sm leading-6 text-[#8a8f98]">{data.tagline}</p> : null}
         <div className="mt-4 flex flex-wrap gap-4 text-xs text-[#8a8f98]">{data.headquarters ? <span><MapPin className="mr-1 inline h-3.5 w-3.5" />{locationLabel(data.headquarters)}</span> : null}{data.industry ? <span>{data.industry}</span> : null}{data.company_size ? <span>{data.company_size} people</span> : null}{data.website_url ? <a className="text-[#828fff] hover:text-[#b7bdf8]" href={data.website_url} target="_blank" rel="noopener noreferrer">Organization website <ArrowUpRight className="inline h-3.5 w-3.5" /></a> : null}</div>
+        {data.viewer_permissions?.view_workspace ? <Link to={`/organizations/${data.slug}/workspace`} className="team-button-primary mt-5"><Settings className="h-4 w-4" /> Manage Organization</Link> : null}
       </div>
     </header>
     <section className="grid gap-6 border-b border-[#23252a] py-8 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">

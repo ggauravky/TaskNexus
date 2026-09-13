@@ -1,4 +1,5 @@
 require("../src/config/loadEnv");
+require("./lib/stagingSafety").assertStagingMutationAllowed();
 const assert = require("node:assert/strict");
 const { randomBytes, randomUUID } = require("node:crypto");
 const bcrypt = require("bcrypt");

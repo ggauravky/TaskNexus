@@ -4,5 +4,16 @@ Allow: /
 Disallow: /client/
 Disallow: /freelancer/
 Disallow: /admin/
+Disallow: /profile
+Disallow: /projects
+Disallow: /contributions
+Disallow: /people
+Disallow: /collaboration
+Disallow: /applications
+Disallow: /organization-invitations
+Disallow: /teams/*/settings
+Disallow: /teams/*/projects/*/settings
+Disallow: /teams/*/projects/*/showcase
+Disallow: /organizations/*/workspace
 
 Sitemap: https://tasknexus.vercel.app/sitemap.xml

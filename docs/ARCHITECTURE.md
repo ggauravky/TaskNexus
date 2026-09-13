@@ -76,3 +76,9 @@ Current list endpoints use bounded page/offset pagination with allowlisted sort 
 Organizations are controlled catalog identities and never inherit Team membership or roles. An Opportunity belongs to one Organization and supports only internship or entry-level-job types. Administrator CAS operations own draft, publish, close, and archive transitions. Public discovery reads only currently open published records.
 
 Candidate eligibility and state are private overlays. One batched read loads the caller's profile, education, skills, and candidate-state rows; deterministic checks then decorate the page in memory. `opportunity_candidate_states` uniquely owns one user's save/application relationship. External apply URLs remain HTTPS-only and TaskNexus never submits an application or exposes candidate state to an Organization.
+
+## Organization hiring boundary
+
+Phase 9 adds contextual employer authority without changing global account roles. `OrganizationMembership` is independent from Team membership and grants `owner`, `admin`, or `recruiter` authority for exactly one Organization. Platform administrators approve initial control; they do not automatically gain applicant access. Organization-managed listings are explicitly `organization_owned` and use either external or TaskNexus application mode.
+
+Native applications are separate from candidate-owned external tracking. Submission stores a bounded consented profile snapshot, creates immutable application activity, and notifies Organization members in one transaction. Recruiter stage changes and candidate withdrawal use revision compare-and-set writes. Applicant access always derives Organization authority from the authenticated actor and never exposes email, phone, private Projects, saved Opportunities, external notes, blocks, or account-security data.

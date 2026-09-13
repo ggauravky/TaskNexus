@@ -4,6 +4,7 @@ const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 const REPOSITORY = /^[A-Za-z0-9._-]{1,100}$/;
 const SHA = /^[a-f0-9]{7,40}$/i;
 const API_ROOT = "https://api.github.com";
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 
 const parseUrl = (value, label) => {
   if (typeof value !== "string" || !value.trim()) throw errors.validation(`${label} is required`);
@@ -84,6 +85,21 @@ const createGitHubProvider = ({ fetchImpl = global.fetch, token = process.env.GI
     }
     if (response.status === 404) throw new GitHubProviderError("GITHUB_NOT_FOUND", "GitHub resource was not found", 404);
     if (!response.ok) throw new GitHubProviderError("GITHUB_UNAVAILABLE", "GitHub verification could not be completed", 502, { status: response.status });
+    const contentLength = Number(response.headers?.get?.("content-length") || 0);
+    if (contentLength > MAX_RESPONSE_BYTES) {
+      throw new GitHubProviderError("GITHUB_RESPONSE_TOO_LARGE", "GitHub returned an unexpectedly large response", 502);
+    }
+    if (typeof response.text === "function") {
+      const text = await response.text();
+      if (Buffer.byteLength(text, "utf8") > MAX_RESPONSE_BYTES) {
+        throw new GitHubProviderError("GITHUB_RESPONSE_TOO_LARGE", "GitHub returned an unexpectedly large response", 502);
+      }
+      try {
+        return JSON.parse(text);
+      } catch (_error) {
+        throw new GitHubProviderError("GITHUB_INVALID_RESPONSE", "GitHub returned an invalid response", 502);
+      }
+    }
     return response.json();
   };
 

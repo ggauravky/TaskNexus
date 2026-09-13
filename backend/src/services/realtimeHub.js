@@ -6,7 +6,7 @@ class RealtimeHub {
     this.roleStreams = new Map();
     this.allStreams = new Set();
 
-    setInterval(() => {
+    this.heartbeat = setInterval(() => {
       for (const stream of this.allStreams) {
         this.writeSse(stream, "ping", {
           ts: new Date().toISOString(),
@@ -120,6 +120,21 @@ class RealtimeHub {
       this.removeStream(this.roleStreams, stream.role, stream);
       this.allStreams.delete(stream);
     }
+  }
+
+  closeAll() {
+    clearInterval(this.heartbeat);
+    for (const stream of this.allStreams) {
+      try {
+        this.writeSse(stream, "server_shutdown", { reconnect: true });
+        stream.res.end();
+      } catch (_error) {
+        // The connection is already gone.
+      }
+    }
+    this.userStreams.clear();
+    this.roleStreams.clear();
+    this.allStreams.clear();
   }
 }
 

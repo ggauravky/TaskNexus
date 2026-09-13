@@ -21,6 +21,8 @@ const errors = {
     new AppError(ERROR_CODES.INVALID_STATE_TRANSITION, message, 409, details),
   validation: (message = "Validation failed", details = null) =>
     new AppError(ERROR_CODES.VALIDATION_FAILED, message, 400, details),
+  serviceUnavailable: (message = "Service temporarily unavailable", details = null) =>
+    new AppError("SERVICE_UNAVAILABLE", message, 503, details),
 };
 
 module.exports = { AppError, errors };

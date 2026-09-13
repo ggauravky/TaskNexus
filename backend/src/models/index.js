@@ -71,6 +71,42 @@ const opportunityEligibility = new mongoose.Schema({
   custom_notes: { type: String, trim: true, maxlength: 1000, default: null },
 }, { _id: false });
 
+const applicationEducationSnapshot = new mongoose.Schema({
+  institution: { type: String, required: true, maxlength: 160 },
+  degree_course: { type: String, required: true, maxlength: 160 },
+  field_of_study: { type: String, maxlength: 160, default: null },
+  end_year: { type: Number, min: 1900, max: 2100, default: null },
+  currently_studying: { type: Boolean, default: false },
+}, { _id: false });
+
+const applicationSkillSnapshot = new mongoose.Schema({
+  id: { type: String, required: true }, name: { type: String, required: true, maxlength: 80 },
+  slug: { type: String, required: true, maxlength: 100 }, proficiency: { type: String, maxlength: 40, default: null },
+}, { _id: false });
+
+const applicationEvidenceSnapshot = new mongoose.Schema({
+  id: { type: String, required: true }, project_id: { type: String, required: true },
+  title: { type: String, required: true, maxlength: 180 }, summary: { type: String, maxlength: 1000, default: null },
+  evidence_type: { type: String, required: true, maxlength: 80 }, verification_level: { type: String, required: true, maxlength: 80 },
+  source_url: { type: String, maxlength: 500, validate: httpsUrl, default: null }, occurred_at: { type: Date, required: true },
+}, { _id: false });
+
+const applicationProjectSnapshot = new mongoose.Schema({
+  id: { type: String, required: true }, name: { type: String, required: true, maxlength: 100 },
+  tagline: { type: String, maxlength: 180, default: null }, participant_role: { type: String, required: true, maxlength: 40 },
+  completed_at: { type: Date, default: null }, repository_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  demo_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+}, { _id: false });
+
+const applicationProfileSnapshot = new mongoose.Schema({
+  display_name: { type: String, required: true, maxlength: 160 }, username: { type: String, maxlength: 30, default: null },
+  headline: { type: String, maxlength: 120, default: null }, avatar_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
+  education: { type: [applicationEducationSnapshot], default: [], validate: (items) => items.length <= 5 },
+  skills: { type: [applicationSkillSnapshot], default: [], validate: (items) => items.length <= 20 },
+  projects: { type: [applicationProjectSnapshot], default: [], validate: (items) => items.length <= 5 },
+  evidence: { type: [applicationEvidenceSnapshot], default: [], validate: (items) => items.length <= 12 },
+}, { _id: false });
+
 const user = model("User", {
   _id: stringId(),
   email: { type: String, required: true, lowercase: true, trim: true, maxlength: 320, match: EMAIL_PATTERN },
@@ -614,12 +650,42 @@ const organization = model("Organization", {
   verification_status: { type: String, enum: domain.organizationVerificationStatuses, default: "unverified" },
   verified_at: { type: Date, default: null }, verified_by: { type: String, default: null },
   status: { type: String, enum: domain.organizationStatuses, default: "active" },
+  management_mode: { type: String, enum: domain.organizationManagementModes, default: "platform_managed" },
+  owner_id: { type: String, default: null },
   created_by: { type: String, required: true },
   revision: { type: Number, min: 0, default: 0 },
 }, { collection: "organizations" });
 organization.schema.index({ slug: 1 }, { unique: true });
 organization.schema.index({ status: 1, name: 1 });
 organization.schema.index({ verification_status: 1, status: 1, name: 1 });
+
+const organizationMembership = model("OrganizationMembership", {
+  _id: stringId(), organization_id: { type: String, required: true }, user_id: { type: String, required: true },
+  role: { type: String, required: true, enum: domain.organizationRoles },
+  status: { type: String, enum: domain.organizationMembershipStatuses, default: "active" },
+  joined_at: { type: Date, default: Date.now }, ended_at: { type: Date, default: null },
+}, { collection: "organization_memberships" });
+organizationMembership.schema.index({ organization_id: 1, user_id: 1 }, { unique: true });
+organizationMembership.schema.index({ organization_id: 1, role: 1, status: 1 });
+organizationMembership.schema.index({ user_id: 1, status: 1, updated_at: -1 });
+organizationMembership.schema.index(
+  { organization_id: 1, role: 1, status: 1 },
+  { unique: true, partialFilterExpression: { role: "owner", status: "active" }, name: "one_active_organization_owner" },
+);
+
+const organizationInvitation = model("OrganizationInvitation", {
+  _id: stringId(), organization_id: { type: String, required: true }, invited_user_id: { type: String, required: true },
+  invited_by: { type: String, required: true }, role: { type: String, required: true, enum: ["admin", "recruiter"] },
+  status: { type: String, enum: domain.organizationInvitationStatuses, default: "pending" },
+  message: { type: String, trim: true, maxlength: 500, default: null }, expires_at: { type: Date, default: null },
+  responded_at: { type: Date, default: null },
+}, { collection: "organization_invitations" });
+organizationInvitation.schema.index({ organization_id: 1, invited_user_id: 1 });
+organizationInvitation.schema.index({ invited_user_id: 1, status: 1, created_at: -1 });
+organizationInvitation.schema.index(
+  { organization_id: 1, invited_user_id: 1 },
+  { unique: true, partialFilterExpression: { status: "pending" }, name: "one_pending_organization_invitation" },
+);
 
 const opportunity = model("Opportunity", {
   _id: stringId(), organization_id: { type: String, required: true },
@@ -638,7 +704,8 @@ const opportunity = model("Opportunity", {
   employment_type: { type: String, enum: domain.employmentTypes, default: "full_time" },
   duration: { type: String, trim: true, maxlength: 120, default: null },
   compensation: { type: opportunityCompensation, default: null },
-  application_url: { type: String, required: true, maxlength: 500, validate: httpsUrl },
+  application_mode: { type: String, required: true, enum: domain.opportunityApplicationModes, default: "external" },
+  application_url: { type: String, maxlength: 500, validate: httpsUrl, default: null },
   application_deadline: { type: Date, default: null }, start_date: { type: Date, default: null },
   required_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 16 },
   preferred_skill_ids: { type: [String], default: [], validate: (items) => items.length <= 16 },
@@ -662,6 +729,8 @@ opportunity.schema.pre("validate", function validateOpportunity() {
   if (rules.graduation_year_min && rules.graduation_year_max && rules.graduation_year_max < rules.graduation_year_min) this.invalidate("eligibility.graduation_year_max", "Maximum graduation year must follow the minimum");
   if (rules.experience_min_months != null && rules.experience_max_months != null && rules.experience_max_months < rules.experience_min_months) this.invalidate("eligibility.experience_max_months", "Maximum experience must be at least the minimum");
   if (this.required_skill_ids.some((id) => this.preferred_skill_ids.includes(id))) this.invalidate("preferred_skill_ids", "A skill cannot be both required and preferred");
+  if (this.application_mode === "external" && !this.application_url) this.invalidate("application_url", "External Opportunities require an application URL");
+  if (this.application_mode === "tasknexus" && this.source_type !== "organization_owned") this.invalidate("application_mode", "Only Organization-owned Opportunities may accept TaskNexus applications");
   if (this.status === "published" && !this.published_at) this.invalidate("published_at", "Published Opportunities require a publication timestamp");
 });
 opportunity.schema.index({ slug: 1 }, { unique: true });
@@ -684,6 +753,31 @@ const opportunityCandidateState = model("OpportunityCandidateState", {
 opportunityCandidateState.schema.index({ user_id: 1, opportunity_id: 1 }, { unique: true });
 opportunityCandidateState.schema.index({ user_id: 1, application_status: 1, updated_at: -1 });
 opportunityCandidateState.schema.index({ user_id: 1, saved: 1, updated_at: -1 });
+
+const nativeApplication = model("NativeApplication", {
+  _id: stringId(), opportunity_id: { type: String, required: true }, organization_id: { type: String, required: true },
+  candidate_id: { type: String, required: true }, stage: { type: String, required: true, enum: domain.nativeApplicationStages, default: "submitted" },
+  cover_note: { type: String, trim: true, maxlength: 2000, default: null },
+  submitted_profile_snapshot: { type: applicationProfileSnapshot, required: true },
+  selected_project_ids: { type: [String], default: [], validate: (items) => items.length <= 5 },
+  selected_evidence_ids: { type: [String], default: [], validate: (items) => items.length <= 12 },
+  submitted_at: { type: Date, default: Date.now }, withdrawn_at: { type: Date, default: null },
+  revision: { type: Number, min: 0, default: 0 },
+}, { collection: "native_applications" });
+nativeApplication.schema.index({ opportunity_id: 1, candidate_id: 1 }, { unique: true });
+nativeApplication.schema.index({ organization_id: 1, stage: 1, submitted_at: -1 });
+nativeApplication.schema.index({ opportunity_id: 1, stage: 1, submitted_at: -1 });
+nativeApplication.schema.index({ candidate_id: 1, stage: 1, submitted_at: -1 });
+
+const applicationActivity = model("ApplicationActivity", {
+  _id: stringId(), application_id: { type: String, required: true }, organization_id: { type: String, required: true },
+  actor_id: { type: String, required: true }, type: { type: String, required: true, enum: domain.applicationActivityTypes },
+  from_stage: { type: String, enum: [...domain.nativeApplicationStages, null], default: null },
+  to_stage: { type: String, enum: domain.nativeApplicationStages, required: true },
+  metadata: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }, created_at: { type: Date, default: Date.now },
+}, { collection: "application_activity", timestamps: false });
+applicationActivity.schema.index({ application_id: 1, created_at: 1 });
+applicationActivity.schema.index({ organization_id: 1, created_at: -1 });
 
 const comment = model("TaskComment", {
   _id: { type: String, required: true }, task_id: { type: String, required: true }, author_id: { type: String, default: null },
@@ -752,4 +846,6 @@ module.exports = {
   Hackathon: hackathon.register(), HackathonParticipant: hackathonParticipant.register(), HackathonTeam: hackathonTeam.register(),
   HackathonSubmission: hackathonSubmission.register(), HackathonActivity: hackathonActivity.register(),
   Organization: organization.register(), Opportunity: opportunity.register(), OpportunityCandidateState: opportunityCandidateState.register(),
+  OrganizationMembership: organizationMembership.register(), OrganizationInvitation: organizationInvitation.register(),
+  NativeApplication: nativeApplication.register(), ApplicationActivity: applicationActivity.register(),
 };

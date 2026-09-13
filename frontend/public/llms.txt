@@ -1,0 +1,11 @@
+# TaskNexus
+
+TaskNexus is a collaboration platform for task delivery, teams, projects,
+hackathons, evidence-backed portfolios, and early-career opportunities.
+
+Public pages may be indexed. Authenticated workspaces, applications, team
+settings, organization workspaces, and other private routes must not be indexed.
+
+- Site: https://tasknexus.vercel.app/
+- Opportunities: https://tasknexus.vercel.app/opportunities
+- Hackathons: https://tasknexus.vercel.app/hackathons

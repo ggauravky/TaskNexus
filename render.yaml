@@ -5,23 +5,40 @@ services:
     region: oregon  # change if you need another region
     plan: starter
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
-    healthCheckPath: /health
+    healthCheckPath: /api/ready
+    maxShutdownDelaySeconds: 30
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_ENV
+        value: production
       - key: PORT
         value: 10000
-      - key: CLIENT_URL
+      - key: APP_ORIGIN
         value: https://tasknexus.vercel.app
       - key: ALLOWED_ORIGINS
         value: https://tasknexus.vercel.app
       - key: REFRESH_COOKIE_SAME_SITE
         value: none
-      - key: UPLOAD_PATH
-        value: /opt/render/project/src/uploads
+      - key: TRUST_PROXY_HOPS
+        value: 1
+      - key: UPLOAD_STORAGE_MODE
+        value: disabled
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB_NAME
+        sync: false
+      - key: EMAIL_DELIVERY_MODE
+        value: required
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: TaskNexus
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET

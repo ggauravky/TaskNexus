@@ -4,18 +4,18 @@
  */
 const StatusBadge = ({ status }) => {
     const statusConfig = {
-        submitted: { class: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Submitted', dot: 'bg-blue-600' },
-        under_review: { class: 'bg-yellow-100 text-yellow-800 border-yellow-200', label: 'Under Review', dot: 'bg-yellow-600' },
-        assigned: { class: 'bg-purple-100 text-purple-800 border-purple-200', label: 'Assigned', dot: 'bg-purple-600' },
-        in_progress: { class: 'bg-indigo-100 text-indigo-800 border-indigo-200', label: 'In Progress', dot: 'bg-indigo-600' },
-        submitted_work: { class: 'bg-orange-100 text-orange-800 border-orange-200', label: 'Work Submitted', dot: 'bg-orange-600' },
-        qa_review: { class: 'bg-pink-100 text-pink-800 border-pink-200', label: 'QA Review', dot: 'bg-pink-600' },
-        revision_requested: { class: 'bg-red-100 text-red-800 border-red-200', label: 'Revision Requested', dot: 'bg-red-600' },
-        delivered: { class: 'bg-teal-100 text-teal-800 border-teal-200', label: 'Delivered', dot: 'bg-teal-600' },
-        client_revision: { class: 'bg-amber-100 text-amber-800 border-amber-200', label: 'Client Revision', dot: 'bg-amber-600' },
-        completed: { class: 'bg-green-100 text-green-800 border-green-200', label: 'Completed', dot: 'bg-green-600' },
-        cancelled: { class: 'bg-gray-100 text-gray-800 border-gray-200', label: 'Cancelled', dot: 'bg-gray-600' },
-        disputed: { class: 'bg-red-200 text-red-900 border-red-300', label: 'Disputed', dot: 'bg-red-700' }
+        submitted: { class: 'bg-blue-950/40 text-blue-200 border-blue-900', label: 'Submitted', dot: 'bg-blue-400' },
+        under_review: { class: 'bg-amber-950/40 text-amber-200 border-amber-900', label: 'Under Review', dot: 'bg-amber-400' },
+        assigned: { class: 'bg-purple-950/40 text-purple-200 border-purple-900', label: 'Assigned', dot: 'bg-purple-400' },
+        in_progress: { class: 'bg-indigo-950/40 text-indigo-200 border-indigo-900', label: 'In Progress', dot: 'bg-indigo-400' },
+        submitted_work: { class: 'bg-orange-950/40 text-orange-200 border-orange-900', label: 'Work Submitted', dot: 'bg-orange-400' },
+        qa_review: { class: 'bg-pink-950/40 text-pink-200 border-pink-900', label: 'QA Review', dot: 'bg-pink-400' },
+        revision_requested: { class: 'bg-red-950/40 text-red-200 border-red-900', label: 'Revision Requested', dot: 'bg-red-400' },
+        delivered: { class: 'bg-teal-950/40 text-teal-200 border-teal-900', label: 'Delivered', dot: 'bg-teal-400' },
+        client_revision: { class: 'bg-amber-950/40 text-amber-200 border-amber-900', label: 'Client Revision', dot: 'bg-amber-400' },
+        completed: { class: 'bg-emerald-950/40 text-emerald-200 border-emerald-900', label: 'Completed', dot: 'bg-emerald-400' },
+        cancelled: { class: 'bg-[#18191a] text-[#8a8f98] border-[#34343a]', label: 'Cancelled', dot: 'bg-[#62666d]' },
+        disputed: { class: 'bg-red-950/50 text-red-100 border-red-800', label: 'Disputed', dot: 'bg-red-400' }
     };
 
     const config = statusConfig[status] || statusConfig.submitted;

@@ -5,9 +5,19 @@ const { sanitizeUser } = require("../utils/helpers");
 const logger = require("../utils/logger");
 const { ERROR_CODES } = require("../config/constants");
 const emailService = require("../services/email/emailService");
+const { createHash, timingSafeEqual } = require("crypto");
+
+const hashRefreshToken = (token) => createHash("sha256").update(token).digest("hex");
+const refreshTokenMatches = (storedDigest, token) => {
+  if (!storedDigest || !token) return false;
+  const suppliedDigest = hashRefreshToken(token);
+  const stored = Buffer.from(storedDigest);
+  const supplied = Buffer.from(suppliedDigest);
+  return stored.length === supplied.length && timingSafeEqual(stored, supplied);
+};
 
 const refreshCookieOptions = () => {
-  const isProduction = process.env.NODE_ENV === "production";
+  const isProduction = (process.env.APP_ENV || process.env.NODE_ENV) === "production";
   const configuredSameSite = String(
     process.env.REFRESH_COOKIE_SAME_SITE || (isProduction ? "none" : "lax"),
   ).toLowerCase();
@@ -28,7 +38,7 @@ const refreshCookieOptions = () => {
 const setRefreshCookie = (res, token) => {
   res.cookie("refreshToken", token, {
     ...refreshCookieOptions(),
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: Number(process.env.REFRESH_COOKIE_MAX_AGE_MS) || 7 * 24 * 60 * 60 * 1000,
   });
 };
 
@@ -43,9 +53,8 @@ const sendLoginEmailInBackground = (user, req, wasFirstLogin) => {
     } catch (error) {
       logger.warn("Login email delivery failed", {
         userId: user.id,
-        email: user.email,
         wasFirstLogin,
-        message: error.message,
+        errorMessage: error.message,
       });
 
       await auditLogData.log({
@@ -97,7 +106,7 @@ const register = async (req, res, next) => {
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
     // Save refresh token
-    await userData.updateUser(user.id, { refresh_token: refreshToken });
+    await userData.updateUser(user.id, { refresh_token: hashRefreshToken(refreshToken) });
 
     // Log audit
     await auditLogData.log({
@@ -109,7 +118,7 @@ const register = async (req, res, next) => {
       user_agent: req.headers["user-agent"],
     });
 
-    logger.info(`New user registered: ${email} with role: ${role}`);
+    logger.info("New user registered", { userId: user.id, role });
 
     // Set refresh token in httpOnly cookie
     setRefreshCookie(res, refreshToken);
@@ -181,7 +190,7 @@ const login = async (req, res, next) => {
     // Save refresh token and last login
     const updatedUser =
       (await userData.updateUser(user.id, {
-        refresh_token: refreshToken,
+        refresh_token: hashRefreshToken(refreshToken),
         last_login: loginTimestamp,
       })) || {
         ...user,
@@ -199,7 +208,7 @@ const login = async (req, res, next) => {
       user_agent: req.headers["user-agent"],
     });
 
-    logger.info(`User logged in: ${email}`);
+    logger.info("User logged in", { userId: user.id });
 
     // Set refresh token in httpOnly cookie
     setRefreshCookie(res, refreshToken);
@@ -255,7 +264,7 @@ const refreshToken = async (req, res, next) => {
     // Find user and verify stored refresh token
     const user = await userData.findUserById(decoded.userId);
 
-    if (!user || user.refresh_token !== token) {
+    if (!user || !refreshTokenMatches(user.refresh_token, token)) {
       return res.status(401).json({
         success: false,
         error: {
@@ -272,7 +281,7 @@ const refreshToken = async (req, res, next) => {
     );
 
     // Save new refresh token
-    await userData.updateUser(user.id, { refresh_token: newRefreshToken });
+    await userData.updateUser(user.id, { refresh_token: hashRefreshToken(newRefreshToken) });
 
     // Set new refresh token in cookie
     setRefreshCookie(res, newRefreshToken);
@@ -303,7 +312,7 @@ const logout = async (req, res, next) => {
       try {
         const decoded = verifyRefreshToken(token);
         const user = await userData.findUserById(decoded.userId);
-        if (user?.refresh_token === token) {
+        if (refreshTokenMatches(user?.refresh_token, token)) {
           userId = user.id;
           await userData.updateUser(user.id, { refresh_token: null });
         }
@@ -360,4 +369,6 @@ module.exports = {
   refreshToken,
   logout,
   getCurrentUser,
+  hashRefreshToken,
+  refreshTokenMatches,
 };

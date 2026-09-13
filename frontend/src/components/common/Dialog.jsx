@@ -77,7 +77,7 @@ const Dialog = ({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className={`max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl outline-none sm:max-h-[90dvh] ${panelClassName}`}
+        className={`max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-xl border border-[#34343a] bg-[#0f1011] text-[#f7f8f8] shadow-2xl outline-none sm:max-h-[90dvh] ${panelClassName}`}
       >
         {children}
       </div>

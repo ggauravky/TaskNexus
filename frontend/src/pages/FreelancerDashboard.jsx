@@ -1,8 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import {
-  LogOut,
   Briefcase,
   DollarSign,
   Star,
@@ -115,8 +113,7 @@ const csvEscape = (value) => {
 };
 
 const FreelancerDashboard = () => {
-  const { user, logout, updateUser } = useAuth();
-  const navigate = useNavigate();
+  const { user, updateUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -375,11 +372,6 @@ const FreelancerDashboard = () => {
     } catch (progressError) {
       toast.error(progressError.response?.data?.message || 'Could not update progress');
     }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
   };
 
   const handleAvailabilityChange = async (availability) => {
@@ -736,7 +728,7 @@ const FreelancerDashboard = () => {
 
   if (error && !stats.totalTasks) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#010102] px-4 text-[#f7f8f8]">
         <div className="text-center max-w-lg bg-white/90 border border-slate-100 rounded-3xl p-8 shadow-xl">
           <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Unable to load workspace</h2>
@@ -748,58 +740,18 @@ const FreelancerDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-      <header className="backdrop-blur bg-white/80 shadow-sm sticky top-0 z-20 border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center font-bold">TN</div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">TaskNexus</h1>
-                <p className="text-xs sm:text-sm text-slate-500">Freelancer Workspace</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <button
-                onClick={() => handleAvailabilityChange('available')}
-                disabled={availabilityUpdating}
-                className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'available' ? 'btn-primary' : 'btn-secondary'}`}
-              >
-                Available
-              </button>
-              <button
-                onClick={() => handleAvailabilityChange('busy')}
-                disabled={availabilityUpdating}
-                className={`btn-sm rounded-full px-3 ${user?.freelancer_profile?.availability === 'busy' ? 'btn-primary' : 'btn-secondary'}`}
-              >
-                Busy
-              </button>
-              <button onClick={handleRefresh} disabled={refreshing} className="btn-sm btn-secondary flex items-center rounded-full px-4">
-                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-              <button onClick={() => navigate('/freelancer/profile')} className="btn-sm btn-secondary rounded-full px-4">
-                Profile
-              </button>
-              <button onClick={() => navigate('/teams')} className="btn-sm btn-secondary rounded-full px-4">
-                Teams
-              </button>
-              <button onClick={() => navigate('/projects')} className="btn-sm btn-secondary rounded-full px-4">
-                Projects
-              </button>
-              <button onClick={handleLogout} className="btn btn-secondary flex items-center rounded-full">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </button>
-            </div>
+    <div className="min-h-screen bg-[#010102] text-[#f7f8f8]">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <div className="flex flex-col gap-4 border-b border-[#23252a] pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="team-eyebrow">Freelancer workspace</p><p className="mt-1 text-sm text-[#8a8f98]">Assignments, availability, and delivery controls</p></div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => handleAvailabilityChange('available')} disabled={availabilityUpdating} className={user?.freelancer_profile?.availability === 'available' ? 'team-button-primary' : 'team-button-secondary'}>Available</button>
+            <button onClick={() => handleAvailabilityChange('busy')} disabled={availabilityUpdating} className={user?.freelancer_profile?.availability === 'busy' ? 'team-button-primary' : 'team-button-secondary'}>Busy</button>
+            <button onClick={handleRefresh} disabled={refreshing} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh</button>
           </div>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {!preferences.focusMode && (
-          <section className="relative overflow-hidden rounded-2xl border border-slate-100 shadow-lg bg-gradient-to-r from-primary-500 via-indigo-500 to-cyan-500 text-white">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_38%),radial-gradient(circle_at_78%_0%,rgba(255,255,255,0.18),transparent_30%)]" />
+          <section className="relative overflow-hidden rounded-xl border border-[#23252a] bg-[#0f1011] text-white">
             <div className="relative p-8">
               <h2 className="text-3xl font-bold mb-2">Welcome back, {user?.profile?.firstName || 'Freelancer'}</h2>
               <p className="text-white/90">Run your workflow with board views, goals, smart filters, and progress controls.</p>
@@ -1195,7 +1147,7 @@ const FreelancerTaskCard = ({
       {progress !== null && preferences?.showProgressBars && (
         <div className="mb-4">
           <div className="w-full bg-slate-100 rounded-full h-2">
-            <div className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-cyan-500" style={{ width: `${progress}%` }} />
+            <div className="h-2 rounded-full bg-[#5e6ad2]" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}

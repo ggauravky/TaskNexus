@@ -7,30 +7,59 @@ const { ERROR_CODES } = require("../config/constants");
  */
 const errorHandler = (err, req, res, _next) => {
   const safeUrl = String(req.originalUrl || req.path || "").split("?")[0];
-  // Log error
-  logger.error("Error:", {
-    message: err.message,
-    stack: err.stack,
+  let statusCode = err.statusCode || err.status || 500;
+  let code = err.code || ERROR_CODES.INTERNAL_SERVER_ERROR;
+  let message = err.message || "Internal server error";
+  let details = err.details;
+
+  if (err instanceof SyntaxError && statusCode === 400) {
+    code = ERROR_CODES.VALIDATION_FAILED;
+    message = "Malformed JSON request body";
+  } else if (err.name === "ValidationError") {
+    statusCode = 400;
+    code = ERROR_CODES.VALIDATION_FAILED;
+    message = "Request validation failed";
+    details = Object.keys(err.errors || {}).map((field) => ({ field, message: err.errors[field].message }));
+  } else if (err.name === "CastError") {
+    statusCode = 400;
+    code = ERROR_CODES.VALIDATION_FAILED;
+    message = "Invalid resource identifier";
+  } else if (err.code === 11000) {
+    statusCode = 409;
+    code = ERROR_CODES.CONFLICT;
+    message = "Resource already exists";
+  } else if (err.type === "entity.too.large" || err.code === "LIMIT_FILE_SIZE") {
+    statusCode = 413;
+    code = "PAYLOAD_TOO_LARGE";
+    message = "Request payload is too large";
+  } else if (err.name === "MulterError") {
+    statusCode = 400;
+    code = ERROR_CODES.VALIDATION_FAILED;
+    message = "Invalid file upload";
+  }
+
+  const log = statusCode >= 500 ? logger.error.bind(logger) : logger.warn.bind(logger);
+  log("Request failed", {
+    errorMessage: err.message,
+    ...(statusCode >= 500 ? { stack: err.stack } : {}),
     url: safeUrl,
     method: req.method,
-    ip: req.ip,
-    userId: req.userId,
     requestId: req.requestId,
+    statusCode,
+    code,
   });
 
-  // Default error
-  let statusCode = err.statusCode || 500;
   let errorResponse = {
     success: false,
     error: {
-      code: err.code || ERROR_CODES.INTERNAL_SERVER_ERROR,
-      message: err.message || "Internal server error",
+      code,
+      message,
       request_id: req.requestId,
     },
   };
 
-  if (err.details) {
-    errorResponse.error.details = err.details;
+  if (details) {
+    errorResponse.error.details = details;
   }
 
   // JWT errors
@@ -53,8 +82,9 @@ const errorHandler = (err, req, res, _next) => {
   }
 
   // Don't expose internal errors in production
-  if (process.env.NODE_ENV === "production" && statusCode === 500) {
-    errorResponse.error.message = "Internal server error";
+  if (process.env.NODE_ENV === "production" && statusCode >= 500) {
+    if (statusCode === 500) errorResponse.error.message = "Internal server error";
+    delete errorResponse.error.details;
     delete errorResponse.error.stack;
   } else if (process.env.NODE_ENV !== "production") {
     errorResponse.error.stack = err.stack;

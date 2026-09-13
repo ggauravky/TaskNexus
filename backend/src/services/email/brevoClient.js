@@ -16,6 +16,8 @@ const getBrevoClient = () => {
   if (!clientInstance) {
     clientInstance = new BrevoClient({
       apiKey: process.env.BREVO_API_KEY,
+      timeoutInSeconds: Number(process.env.BREVO_TIMEOUT_SECONDS) || 10,
+      maxRetries: Number(process.env.BREVO_MAX_RETRIES) || 2,
     });
   }
 
@@ -46,7 +48,7 @@ const getNewsletterListId = () => {
 };
 
 const getPublicAppUrl = () => {
-  const directClientUrl = normalizeUrl(process.env.CLIENT_URL);
+  const directClientUrl = normalizeUrl(process.env.APP_ORIGIN);
   if (directClientUrl) {
     return directClientUrl;
   }

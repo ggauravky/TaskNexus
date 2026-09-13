@@ -16,7 +16,7 @@ class ErrorBoundary extends Component {
     }
 
     componentDidCatch(error, errorInfo) {
-        console.error('Error caught by ErrorBoundary:', error, errorInfo);
+        if (import.meta.env.DEV) console.error('Error caught by ErrorBoundary:', error, errorInfo);
         this.setState({
             error,
             errorInfo,
@@ -26,20 +26,20 @@ class ErrorBoundary extends Component {
     render() {
         if (this.state.hasError) {
             return (
-                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 px-4">
-                    <div className="max-w-md w-full bg-white/95 rounded-2xl shadow-xl border border-slate-100 p-8 text-center">
-                        <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                            Oops! Something went wrong
+                <div className="flex min-h-screen items-center justify-center bg-[#010102] px-4 text-[#f7f8f8]">
+                    <div className="w-full max-w-md rounded-xl border border-[#34343a] bg-[#0f1011] p-8 text-center">
+                        <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-red-400" />
+                        <h1 className="mb-2 text-2xl font-semibold">
+                            Something went wrong
                         </h1>
-                        <p className="text-gray-600 mb-6">
+                        <p className="mb-6 text-sm leading-6 text-[#8a8f98]">
                             We are sorry for the inconvenience. Please try refreshing the page.
                         </p>
 
                         {import.meta.env.DEV && this.state.error && (
-                            <details className="text-left bg-gray-50 p-4 rounded-lg mb-4">
-                                <summary className="cursor-pointer font-medium text-gray-700 mb-2">
-                                    Error Details
+                            <details className="mb-4 rounded-lg border border-[#23252a] bg-[#141516] p-4 text-left">
+                                <summary className="mb-2 cursor-pointer font-medium text-[#d0d6e0]">
+                                    Error details
                                 </summary>
                                 <pre className="text-xs text-red-600 overflow-auto">
                                     {this.state.error.toString()}
@@ -52,7 +52,7 @@ class ErrorBoundary extends Component {
                             onClick={() => window.location.reload()}
                             className="btn btn-primary w-full"
                         >
-                            Refresh Page
+                            Refresh page
                         </button>
                     </div>
                 </div>

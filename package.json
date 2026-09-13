@@ -1,11 +1,15 @@
 {
   "name": "tasknexus",
   "private": true,
+  "engines": {
+    "node": ">=20.19 <25"
+  },
   "scripts": {
     "dev": "node scripts/startLocalQa.js",
     "qa:phase8": "node scripts/startLocalQa.js",
     "install:all": "npm --prefix backend install && npm --prefix frontend install",
     "verify": "npm --prefix backend run lint && npm --prefix backend test && npm --prefix frontend run lint && npm --prefix frontend run build",
+    "verify:production": "npm run verify && npm --prefix backend run verify:production",
     "verify:database": "npm --prefix backend run verify:database",
     "verify:mongodb-integration": "npm --prefix backend run verify:mongodb-integration",
     "verify:api-integration": "npm --prefix backend run verify:api-integration",
@@ -15,6 +19,8 @@
     "verify:discovery": "npm --prefix backend run verify:discovery",
     "verify:teams": "npm --prefix backend run verify:teams",
     "verify:hackathons": "npm --prefix backend run verify:hackathons",
-    "verify:opportunities": "npm --prefix backend run verify:opportunities"
+    "verify:opportunities": "npm --prefix backend run verify:opportunities",
+    "verify:organizations": "npm --prefix backend run verify:organizations",
+    "qa:phase9-browser": "npm --prefix backend run qa:phase9-browser --"
   }
 }

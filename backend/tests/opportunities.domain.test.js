@@ -24,7 +24,7 @@ describe("Phase 8 model validation", () => {
   test("rejects malformed compensation and eligibility ranges", async () => { await expect(role({ compensation: { min_amount: 90000, max_amount: 50000, currency: "INR", period: "month" } }).validate()).rejects.toThrow("Maximum compensation"); await expect(role({ eligibility: { graduation_year_min: 2028, graduation_year_max: 2026 } }).validate()).rejects.toThrow("Maximum graduation year"); });
   test("rejects overlapping required and preferred skill facts", async () => await expect(role({ preferred_skill_ids: [IDS.js] }).validate()).rejects.toThrow("both required and preferred"));
   test("requires publication time for published records", async () => await expect(role({ status: "published" }).validate()).rejects.toThrow("publication timestamp"));
-  test("validates Organizations independently from Teams", async () => { const org = new Organization({ _id: IDS.org, name: "Acme Labs", slug: "acme-labs", organization_type: "startup", website_url: "https://acme.example.com", created_by: IDS.user }); await expect(org.validate()).resolves.toBeUndefined(); expect(org.toObject()).not.toHaveProperty("owner_id"); });
+  test("keeps catalog Organizations platform-managed until Phase 9 grants control", async () => { const org = new Organization({ _id: IDS.org, name: "Acme Labs", slug: "acme-labs", organization_type: "startup", website_url: "https://acme.example.com", created_by: IDS.user }); await expect(org.validate()).resolves.toBeUndefined(); expect(org.toObject()).toMatchObject({ management_mode: "platform_managed", owner_id: null }); });
 });
 
 describe("Phase 8 deterministic eligibility", () => {

@@ -12,7 +12,7 @@ const revision = body("revision").isInt({ min: 0 });
 const slug = param("slug").matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
 router.get("/organizations", opportunitySearchLimiter, [...pagination, query("search").optional().isString().isLength({ max: 200 })], validate, controller.listOrganizations);
-router.get("/organizations/:slug", opportunitySearchLimiter, [slug], validate, controller.organizationDetail);
+router.get("/organizations/:slug", optionalAuth, opportunitySearchLimiter, [slug], validate, controller.organizationDetail);
 router.post("/admin/organizations", authenticate, requireAdmin, opportunityCatalogLimiter, [body("name").isString().isLength({ min: 2, max: 160 }), body("slug").matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), body("organizationType").isString()], validate, controller.createOrganization);
 router.patch("/admin/organizations/:id", authenticate, requireAdmin, opportunityCatalogLimiter, [uuid("id"), revision], validate, controller.updateOrganization);
 router.post("/admin/organizations/:id/verify", authenticate, requireAdmin, opportunityCatalogLimiter, [uuid("id"), revision, body("verified").optional().isBoolean()], validate, controller.verifyOrganization);
