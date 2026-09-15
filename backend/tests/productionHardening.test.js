@@ -17,10 +17,11 @@ describe("production runtime hardening", () => {
       MONGODB_DB_NAME: "tasknexus_production",
       JWT_ACCESS_SECRET: "a".repeat(48),
       JWT_REFRESH_SECRET: "b".repeat(48),
-      UPLOAD_STORAGE_MODE: "disabled",
+      UPLOAD_STORAGE_MODE: "gridfs",
+      GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
       EMAIL_DELIVERY_MODE: "disabled",
     });
-    expect(runtime).toMatchObject({ production: true, uploadMode: "disabled", trustProxyHops: 1 });
+    expect(runtime).toMatchObject({ production: true, uploadMode: "gridfs", trustProxyHops: 1 });
   });
 
   test("rejects staging data, weak secrets, HTTP origin, and local production uploads", () => {
@@ -46,7 +47,8 @@ describe("production runtime hardening", () => {
       MONGODB_DB_NAME: "tasknexus_production",
       JWT_ACCESS_SECRET: "a".repeat(48),
       JWT_REFRESH_SECRET: "b".repeat(48),
-      UPLOAD_STORAGE_MODE: "disabled",
+      UPLOAD_STORAGE_MODE: "gridfs",
+      GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
       EMAIL_DELIVERY_MODE: "disabled",
     })).toThrow(/NODE_ENV must be production/);
   });
@@ -100,5 +102,41 @@ describe("production runtime hardening", () => {
       success: false,
       error: { request_id: response.headers["x-request-id"] },
     });
+  });
+
+  test("rejects recognizable non-production database names in production", () => {
+    for (const databaseName of [
+      "tasknexus_v2_staging",
+      "tasknexus-qa",
+      "tasknexus_test",
+      "tasknexus-performance",
+    ]) {
+      expect(() => validateEnvironment({
+        NODE_ENV: "production",
+        APP_ENV: "production",
+        APP_ORIGIN: "https://tasknexus.example",
+        MONGODB_URI: "mongodb://example.invalid/app",
+        MONGODB_DB_NAME: databaseName,
+        JWT_ACCESS_SECRET: "a".repeat(48),
+        JWT_REFRESH_SECRET: "b".repeat(48),
+        UPLOAD_STORAGE_MODE: "gridfs",
+        GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
+        EMAIL_DELIVERY_MODE: "disabled",
+      })).toThrow(/development, test, QA, staging, or performance/);
+    }
+  });
+
+  test("completed requests emit safe operational fields", async () => {
+    const logger = require("../src/utils/logger");
+    const info = jest.spyOn(logger, "info");
+    await request(require("../src/app")).get("/health?ignored=secret");
+    expect(info).toHaveBeenCalledWith("Request completed", expect.objectContaining({
+      requestId: expect.any(String),
+      method: "GET",
+      route: "/health",
+      status: 200,
+      durationMs: expect.any(Number),
+    }));
+    info.mockRestore();
   });
 });

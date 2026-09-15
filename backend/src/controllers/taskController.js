@@ -6,10 +6,9 @@ const NotificationService = require("../services/notificationService");
 const taskService = require("../services/taskService");
 const realtimeHub = require("../services/realtimeHub");
 const collaborationService = require("../services/collaborationService");
+const storageProvider = require("../services/storage/storageProvider");
 const { TASK_STATUS } = require("../config/constants");
-const fs = require("fs");
 const path = require("path");
-const { commentsDir } = require("../middleware/upload");
 const { parseListQuery } = require("../utils/queryOptions");
 const { paginationMeta } = require("../utils/apiResponse");
 const { serializeTask } = require("../serializers");
@@ -550,21 +549,20 @@ exports.downloadTaskAttachment = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Attachment not found" });
     }
 
-    const filePath = path.join(commentsDir, path.basename(attachment.filename));
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: "Attachment file is unavailable",
-      });
-    }
-
+    const stream = await storageProvider.openFile(attachment);
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
-    return res.download(
-      filePath,
-      path.basename(attachment.originalName || attachment.filename),
-    );
+    res.type(attachment.mimeType || "application/octet-stream");
+    res.attachment(path.basename(attachment.originalName || "attachment"));
+    stream.on("error", (error) => {
+      if (res.headersSent) res.destroy(error);
+      else next(error);
+    });
+    return stream.pipe(res);
   } catch (error) {
+    if (error.code === "ENOENT") {
+      return res.status(404).json({ success: false, message: "Attachment file is unavailable" });
+    }
     next(error);
   }
 };

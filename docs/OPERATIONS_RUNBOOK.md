@@ -1,83 +1,82 @@
 # Operations runbook
 
-## Service indicators and alerts
+The named primary, backup and alert channel are launch requirements and are not
+yet supplied. Severity and thresholds are defined in `MONITORING_RUNBOOK.md`.
 
-Monitor Render request error rate, p95 latency, restarts, memory, CPU, and
-`/api/ready`; Atlas connections, pool pressure, query targeting, replication lag,
-storage, backup age, and cluster alerts; Vercel deployment failures and frontend
-error telemetry; Brevo rejection/rate-limit trends; and GitHub verification
-failure/rate-limit trends. Alert on-call for readiness failure over 2 minutes,
-5xx over 2% for 5 minutes, repeated restarts, Atlas critical alerts, backup age
-beyond policy, or golden-path failure.
+## Triage
 
-The application emits JSON stdout logs in production. Search by `requestId` and
-never paste raw cookies, bearer tokens, environment values, email payloads, or
-MongoDB URIs into an incident record.
+1. Confirm user impact, deployed frontend/backend revisions and current time.
+2. Check `/health`; if it fails, investigate the process/platform. If it is 200
+   while `/api/ready` is 503, investigate MongoDB connectivity.
+3. Correlate structured logs by request ID, route, status and duration. Never put
+   cookies, bearer tokens, environment values, emails, MongoDB URIs or application
+   snapshot/private-note contents in an incident record.
+4. Contain impact or roll back, preserve evidence, communicate the next update,
+   and assign follow-up actions.
 
-## Triage order
+## Service down
 
-1. Confirm user impact and current deploy revisions.
-2. Check `/health`. If it fails, investigate the process/platform. If it passes
-   while `/api/ready` fails, investigate Atlas connectivity and pool health.
-3. Correlate sanitized logs by request ID and route, then check Atlas and provider
-   status pages. Do not increase timeouts or retry counts before identifying cause.
-4. Disable affected traffic or roll back. Preserve audit records.
-5. Communicate scope, mitigation, and next update; complete a post-incident review.
+Check Render status, process restarts, memory/CPU and last release. Confirm
+liveness and startup validation. Roll back to the last known-good backend
+revision if release-caused; do not bypass readiness to force traffic.
 
-## Common incidents
+## Database down
 
-### Database unavailable
+Keep traffic closed while readiness is 503. Inspect Atlas cluster state, access
+list, database user, DNS and connection utilization. Do not log the URI. If data
+loss/corruption is suspected, freeze writes and follow `BACKUP_RESTORE.md`.
 
-Keep traffic closed while readiness is 503. Verify Atlas cluster state, access
-list, application user, DNS, connection limit, and secret rotation history. Never
-log the URI. If corruption/deletion is suspected, follow `BACKUP_RESTORE.md`.
+## High 5xx
 
-### Authentication or cookie failures
+Group by safe error code, route and release revision. Inspect dependencies and
+slow-query evidence. Do not globally increase timeouts/retries before cause is
+known. Roll back if the release is causal and verify golden paths afterward.
 
-Compare `APP_ORIGIN`, `ALLOWED_ORIGINS`, `VITE_API_URL`, SameSite, Secure, and
-browser Origin. Test login, one refresh after access expiry, rotation/replay
-rejection, and logout. Do not relax CORS to `*` or disable trusted-origin checks.
+## Storage failure
 
-### Email outage
+Attachments use private MongoDB GridFS. Confirm readiness and Atlas capacity,
+then inspect the configured bucket's `.files` and `.chunks` health without
+exposing content. Comment creation rolls back files uploaded before a failed
+comment write. Never switch production to `local`; startup rejects it. Restore an
+unavailable stored file from the same Atlas backup as its comment metadata.
 
-Core database writes may succeed while asynchronous notifications fail. Inspect
-sanitized timeout/rate-limit signals and Brevo status. Required startup mode checks
-configuration, not provider reachability. Avoid blind bulk replay; reconcile from
-audit/application records and send idempotently.
+## Email failure
 
-### GitHub outage or rate limit
+Core database writes may succeed while asynchronous email fails. Inspect
+sanitized timeout/rate-limit logs and Brevo status. Do not bulk replay blindly;
+reconcile from database/audit records and send idempotently to approved targets.
 
-Evidence remains unverified; it must not be marked verified on provider failure.
-Honor provider reset time, do not rotate through credentials, and retry only after
-recovery. The fixed provider origin, redirect denial, timeout, and size cap stay on.
+## GitHub failure or exhaustion
 
-### SSE disconnects
+Provider failure leaves evidence unverified. Honor reset time, keep the fixed
+origin/redirect denial/timeout/size bounds, and do not rotate through credentials
+to evade limits.
 
-SSE is process-local and disposable. Deploys and scaling close streams; clients
-must reconnect and refetch MongoDB-backed notifications. A stream interruption is
-not data loss. Persistent SSE failures with healthy polling are degraded service,
-not a reason to duplicate events in memory.
+## Credential rotation
 
-### Attachment request in production
+- MongoDB: create a new least-privilege user, update the host secret, verify
+  readiness and one read/write path, then revoke the old user.
+- JWT: schedule forced sign-in, replace both independent secrets, redeploy and
+  verify login/refresh/logout.
+- Brevo/GitHub: create minimum-scope credential, update the host secret, verify a
+  safe staging call, then revoke the old credential.
+- GridFS has no separate credential; it uses MongoDB and a bucket namespace. A
+  future provider must use create-test-revoke sequencing.
 
-The API intentionally returns 503 for file attachments while durable storage is
-absent. Text-only comments remain supported. Do not switch to `local` on Render;
-that would create silently lossy files.
+Never reveal old/new values in commands, logs, screenshots or tickets.
 
-## Routine operations
+## Deployment rollback
 
-- Daily: review alerts, failed deploys, 5xx trend, and provider failures.
-- Weekly: verify latest backup and PIT window, dependency alerts, dormant admins,
-  Atlas users/access list, and error-log samples for accidental PII.
-- Monthly: restore drill, golden paths, accessibility/mobile sample, account-role
-  review, capacity review, and stale data/retention review.
-- Before every release: CI green, production checklist reviewed, migrations/index
-  changes approved, rollback target known, and smoke-test owner assigned.
+Redeploy the last known-good Vercel and Render revisions. Do not remove indexes as
+part of application rollback. If data compatibility changed, stop writes and use
+the restore procedure; never improvise an in-place destructive restore.
 
-## Data/privacy requests
+## Routine checks
 
-Authenticate the requester and document scope. Export only the subject's records.
-Deletion must preserve legally/operationally required financial and audit records
-under an approved retention policy while anonymizing removable profile/contact
-data. There is no automated end-user delete workflow yet; production launch must
-assign an operator and reviewer for manual requests.
+- Daily: alerts, failed deploys, 5xx and provider failure trends.
+- Weekly: backup/PIT window, access list/users, capacity, dormant admins,
+  dependency alerts and log-redaction samples.
+- Monthly: isolated restore drill, deployed golden paths, browser/accessibility
+  matrix, role review, privacy retention review and credential inventory.
+- Release: `npm run verify:launch`, audits, rollback target, smoke owner and
+  readiness checklist.

@@ -2,12 +2,11 @@ require("./config/loadEnv");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
 const { apiLimiter } = require("./middleware/rateLimiter");
-const logger = require("./utils/logger");
 const requestContext = require("./middleware/requestContext");
+const requestLogger = require("./middleware/requestLogger");
 const { isDatabaseReady } = require("./config/database");
 const { parseOrigins } = require("./config/environment");
 const { errors } = require("./utils/appError");
@@ -41,6 +40,7 @@ if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
 // Establish correlation before parsers so malformed request bodies also carry
 // a request ID in their response and logs.
 app.use(requestContext);
+app.use(requestLogger);
 
 // Security middleware
 app.use(helmet({
@@ -79,26 +79,6 @@ app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
 // Cookie parser
 app.use(cookieParser());
-
-// Logging middleware
-const safeRequestFormat = (tokens, req, res) => {
-  const pathOnly = req.originalUrl.split("?")[0];
-  return [
-    req.requestId,
-    tokens.method(req, res),
-    pathOnly,
-    tokens.status(req, res),
-    tokens.res(req, res, "content-length"),
-    "-",
-    `${tokens["response-time"](req, res)} ms`,
-  ].join(" ");
-};
-
-if (process.env.NODE_ENV === "development") {
-  app.use(morgan(safeRequestFormat));
-} else {
-  app.use(morgan(safeRequestFormat, { stream: logger.stream }));
-}
 
 // Liveness confirms only that the HTTP process can answer. Readiness is a
 // separate dependency-aware endpoint for the deployment platform.

@@ -1,5 +1,5 @@
 const VALID_APP_ENVIRONMENTS = new Set(["development", "test", "staging", "production"]);
-const VALID_UPLOAD_MODES = new Set(["local", "disabled"]);
+const VALID_UPLOAD_MODES = new Set(["local", "gridfs", "disabled"]);
 const VALID_EMAIL_MODES = new Set(["disabled", "optional", "required"]);
 
 const value = (env, name) => String(env[name] || "").trim();
@@ -22,6 +22,10 @@ const parseOrigins = (env) => {
     .filter(Boolean);
   return [...new Set([appOrigin, ...extras].filter(Boolean))];
 };
+
+const unsafeProductionDatabaseName = (databaseName) =>
+  databaseName === "tasknexus_v2" ||
+  /(^|[_-])(dev|development|test|testing|qa|stage|staging|performance)([_-]|$)/i.test(databaseName);
 
 const validateEnvironment = (env = process.env) => {
   const appEnv = value(env, "APP_ENV") || value(env, "NODE_ENV") || "development";
@@ -60,14 +64,19 @@ const validateEnvironment = (env = process.env) => {
   }
 
   const databaseName = value(env, "MONGODB_DB_NAME");
-  if (production && databaseName === "tasknexus_v2") {
-    errors.push("MONGODB_DB_NAME must not use the staging database in production");
+  if (production && unsafeProductionDatabaseName(databaseName)) {
+    errors.push("MONGODB_DB_NAME must not use a development, test, QA, staging, or performance database in production");
   }
 
   const uploadMode = value(env, "UPLOAD_STORAGE_MODE") || (production ? "disabled" : "local");
-  if (!VALID_UPLOAD_MODES.has(uploadMode)) errors.push("UPLOAD_STORAGE_MODE must be local or disabled");
-  if (production && uploadMode === "local") {
-    errors.push("UPLOAD_STORAGE_MODE=local is unsafe in production; use disabled until durable storage is configured");
+  if (!VALID_UPLOAD_MODES.has(uploadMode)) errors.push("UPLOAD_STORAGE_MODE must be local, gridfs, or disabled");
+  if (production && uploadMode !== "gridfs") {
+    errors.push("UPLOAD_STORAGE_MODE must be gridfs in production so attachments use durable storage");
+  }
+
+  const gridFsBucketName = value(env, "GRIDFS_BUCKET_NAME") || "tasknexus_attachments";
+  if (!/^[A-Za-z][A-Za-z0-9_.-]{2,63}$/.test(gridFsBucketName)) {
+    errors.push("GRIDFS_BUCKET_NAME must be a safe name between 3 and 64 characters");
   }
 
   const emailMode = value(env, "EMAIL_DELIVERY_MODE") || "optional";
@@ -105,10 +114,11 @@ const validateEnvironment = (env = process.env) => {
     appOrigin,
     allowedOrigins: origins,
     uploadMode,
+    gridFsBucketName,
     emailMode,
     trustProxyHops,
     bodyLimitBytes,
   });
 };
 
-module.exports = { parseInteger, parseOrigins, validateEnvironment };
+module.exports = { parseInteger, parseOrigins, unsafeProductionDatabaseName, validateEnvironment };

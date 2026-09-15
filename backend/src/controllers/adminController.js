@@ -132,7 +132,10 @@ exports.updateUserStatus = async (req, res, next) => {
       });
     }
 
-    const updatedUser = await userData.updateUser(req.params.id, { status });
+    const updatedUser = await userData.updateUser(req.params.id, {
+      status,
+      ...(status === "active" ? {} : { refresh_token: null }),
+    });
 
     await NotificationService.create({
       recipient_id: user.id,

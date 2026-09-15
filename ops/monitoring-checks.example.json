@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "provider": "REPLACE_WITH_EXTERNAL_MONITORING_PROVIDER",
+  "notificationChannel": "REPLACE_WITH_VERIFIED_ALERT_DESTINATION",
+  "checks": [
+    {
+      "name": "frontend-availability",
+      "url": "https://REPLACE_WITH_FRONTEND_DOMAIN/",
+      "method": "GET",
+      "expectedStatus": 200,
+      "intervalSeconds": 60,
+      "failureThreshold": 2
+    },
+    {
+      "name": "backend-liveness",
+      "url": "https://REPLACE_WITH_BACKEND_DOMAIN/health",
+      "method": "GET",
+      "expectedStatus": 200,
+      "intervalSeconds": 60,
+      "failureThreshold": 2
+    },
+    {
+      "name": "backend-readiness",
+      "url": "https://REPLACE_WITH_BACKEND_DOMAIN/api/ready",
+      "method": "GET",
+      "expectedStatus": 200,
+      "intervalSeconds": 60,
+      "failureThreshold": 2
+    }
+  ]
+}

@@ -51,7 +51,10 @@ const profileSummaries = async (userIds, { publicOnly = false, session = null } 
   const ids = [...new Set(userIds.filter(Boolean))];
   if (!ids.length) return new Map();
   const [users, profiles, assignments] = await Promise.all([
-    User.find({ _id: trustedIn(ids) }).select("_id profile").session(session).lean(),
+    User.find({
+      _id: trustedIn(ids),
+      ...(publicOnly ? { status: "active" } : {}),
+    }).select("_id profile status").session(session).lean(),
     UserProfile.find({ _id: trustedIn(ids) }).session(session).lean(),
     UserSkill.find({ user_id: trustedIn(ids), is_primary: true }).session(session).lean(),
   ]);
@@ -64,11 +67,13 @@ const profileSummaries = async (userIds, { publicOnly = false, session = null } 
   return new Map(ids.map((id) => {
     const user = usersById.get(id);
     const profile = profilesById.get(id);
-    const visible = !publicOnly || profile?.visibility === "public";
+    const visible = Boolean(user) && (!publicOnly || profile?.visibility === "public");
     const legacy = user?.profile || {};
-    const displayName = [legacy.firstName || legacy.first_name, legacy.lastName || legacy.last_name].filter(Boolean).join(" ") || profile?.username || "TaskNexus member";
+    const displayName = visible
+      ? [legacy.firstName || legacy.first_name, legacy.lastName || legacy.last_name].filter(Boolean).join(" ") || profile?.username || "TaskNexus member"
+      : "TaskNexus member";
     return [id, {
-      id, display_name: displayName, username: visible ? profile?.username || null : null,
+      id: visible ? id : null, display_name: displayName, username: visible ? profile?.username || null : null,
       avatar_url: visible ? profile?.avatar_url || null : null, headline: visible ? profile?.headline || null : null,
       primary_skills: visible ? skillsByUser.get(id) || [] : [], preferred_roles: visible ? profile?.preferred_roles || [] : [],
       profile_visibility: profile?.visibility || "private",

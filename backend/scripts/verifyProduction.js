@@ -23,7 +23,8 @@ check("production environment contract", () => {
     MONGODB_DB_NAME: "tasknexus_production",
     JWT_ACCESS_SECRET: "a".repeat(48),
     JWT_REFRESH_SECRET: "b".repeat(48),
-    UPLOAD_STORAGE_MODE: "disabled",
+    UPLOAD_STORAGE_MODE: "gridfs",
+    GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
     EMAIL_DELIVERY_MODE: "disabled",
   });
   assert.equal(runtime.production, true);
@@ -38,7 +39,7 @@ check("Render deployment guardrails", () => {
   assert.match(render, /buildCommand: npm ci/);
   assert.match(render, /healthCheckPath: \/api\/ready/);
   assert.match(render, /maxShutdownDelaySeconds: 30/);
-  assert.match(render, /key: UPLOAD_STORAGE_MODE\s+value: disabled/);
+  assert.match(render, /key: UPLOAD_STORAGE_MODE\s+value: gridfs/);
 });
 
 check("Vercel browser security headers", () => {
@@ -60,17 +61,23 @@ check("QA mutation fences", () => {
     "verifyMongoIntegration.js", "verifyMongoApi.js", "verifyTeamsIntegration.js", "verifyProjectsIntegration.js",
     "verifyPhase5Integration.js", "verifyDiscoveryIntegration.js", "verifyHackathonIntegration.js",
     "verifyOpportunityIntegration.js", "verifyOrganizationIntegration.js", "syncMongoIndexes.js", "seedSkills.js",
+    "verifyStorageIntegration.js",
   ];
   for (const filename of destructiveScripts) {
     assert.match(read(`backend/scripts/${filename}`), /assertStagingMutationAllowed/);
   }
   assert.match(read("backend/scripts/phase9BrowserFixture.js"), /QA fixtures are disabled in production/);
+  const scaleVerifier = read("backend/scripts/verifyScaleIntegration.js");
+  assert.match(scaleVerifier, /tasknexus_v2_performance/);
+  assert.match(scaleVerifier, /production/);
+  assert.match(scaleVerifier, /--confirm-phase11-synthetic-scale/);
 });
 
 check("operations documentation", () => {
   for (const filename of [
     "PRODUCTION_READINESS.md", "DEPLOYMENT.md", "OPERATIONS_RUNBOOK.md", "ENVIRONMENT_VARIABLES.md",
     "SECURITY_MODEL.md", "BACKUP_RESTORE.md", "PHASE10_COMPLETION_REPORT.md",
+    "LAUNCH_BLOCKERS.md", "PRIVACY_OPERATIONS.md", "MONITORING_RUNBOOK.md", "PHASE11_COMPLETION_REPORT.md",
   ]) {
     assert.ok(fs.existsSync(path.join(root, "docs", filename)), `Missing docs/${filename}`);
   }

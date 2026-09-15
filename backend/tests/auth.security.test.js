@@ -216,6 +216,32 @@ describe("Phase 0 authentication and authorization baseline", () => {
     expect(response.status).toBe(401);
   });
 
+  test("inactive account cannot refresh an otherwise valid session", async () => {
+    users.push({
+      id: "00000000-0000-4000-8000-000000000016",
+      email: "inactive-refresh@example.com",
+      password: "valid-password",
+      role: "client",
+      profile,
+      status: "active",
+      refresh_token: null,
+      last_login: null,
+    });
+    const loginResponse = await request(app).post("/api/auth/login").send({
+      email: "inactive-refresh@example.com",
+      password: "valid-password",
+    });
+    const refreshCookie = loginResponse.headers["set-cookie"][0].match(/^refreshToken=([^;]+)/)[1];
+    users[0].status = "suspended";
+
+    const response = await request(app)
+      .post("/api/auth/refresh")
+      .set("Cookie", [`refreshToken=${refreshCookie}`]);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.message).toBe("Invalid refresh token");
+  });
+
   test("logout revokes the refresh session without requiring an access token", async () => {
     users.push({
       id: "00000000-0000-4000-8000-000000000014",

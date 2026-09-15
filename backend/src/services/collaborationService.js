@@ -3,6 +3,7 @@ const userData = require("../data/userData");
 const NotificationService = require("./notificationService");
 const realtimeHub = require("./realtimeHub");
 const collaborationData = require("../data/collaborationData");
+const storageProvider = require("./storage/storageProvider");
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -101,18 +102,6 @@ const findMentionedUsers = (body, participants) => {
   return mentioned;
 };
 
-const buildAttachmentMeta = (files, taskId) => {
-  return toArray(files).map((file) => ({
-    id: createId("att"),
-    originalName: file.originalname,
-    filename: file.filename,
-    size: file.size,
-    mimeType: file.mimetype,
-    url: `/api/tasks/${taskId}/attachments/${file.filename}`,
-    uploadedAt: new Date().toISOString(),
-  }));
-};
-
 const getCollaborationState = (task) => {
   const workflow = task.workflow || {};
   const collaboration = workflow.collaboration || {};
@@ -183,9 +172,13 @@ const addTaskComment = async ({ task, actor, body, files = [] }) => {
     (participant) => participant.id !== actor.id,
   );
 
-  const attachments = buildAttachmentMeta(files, task.id);
+  const commentId = createId("cmt");
+  const attachments = await storageProvider.uploadFiles(toArray(files), {
+    taskId: task.id,
+    commentId,
+  });
   const comment = {
-    id: createId("cmt"),
+    id: commentId,
     taskId: task.id,
     authorId: actor.id,
     authorName: getActorLabel(actor),
@@ -222,7 +215,13 @@ const addTaskComment = async ({ task, actor, body, files = [] }) => {
     },
   };
 
-  const normalizedComment = await collaborationData.createComment(comment);
+  let normalizedComment;
+  try {
+    normalizedComment = await collaborationData.createComment(comment);
+  } catch (error) {
+    await storageProvider.deleteFiles(attachments).catch(() => undefined);
+    throw error;
+  }
   if (normalizedComment) {
     await collaborationData.createActivity(task.id, activityEntry);
   } else {

@@ -25,7 +25,7 @@ jobs:
         run: npm ci --prefix backend
       - name: Install frontend
         run: npm ci --prefix frontend
-      - name: Verify application and production controls
-        run: npm run verify:production
+      - name: Verify application and launch controls
+        run: npm run verify:launch
       - name: Audit production dependencies
         run: npm --prefix backend audit --omit=dev --audit-level=high && npm --prefix frontend audit --omit=dev --audit-level=high
