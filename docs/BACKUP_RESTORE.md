@@ -1,53 +1,79 @@
 # Backup and restore runbook
 
-Production launch is blocked until this runbook has been executed successfully
-against a dedicated production Atlas project and evidence has been recorded.
+Status: **BLOCKED — not executed against production infrastructure.** This file
+defines the launch gate and evidence record; it does not claim that a backup or
+restore exists.
 
-## Targets
+MongoDB documents Cloud Backup and Continuous Cloud Backup for M10+ dedicated
+clusters and recommends a seven-day PIT restore window:
 
-- RPO: 15 minutes or better.
-- RTO: 4 hours for a regional application outage; 8 hours for a full data restore.
-- Retention: 7 days point-in-time, 35 daily snapshots, 12 monthly snapshots.
-- Owner: production database operator; approver: a separate project owner.
+- <https://www.mongodb.com/docs/atlas/cluster-additional-settings/>
+- <https://www.mongodb.com/docs/atlas/architecture/current/operational-readiness-checklist/>
+- <https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-overview/>
 
-MongoDB's current operational checklist recommends Cloud Backup, a continuous
-backup restore window, a defined retention policy, and restore practice:
-https://www.mongodb.com/docs/atlas/architecture/current/operational-readiness-checklist/
+## Required production policy
 
-## Enable and verify backups
+- Dedicated M10+ (or larger based on measured demand), replica-set deployment in
+  the approved application region. Free/shared behavior is not acceptable proof.
+- Cloud Backup and Continuous Cloud Backup enabled; PIT restore window at least
+  seven days.
+- Snapshot retention: hourly 7 days, daily 35 days, monthly 12 months. Change
+  only through a reviewed recovery/data-retention decision.
+- Snapshot region aligned with production; add a second-region copy only after
+  data-residency and cost approval.
+- Termination protection enabled; auto-expand storage reviewed.
+- Alerts: backup freshness/failure, disk 80% warning and 90% critical,
+  connections 80% of limit, replication/election critical events.
+- Application user: read/write only for the production TaskNexus database. It
+  cannot administer projects, users, backups or restores.
+- Recovery operator and independent reviewer named in the release record.
 
-1. Use a production-capable Atlas tier in the dedicated production project.
-2. Enable Cloud Backup and Continuous Cloud Backup with at least a seven-day PIT
-   window. Configure daily/monthly retention and a cross-region copy if budget and
-   data residency policy allow it.
-3. Restrict backup administration to the smallest operator group. Application
-   database users must not be able to alter backups.
-4. Create an on-demand snapshot before every schema/index migration that may
-   materially affect production.
-5. Every week, record latest successful snapshot time, PIT window, storage region,
-   and alert status in the operations log.
+Target objectives are proposals until measured: RPO 15 minutes or better and RTO
+4 hours. Do not present either as an SLA. The restore drill replaces the RTO with
+its measured duration and confirms whether the RPO target is met.
 
-## Restore drill (never overwrite production)
+## Safe restore drill
 
-1. Open an incident/change record and choose a snapshot or point immediately
-   before the simulated loss.
-2. Restore into a new isolated drill cluster/project. Atlas documents scheduled,
-   on-demand, and point-in-time restore modes here:
-   https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-overview/
-3. Use a temporary least-privilege verification credential and set a unique
-   `MONGODB_DB_NAME`; never point TaskNexus production traffic at the drill target.
-4. Run `npm run verify:database` against the restored target in read-only mode.
-5. Compare collection count (45), required indexes, a sample of user/team/project/
-   opportunity/application relationships, and newest audit/notification timestamps.
-6. Record snapshot/PIT chosen, start/end time, recovered timestamp, data checks,
-   achieved RPO/RTO, operator, and reviewer. Delete the drill environment after
-   evidence is approved under the project's retention rules.
+Never restore over the canonical production database.
 
-## Real incident recovery
+1. Record source project/cluster, snapshot ID or PIT timestamp, source region,
+   latest successful backup time, operator, reviewer and drill start time.
+2. Create an isolated restore target in the same provider/region and a unique
+   drill database/cluster name. Ensure no production application points to it.
+3. Restore the selected snapshot/PIT using a recovery identity, not the
+   application identity. Atlas cluster restores can replace target data; verify
+   the target twice before confirmation.
+4. Create a temporary read-only verifier credential. Do not paste its URI into
+   tickets or source. Run the database verifier against the restored database.
+5. Verify without recording subject values:
+   - expected application collections and both GridFS bucket collections;
+   - representative declared indexes;
+   - user/profile, Team/membership, Project/participant/task,
+     Opportunity/organization and native-application relationships;
+   - representative GridFS metadata and private API retrieval.
+6. Record end time, measured duration, recovered timestamp, achieved RPO, each
+   check result and any index/search rebuild required.
+7. Revoke the temporary credential. Delete the isolated target only after the
+   reviewer accepts evidence; record target deletion and timestamp.
 
-Freeze writes, revoke suspected credentials, preserve audit evidence, and restore
-to a new cluster for the safest validation path. After verification, rotate the
-Render `MONGODB_URI`, confirm `/api/ready`, execute all four golden-path smoke
-tests, then reopen traffic. Restoring in place can replace target data and requires
-explicit incident-commander approval. Rotate any credential that might have been
-exposed and complete a post-incident review.
+## Evidence record
+
+| Field | Actual evidence |
+| --- | --- |
+| Backup source / snapshot or PIT | **BLOCKED — not supplied** |
+| Restore target | **BLOCKED — not created** |
+| Date/time | **BLOCKED** |
+| Duration / measured RTO | **BLOCKED** |
+| Recovered timestamp / achieved RPO | **BLOCKED** |
+| Collection/GridFS checks | **BLOCKED** |
+| Index and relationship checks | **BLOCKED** |
+| Temporary credential revoked | **BLOCKED** |
+| Restore target cleanup | **BLOCKED** |
+
+## Incident recovery
+
+Freeze writes, preserve audit evidence, revoke suspected credentials and restore
+to a new target for validation. After reviewer acceptance, rotate the backend
+MongoDB URI, verify `/api/ready`, private attachment retrieval and all deployed
+golden paths before reopening traffic. In-place restoration requires explicit
+incident-lead approval and is not the default procedure.

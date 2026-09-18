@@ -54,7 +54,7 @@ const listTeamRequests = async (teamId, actorId, query) => {
   const options = parseListQuery(query, { allowedSorts: ["created_at"], defaultLimit: 20, maxLimit: 50 });
   const filter = { team_id: teamId, status: query.status || "pending" };
   const [rows, total] = await Promise.all([
-    TeamJoinRequest.find(filter).sort({ created_at: -1 }).skip((options.page - 1) * options.limit).limit(options.limit).lean(),
+    TeamJoinRequest.find(filter).sort({ created_at: -1, _id: 1 }).skip((options.page - 1) * options.limit).limit(options.limit).lean(),
     TeamJoinRequest.countDocuments(filter),
   ]);
   const items = toApps(rows);
@@ -66,7 +66,7 @@ const listOwnRequests = async (userId, query) => {
   const options = parseListQuery(query, { allowedSorts: ["created_at"], defaultLimit: 20, maxLimit: 50 });
   const filter = { user_id: userId, status: query.status || "pending" };
   const [rows, total] = await Promise.all([
-    TeamJoinRequest.find(filter).sort({ created_at: -1 }).skip((options.page - 1) * options.limit).limit(options.limit).lean(),
+    TeamJoinRequest.find(filter).sort({ created_at: -1, _id: 1 }).skip((options.page - 1) * options.limit).limit(options.limit).lean(),
     TeamJoinRequest.countDocuments(filter),
   ]);
   const items = toApps(rows);

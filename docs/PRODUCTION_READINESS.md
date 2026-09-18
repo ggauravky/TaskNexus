@@ -1,62 +1,59 @@
 # Production readiness
 
-Assessment date: 2026-09-14. Code baseline: Phase 9 commit `0f924dd0811f` plus
-Phase 10 hardening on `codex/phase10-production-hardening`.
+Assessment date: 2026-09-15. Starting baseline: Phase 10 commit `91c989d`.
 
 ## Decision
 
-**Production ready: NO.** The application is materially hardened, but public
-production launch is blocked until the external controls below are implemented
-and evidenced. The safe next phase is **Option E — stabilization only**.
+Ready for production deployment:
+NO
 
-## Readiness matrix
+Repository blockers for durable storage, privacy/session behavior and synthetic
+scale verification are resolved. External Atlas recovery, monitoring/ownership
+and deployed staging evidence are still missing. A template or local pass cannot
+substitute for those controls.
 
-| Area | Status | Evidence / remaining action |
+## Launch checklist
+
+| Item | Status | Evidence / required action |
 | --- | --- | --- |
-| Environment contract | Pass | Fail-fast validation, separate `APP_ENV`, exact origins, strong independent secrets. |
-| Auth/session | Pass | Short access JWT, rotating refresh JWT, digest-at-rest, scoped HttpOnly/Secure cookie, origin/CSRF guard. |
-| HTTP security | Pass | Helmet, CSP/HSTS/frame/MIME/referrer/permissions headers, 1 MiB body bound. |
-| Abuse controls | Pass | Global and sensitive-route rate limits with proxy-aware IP and canonical 429 envelope. |
-| MongoDB client | Pass | Bounded pool and selection/connect/socket timeouts, sanitized failures, graceful disconnect. |
-| Schema/index declaration | Pass | 45-model registry and existing Atlas verifier; additive production index command. |
-| Query scalability | Conditional | New feature list APIs are bounded; legacy dashboards still aggregate bounded-domain data in application memory and require load testing/aggregation before broad scale. |
-| File durability | **Blocker** | Production local storage is rejected and attachments are disabled. Implement private durable object storage, authorization, deletion, and malware scanning. |
-| Atlas resilience | **Blocker** | Dedicated production tier/project, backup/PITR, alerting, network rules, least privilege, and restore drill are not yet evidenced. |
-| Realtime | Pass with constraint | MongoDB is truth; SSE is authenticated and closed gracefully but process-local by design. |
-| Email/GitHub | Pass | Bounded provider timeouts/retries, GitHub redirect/host/rate/size controls, sanitized failure behavior. |
-| Health/shutdown | Pass | Independent `/health`, dependency-aware `/api/ready`, idempotent bounded shutdown. |
-| Observability | Conditional | Request IDs and sanitized JSON logs exist; external dashboards/on-call routing are not configured. |
-| Frontend resilience/SEO | Pass | Error boundary, route loading states, private noindex rules, dynamic metadata, robots/security/LLM files. |
-| CI/dependencies | Pass with review | CI uses lockfiles, lint/tests/build/production verifier and high-severity production audits. Hosting branch protection remains external. |
-| Deployment validation | **Blocker** | No production Atlas target or production Vercel/Render golden-path smoke has been executed. |
-| Privacy operations | Conditional | Data minimization and log sanitation improved; formal retention and verified delete/export process remain operational work. |
-
-## Binary launch checklist
-
-- [x] Runtime fails closed on missing/unsafe production configuration.
-- [x] Staging database name is forbidden in production.
-- [x] Secrets are excluded from tracked environment files.
-- [x] Refresh tokens are rotated and stored only as digests.
-- [x] Cross-origin credential policy is exact and CSRF-aware.
-- [x] Security headers, request bounds, and rate limits are enabled.
-- [x] Liveness and readiness are separate.
-- [x] Graceful shutdown closes HTTP, SSE, and MongoDB.
-- [x] QA mutation scripts refuse production and require staging confirmation.
-- [x] One command runs the application and production-control verification.
-- [ ] Dedicated production Atlas project/cluster/user/database created.
-- [ ] Cloud Backup + PITR configured and a restore drill meets RPO/RTO.
-- [ ] Atlas network access, least privilege, and alert contacts reviewed by two people.
-- [ ] Durable private attachment storage implemented and tested, or product explicitly launches without attachments with user-facing disclosure.
-- [ ] Render/Vercel production variables entered and independently reviewed.
-- [ ] Production index creation and representative query-plan/load checks completed.
-- [ ] External log/error dashboards and on-call alerts configured.
-- [ ] Privacy retention, export, and deletion process approved.
-- [ ] Four golden paths and cross-role denial suite pass in the production topology.
-- [ ] Rollback rehearsal and release owner sign-off completed.
+| Phase 10 baseline | PASS | Clean `91c989d`; existing regression and all domain integration verifiers passed before Phase 11. |
+| Production environment contract | PASS | Rejects staging DB name, weak/equal JWT secrets, non-HTTPS origin and non-GridFS storage. |
+| Authentication/session deactivation | PASS | Inactive users are denied login/auth/refresh; suspension clears stored refresh digest. |
+| HTTP/access controls | PASS | Exact origins, trusted-origin guard, headers, rate limits and contextual authorization. |
+| Request observability | PASS | Request ID, timestamp, query-free route, status, latency and safe errors. |
+| Durable private attachments | PASS | GridFS, API authorization, bounded parsing, content validation, opaque keys and rollback. |
+| Storage persistence | PASS | Atlas staging upload, reconnect, hash retrieval and delete passed via `verify:storage`. |
+| Synthetic launch-scale checks | PASS | 183,602 documents; 10 indexed queries; 6 APIs with 0 error rate; isolated DB removed. |
+| N+1 review | PASS | High-value list decoration uses bounded bulk queries/aggregations, not per-row awaits. |
+| QA production fences | PASS | Phase 2–10 fixtures plus storage/scale scripts refuse production and require confirmation. |
+| Production skills/admin bootstrap | PASS | Additive skill seed and non-public, confirmed, database-bound, audited admin CLI. Not executed in production. |
+| Privacy inventory/runbook | PASS | `PRIVACY_OPERATIONS.md`; no automated export/delete overbuilt. |
+| Privacy owner/contact/dry run | BLOCKED | Name operator/reviewer, verify contact and complete a synthetic dry run. |
+| Production Atlas tier/region/replica set | BLOCKED | Atlas tool access is organization-disabled; inspect/provision M10+ target. |
+| Cloud Backup + PITR | BLOCKED | Enable and capture policy/latest snapshot evidence. |
+| Isolated restore drill | BLOCKED | Execute and complete every field in `BACKUP_RESTORE.md`. |
+| Atlas user/access list/alerts | BLOCKED | Read-only inspection and independent review required. |
+| External monitors | BLOCKED | Instantiate three checks from the template and test delivery. |
+| Alert destinations/on-call | BLOCKED | Name primary, backup and verified critical channel. |
+| Production-equivalent staging deployment | BLOCKED | Actual Render service is on old live commit `6a6e77a…`; Phase 10 commit `351b711…` built but failed startup due missing MongoDB/database/origin configuration. Configure a distinct staging runtime and deploy an identifiable Phase 11 revision. |
+| HTTPS, CORS, cookies, SPA refresh | BLOCKED | Verify on deployed staging. |
+| Collaboration golden path | BLOCKED | Run over deployed HTTP/TLS/browser paths. |
+| Hackathon golden path | BLOCKED | Run on deployed staging. |
+| External-career golden path | BLOCKED | Run on deployed staging. |
+| Native-career golden path | BLOCKED | Run on deployed staging. |
+| Cross-role deployed denials | BLOCKED | Run on deployed staging. |
+| Responsive 320/375/390/430/768/1024/1440 | BLOCKED | Run on deployed staging. |
+| Accessibility/console/network | BLOCKED | Record production-build browser evidence. |
+| Email staging QA | BLOCKED | Requires safe recipient/provider sandbox and deployed environment. |
+| Storage host restart/resilience | BLOCKED | Reconnect passed; actual deployed host restart is required. |
+| Production dependency audits | PASS | Backend and frontend report zero vulnerabilities after Phase 11 changes. |
+| Tracked-source secret scan | PASS | Repository scanner passed 355 tracked/unignored files without echoing values. |
+| Final local/Atlas staging integration rerun | PASS | Database/model, API, Teams, Projects, Phase 5, GitHub, discovery, hackathon, opportunity, organization and GridFS storage verifiers pass. |
+| Deployed acceptance rerun | BLOCKED | Re-run the browser/TLS/golden-path matrix after production-equivalent staging is supplied. |
 
 ## Promotion rule
 
-All unchecked items are mandatory for a public launch. A tightly controlled
-private beta may begin only after Atlas backup/restore, least privilege, production
-deployment smoke, monitoring, and explicit attachment limitation are complete.
-Until then, remain in stabilization and keep staging fixtures isolated.
+Every `BLOCKED` row is mandatory. Do not deploy the production domain or seed
+production data merely to complete this checklist. After external evidence,
+re-run `npm run verify:launch`, both production dependency audits and the deployed
+matrix; then update the decision and obtain release-owner sign-off.

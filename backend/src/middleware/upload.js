@@ -1,22 +1,11 @@
-const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
-const crypto = require("crypto");
 const { BUSINESS_RULES } = require("../config/constants");
 const { errors } = require("../utils/appError");
 
 const appEnvironment = process.env.APP_ENV || process.env.NODE_ENV || "development";
 const uploadMode = process.env.UPLOAD_STORAGE_MODE || (appEnvironment === "production" ? "disabled" : "local");
-const uploadsEnabled = uploadMode === "local";
-
-const uploadsRoot = process.env.UPLOAD_PATH
-  ? path.resolve(process.env.UPLOAD_PATH)
-  : path.join(__dirname, "../../uploads");
-const commentsDir = path.join(uploadsRoot, "comments");
-
-if (uploadsEnabled && !fs.existsSync(commentsDir)) {
-  fs.mkdirSync(commentsDir, { recursive: true });
-}
+const uploadsEnabled = uploadMode === "local" || uploadMode === "gridfs";
 
 const MIME_EXTENSIONS = {
   "image/jpeg": ".jpg",
@@ -64,21 +53,18 @@ const hasExpectedSignature = (buffer, mimeType) => {
   return false;
 };
 
-const diskStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, commentsDir),
-  filename: (req, file, cb) => {
-    const extension = MIME_EXTENSIONS[file.mimetype];
-    cb(null, `${crypto.randomUUID()}${extension}`);
-  },
-});
-
-// Disabled mode still parses bounded multipart bodies in memory so text-only
-// comments continue to work, but it never writes uploaded bytes to ephemeral disk.
-const storage = uploadsEnabled ? diskStorage : multer.memoryStorage();
+// Parse uploads in bounded memory. The storage provider persists validated bytes
+// only after task authorization succeeds, so Multer never writes untrusted data.
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = BUSINESS_RULES.ALLOWED_FILE_TYPES || [];
-  if (!allowedTypes.includes(file.mimetype) || !MIME_EXTENSIONS[file.mimetype]) {
+  const extension = path.extname(file.originalname || "").toLowerCase();
+  const expected = MIME_EXTENSIONS[file.mimetype];
+  const extensionMatches = expected === ".jpg"
+    ? [".jpg", ".jpeg"].includes(extension)
+    : extension === expected;
+  if (!allowedTypes.includes(file.mimetype) || !expected || !extensionMatches) {
     cb(
       new Error(
         `Unsupported file type "${file.mimetype}". Allowed: ${allowedTypes.join(", ")}`,
@@ -110,22 +96,12 @@ const validateUploadedFiles = async (req, res, next) => {
 
   try {
     for (const file of files) {
-      const handle = await fs.promises.open(file.path, "r");
-      const buffer = Buffer.alloc(16);
-      await handle.read(buffer, 0, buffer.length, 0);
-      await handle.close();
-
-      if (!hasExpectedSignature(buffer, file.mimetype)) {
-        const error = new Error("Attachment content does not match its declared file type");
-        error.statusCode = 400;
-        throw error;
+      if (!hasExpectedSignature(file.buffer, file.mimetype)) {
+        return next(errors.validation("Attachment content does not match its declared file type"));
       }
     }
     next();
   } catch (error) {
-    await Promise.all(
-      files.map((file) => fs.promises.unlink(file.path).catch(() => undefined)),
-    );
     next(error);
   }
 };
@@ -133,6 +109,5 @@ const validateUploadedFiles = async (req, res, next) => {
 module.exports = {
   commentAttachmentUpload,
   validateUploadedFiles,
-  commentsDir,
   uploadsEnabled,
 };

@@ -1,0 +1,202 @@
+{
+  "environment": "synthetic non-production",
+  "database": "tasknexus_v2_performance",
+  "startedAt": "2026-09-15T19:09:18.141Z",
+  "dataset": {
+    "users": 10000,
+    "user_profiles": 10000,
+    "teams": 2000,
+    "projects": 3000,
+    "project_tasks": 15000,
+    "contribution_evidence": 50000,
+    "notifications": 50000,
+    "hackathons": 500,
+    "opportunities": 3000,
+    "opportunity_candidate_states": 20000,
+    "native_applications": 20000,
+    "project_participants": 100,
+    "organizations": 1,
+    "organization_memberships": 1
+  },
+  "queries": [
+    {
+      "name": "People discovery",
+      "collection": "user_profiles",
+      "index": "discoverable_1_visibility_1_availability_1_updated_at_-1",
+      "returned": 50,
+      "documentsExamined": 50,
+      "keysExamined": 50,
+      "executionTimeMs": 1,
+      "p50Ms": 74.406,
+      "p95Ms": 111.248,
+      "samples": 12
+    },
+    {
+      "name": "Team listing",
+      "collection": "teams",
+      "index": "visibility_1_status_1_created_at_-1",
+      "returned": 50,
+      "documentsExamined": 50,
+      "keysExamined": 50,
+      "executionTimeMs": 0,
+      "p50Ms": 42.132,
+      "p95Ms": 69.455,
+      "samples": 12
+    },
+    {
+      "name": "Project task listing",
+      "collection": "project_tasks",
+      "index": "project_id_1_status_1_updated_at_-1",
+      "returned": 5,
+      "documentsExamined": 5,
+      "keysExamined": 5,
+      "executionTimeMs": 0,
+      "p50Ms": 34.221,
+      "p95Ms": 44.978,
+      "samples": 12
+    },
+    {
+      "name": "Contribution history",
+      "collection": "contribution_evidence",
+      "index": "user_id_1_status_1_occurred_at_-1",
+      "returned": 5,
+      "documentsExamined": 5,
+      "keysExamined": 5,
+      "executionTimeMs": 0,
+      "p50Ms": 38.924,
+      "p95Ms": 67.978,
+      "samples": 12
+    },
+    {
+      "name": "Hackathon discovery",
+      "collection": "hackathons",
+      "index": "visibility_1_status_1_event_start_1",
+      "returned": 50,
+      "documentsExamined": 50,
+      "keysExamined": 50,
+      "executionTimeMs": 0,
+      "p50Ms": 37.865,
+      "p95Ms": 81.609,
+      "samples": 12
+    },
+    {
+      "name": "Opportunity feed",
+      "collection": "opportunities",
+      "index": "type_1_status_1_published_at_-1",
+      "returned": 50,
+      "documentsExamined": 50,
+      "keysExamined": 50,
+      "executionTimeMs": 0,
+      "p50Ms": 42.944,
+      "p95Ms": 83.876,
+      "samples": 12
+    },
+    {
+      "name": "Eligibility state",
+      "collection": "opportunity_candidate_states",
+      "index": "user_id_1_opportunity_id_1",
+      "returned": 1,
+      "documentsExamined": 1,
+      "keysExamined": 1,
+      "executionTimeMs": 0,
+      "p50Ms": 39.68,
+      "p95Ms": 72.291,
+      "samples": 12
+    },
+    {
+      "name": "Candidate applications",
+      "collection": "native_applications",
+      "index": "candidate_id_1_stage_1_submitted_at_-1",
+      "returned": 2,
+      "documentsExamined": 2,
+      "keysExamined": 2,
+      "executionTimeMs": 0,
+      "p50Ms": 37.323,
+      "p95Ms": 46.742,
+      "samples": 12
+    },
+    {
+      "name": "Recruiter applicant list",
+      "collection": "native_applications",
+      "index": "organization_id_1_stage_1_submitted_at_-1",
+      "returned": 50,
+      "documentsExamined": 50,
+      "keysExamined": 50,
+      "executionTimeMs": 0,
+      "p50Ms": 37.114,
+      "p95Ms": 51.553,
+      "samples": 12
+    },
+    {
+      "name": "Notifications",
+      "collection": "notifications",
+      "index": "recipient_id_1_status_1_created_at_-1",
+      "returned": 3,
+      "documentsExamined": 3,
+      "keysExamined": 3,
+      "executionTimeMs": 0,
+      "p50Ms": 33.149,
+      "p95Ms": 59.511,
+      "samples": 12
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "Login",
+      "method": "POST",
+      "path": "/api/auth/login",
+      "samples": 12,
+      "p50Ms": 156.436,
+      "p95Ms": 547.178,
+      "errorRate": 0
+    },
+    {
+      "name": "People",
+      "method": "GET",
+      "path": "/api/people?limit=50",
+      "samples": 12,
+      "p50Ms": 450.014,
+      "p95Ms": 653.234,
+      "errorRate": 0
+    },
+    {
+      "name": "Projects",
+      "method": "GET",
+      "path": "/api/projects?limit=20",
+      "samples": 12,
+      "p50Ms": 178.214,
+      "p95Ms": 192.87,
+      "errorRate": 0
+    },
+    {
+      "name": "Opportunities",
+      "method": "GET",
+      "path": "/api/opportunities?limit=20",
+      "samples": 12,
+      "p50Ms": 143.962,
+      "p95Ms": 201.742,
+      "errorRate": 0
+    },
+    {
+      "name": "Applications",
+      "method": "GET",
+      "path": "/api/applications?limit=20",
+      "samples": 12,
+      "p50Ms": 167.349,
+      "p95Ms": 356.887,
+      "errorRate": 0
+    },
+    {
+      "name": "Recruiter applicants",
+      "method": "GET",
+      "path": "/api/organizations/4b5f3fa0-84ab-4787-ae0e-dcd17cdbe66d/applications?limit=20",
+      "samples": 12,
+      "p50Ms": 172.351,
+      "p95Ms": 192.888,
+      "errorRate": 0
+    }
+  ],
+  "completedAt": "2026-09-15T19:10:46.895Z",
+  "durationSeconds": 88.754,
+  "cleanup": "completed before evidence was written"
+}

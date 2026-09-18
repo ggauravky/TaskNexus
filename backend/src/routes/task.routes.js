@@ -56,6 +56,37 @@ const createTaskValidation = [
     }),
 ];
 
+const updateTaskValidation = [
+  body("title")
+    .optional()
+    .trim()
+    .isLength({ min: 5, max: 200 })
+    .withMessage("Title must be between 5 and 200 characters"),
+  body("description")
+    .optional()
+    .trim()
+    .isLength({ min: 20, max: 5000 })
+    .withMessage("Description must be between 20 and 5000 characters")
+    .customSanitizer((value) => value.trim().replace(/\s+/g, " ")),
+  body("category")
+    .optional()
+    .trim()
+    .isIn(Object.values(TASK_TYPES))
+    .withMessage("Invalid category"),
+  body("budget")
+    .optional()
+    .isFloat({ min: 10, max: 100000 })
+    .withMessage("Budget must be between $10 and $100,000"),
+  body("deadline")
+    .optional()
+    .isISO8601()
+    .withMessage("Invalid deadline format")
+    .custom((value) => {
+      if (new Date(value) <= new Date()) throw new Error("Deadline must be in the future");
+      return true;
+    }),
+];
+
 const submitTaskValidation = [
   body("deliverables")
     .isArray({ min: 1 })
@@ -101,6 +132,7 @@ router.put(
   "/:id",
   requireClient,
   param("id").isUUID().withMessage("Invalid task ID"),
+  updateTaskValidation,
   validate,
   taskController.updateTask,
 );

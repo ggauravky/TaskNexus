@@ -264,7 +264,7 @@ const refreshToken = async (req, res, next) => {
     // Find user and verify stored refresh token
     const user = await userData.findUserById(decoded.userId);
 
-    if (!user || !refreshTokenMatches(user.refresh_token, token)) {
+    if (!user || user.status !== "active" || !refreshTokenMatches(user.refresh_token, token)) {
       return res.status(401).json({
         success: false,
         error: {

@@ -2,7 +2,7 @@ const taskData = require("../data/taskData");
 const userData = require("../data/userData");
 const paymentData = require("../data/paymentData");
 const auditLogData = require("../data/auditLogData");
-const reviewData = require("../data/reviewData");
+const adminAnalyticsData = require("../data/adminAnalyticsData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 const AssignmentService = require("../services/assignmentService");
@@ -20,43 +20,11 @@ const { serializeUser } = require("../serializers");
  */
 exports.getDashboard = async (req, res, next) => {
   try {
-    const users = await userData.findUsers({});
-    const tasks = await taskData.findTasks({});
-    const payments = await paymentData.findPayments({});
-
-    const totalUsers = users.length;
-    const totalClients = users.filter((u) => u.role === "client").length;
-    const totalFreelancers = users.filter((u) => u.role === "freelancer").length;
-    const totalTasks = tasks.length;
-
-    const recentTasks = tasks.slice(0, 10);
-    const statusCounts = tasks.reduce((counts, task) => {
-      counts[task.status] = (counts[task.status] || 0) + 1;
-      return counts;
-    }, {});
-
-    const platformRevenue = payments
-        .filter((p) => p.status === "released")
-        .reduce((sum, p) => sum + (p.amounts?.platformFee || 0), 0);
+    const summary = await adminAnalyticsData.getDashboardSummary();
 
     res.status(200).json({
       success: true,
-      data: {
-        users: {
-          total: totalUsers,
-          clients: totalClients,
-          freelancers: totalFreelancers,
-        },
-        tasks: {
-          total: totalTasks,
-          byStatus: Object.entries(statusCounts).map(([status, count]) => ({
-            status,
-            count,
-          })),
-        },
-        platformRevenue,
-        recentTasks,
-      },
+      data: summary,
     });
   } catch (error) {
     logger.error("Error fetching admin dashboard:", error);
@@ -132,7 +100,10 @@ exports.updateUserStatus = async (req, res, next) => {
       });
     }
 
-    const updatedUser = await userData.updateUser(req.params.id, { status });
+    const updatedUser = await userData.updateUser(req.params.id, {
+      status,
+      ...(status === "active" ? {} : { refresh_token: null }),
+    });
 
     await NotificationService.create({
       recipient_id: user.id,
@@ -157,7 +128,7 @@ exports.updateUserStatus = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "User status updated successfully",
-      data: updatedUser,
+      data: serializeUser(updatedUser),
     });
   } catch (error) {
     logger.error("Error updating user status:", error);
@@ -401,83 +372,14 @@ exports.getAuditLogs = async (req, res, next) => {
  */
 exports.getStatistics = async (req, res, next) => {
   try {
-    const tasks = await taskData.findTasks({});
-    const users = await userData.findUsers({});
-    const payments = await paymentData.findPayments({});
-
-    const reviews = await reviewData.findReviews({});
-    const taskCount = tasks.length;
-    const statusCounts = tasks.reduce((counts, task) => {
-      counts[task.status] = (counts[task.status] || 0) + 1;
-      return counts;
-    }, {});
-    const roleCounts = users.reduce((counts, user) => {
-      counts[user.role] = (counts[user.role] || 0) + 1;
-      return counts;
-    }, {});
-    const releasedPayments = payments.filter((payment) => payment.status === "released");
-    const pendingPayments = payments.filter((payment) =>
-      ["pending", "escrowed"].includes(payment.status),
-    );
-    const sumPaymentAmount = (items) =>
-      items.reduce(
-        (sum, payment) => sum + Number(payment.amounts?.total || payment.amount || 0),
-        0,
-      );
-    const platformRevenue = releasedPayments.reduce(
-      (sum, payment) => sum + Number(payment.amounts?.platformFee || 0),
-      0,
-    );
-    const completedTasks = tasks.filter((task) => task.status === "completed");
-    const completionDurations = completedTasks
-      .map((task) => {
-        const start = new Date(task.created_at);
-        const end = new Date(task.updated_at);
-        return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
-          ? null
-          : (end - start) / 86400000;
-      })
-      .filter((value) => value !== null && value >= 0);
-    const ratings = reviews
-      .map((review) => Number(review.rating))
-      .filter((rating) => Number.isFinite(rating) && rating > 0);
     const monthStart = new Date();
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
+    const statistics = await adminAnalyticsData.getStatistics(monthStart);
 
     res.status(200).json({
       success: true,
-      data: {
-        totalRevenue: platformRevenue,
-        platformRevenue,
-        activeUsers: users.filter((user) => user.status === "active").length,
-        totalUsers: users.length,
-        totalTasks: taskCount,
-        completionRate: taskCount ? (completedTasks.length / taskCount) * 100 : 0,
-        tasksByStatus: statusCounts,
-        usersByRole: {
-          clients: roleCounts.client || 0,
-          freelancers: roleCounts.freelancer || 0,
-          admins: roleCounts.admin || 0,
-        },
-        paymentStats: {
-          completed: sumPaymentAmount(releasedPayments),
-          completedCount: releasedPayments.length,
-          pending: sumPaymentAmount(pendingPayments),
-          pendingCount: pendingPayments.length,
-        },
-        growth: {
-          newUsers: users.filter((user) => new Date(user.created_at) >= monthStart).length,
-          newTasks: tasks.filter((task) => new Date(task.created_at) >= monthStart).length,
-        },
-        averageCompletionTime: completionDurations.length
-          ? completionDurations.reduce((sum, value) => sum + value, 0) /
-            completionDurations.length
-          : 0,
-        satisfactionRate: ratings.length
-          ? (ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length / 5) * 100
-          : 0,
-      },
+      data: statistics,
     });
   } catch (error) {
     logger.error("Error fetching statistics:", error);

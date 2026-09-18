@@ -198,7 +198,7 @@ const listRequests = async (userId, query = {}) => {
   const filter = scope === "incoming" ? { recipient_id: userId } : { sender_id: userId };
   if (["pending", "accepted", "declined", "cancelled"].includes(query.status)) filter.status = query.status;
   const [rows, total] = await Promise.all([
-    CollaborationRequest.find(filter).sort({ created_at: -1 }).skip((options.page - 1) * options.limit).limit(options.limit).lean(),
+    CollaborationRequest.find(filter).sort({ created_at: -1, _id: 1 }).skip((options.page - 1) * options.limit).limit(options.limit).lean(),
     CollaborationRequest.countDocuments(filter),
   ]);
   return { items: await decorate(toApps(rows)), meta: paginationMeta({ ...options, total }) };

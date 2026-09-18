@@ -7,7 +7,7 @@ const countNotifications = (filters) => runMongo(() => Notification.countDocumen
 const listNotifications = ({ filters = {}, page, limit }) => runMongo(async () => {
   const query = buildFilter(filters);
   const [items, total] = await Promise.all([
-    Notification.find(query).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Notification.find(query).sort({ created_at: -1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
     Notification.countDocuments(query),
   ]);
   return { items: toApps(items), total, page, limit };

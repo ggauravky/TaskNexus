@@ -26,7 +26,9 @@ services:
       - key: TRUST_PROXY_HOPS
         value: 1
       - key: UPLOAD_STORAGE_MODE
-        value: disabled
+        value: gridfs
+      - key: GRIDFS_BUCKET_NAME
+        value: tasknexus_attachments_production
       - key: MONGODB_URI
         sync: false
       - key: MONGODB_DB_NAME

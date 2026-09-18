@@ -1,46 +1,48 @@
 # Environment variables
 
-`backend/.env.example` is the local-development contract and
-`backend/.env.production.example` is the production contract. Real values belong
-only in the deployment provider's secret store. The application loads
-`backend/.env.local` before `backend/.env`; neither file may be committed.
+Use `backend/.env.example` for development and
+`backend/.env.production.example` for production. Real values exist only in the
+deployment secret store. `.env.local` and `.env` are untracked local inputs.
 
-## Required runtime values
+## Runtime contract
 
-| Variable | Scope | Rule |
-| --- | --- | --- |
-| `NODE_ENV` | all | Use `development`, `test`, or `production` for Node tooling. |
-| `APP_ENV` | all | `development`, `test`, `staging`, or `production`; this is the data-safety boundary. |
-| `PORT` | backend | HTTP port; Render normally supplies it. |
-| `APP_ORIGIN` | backend | One browser origin, no path or trailing slash; HTTPS is mandatory in production. |
-| `ALLOWED_ORIGINS` | backend | Optional comma-separated additional exact origins. Never use `*` with credentials. |
-| `MONGODB_URI` | backend | Atlas connection string from a least-privilege application user. |
-| `MONGODB_DB_NAME` | backend | Explicit in production; local/staging default to `tasknexus_v2`. Production is forbidden from using that staging name. |
-| `JWT_ACCESS_SECRET` | backend | Independent random value, at least 32 characters. |
-| `JWT_REFRESH_SECRET` | backend | Independent random value, at least 32 characters and different from the access secret. |
-| `UPLOAD_STORAGE_MODE` | backend | `local` for local/staging QA or `disabled`. `local` is rejected in production. |
-| `EMAIL_DELIVERY_MODE` | backend | `disabled`, `optional`, or `required`; required mode also requires Brevo credentials. |
-| `VITE_API_URL` | frontend | Public API base ending in `/api`. |
-| `VITE_SITE_URL` | frontend | Canonical public site origin. |
+| Variable | Rule |
+| --- | --- |
+| `NODE_ENV` | `production` for production; must agree with `APP_ENV`. |
+| `APP_ENV` | `development`, `test`, `staging` or `production`; primary mutation safety boundary. |
+| `PORT` | HTTP port; hosting platform normally supplies it. |
+| `APP_ORIGIN` | Exact frontend origin; HTTPS and no path/trailing slash in production. |
+| `ALLOWED_ORIGINS` | Optional comma-separated exact origins; never `*` with credentials. |
+| `MONGODB_URI` | Least-privilege environment-specific application credential. |
+| `MONGODB_DB_NAME` | Explicit; production rejects `tasknexus_v2` and test/staging-like names. |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Independent random values, each at least 32 characters. |
+| `UPLOAD_STORAGE_MODE` | `local`, `gridfs`, or `disabled`; production requires `gridfs`. |
+| `GRIDFS_BUCKET_NAME` | Environment-specific safe bucket, 3–64 characters; production example is `tasknexus_attachments_production`. |
+| `UPLOAD_PATH` | Development-only local adapter root; never use for production persistence. |
+| `EMAIL_DELIVERY_MODE` | `disabled`, `optional`, or `required`; required also needs valid Brevo configuration. |
+| `VITE_API_URL` | Public backend base ending `/api`. |
+| `VITE_SITE_URL` | Assigned canonical frontend origin. |
 
-## Tunables and defaults
+## Controlled command confirmations
 
-- MongoDB: selection/connect `10000ms`, socket `45000ms`, heartbeat `10000ms`, pool `0..20` locally and recommended `2..20` in production.
-- HTTP: body limit `API_BODY_LIMIT_BYTES=1048576`; proxy hops `0` locally and `1` behind Render.
-- JWT: access `15m`, refresh `7d`; cookie maximum age `604800000ms`; production SameSite is `none`, Secure is forced, HttpOnly is always set.
-- Rate limiting: general window/max, auth refresh, admin mutations, task creation, public forms, discovery, GitHub verification, hackathon, opportunity, and organization limiters can be tuned independently.
-- Brevo: timeout `10s`, retries `2`; sender, reply-to, admin destination, and newsletter list are explicit.
-- Logging: `LOG_LEVEL=info`; production logs are structured JSON on stdout. `LOG_TEST_LOGS=true` opts into test logs.
+These are operator safeguards, not long-lived application configuration:
 
-## Startup behavior
+- `PRODUCTION_SEED_DB_NAME` must exactly match `MONGODB_DB_NAME` for the additive
+  canonical skill seed.
+- `ADMIN_PROVISION_DB_NAME` must exactly match `MONGODB_DB_NAME`; admin email and
+  password are supplied transiently through the secret environment.
+- QA integrations require `--confirm-tasknexus-v2-staging` and only allow the
+  staging database. Scale verification hardcodes `tasknexus_v2_performance` and
+  requires `--confirm-phase11-synthetic-scale`.
 
-`server.js` validates the full contract before connecting or listening. Error
-messages name invalid variables but never print their values. Invalid production
-origin, weak/equal JWT secrets, staging database reuse, local production uploads,
-or incomplete required email configuration stops startup.
+## Tunables
 
-## Removed/stale variables
+MongoDB selection/connect default 10s, socket 45s, heartbeat 10s, pool up to 20.
+HTTP body default 1 MiB; upload limit 10 MiB and five files. Access JWT default
+15m, refresh 7d, cookie age 7d. Production SameSite defaults to `none`, Secure is
+forced and HttpOnly always set. Request/provider rate limits and Brevo/GitHub
+timeouts are configurable using the documented example files.
 
-`CLIENT_URL`, `VITE_APP_NAME`, `VITE_APP_ENV`,
-`VITE_ENABLE_NOTIFICATIONS`, and `VITE_ENABLE_REAL_TIME` are not part of the
-contract. Use `APP_ORIGIN` and the actual implemented runtime behavior instead.
+Production logs are structured JSON stdout at `LOG_LEVEL=info`. The application
+fails before listening on unsafe origin, database, secrets, storage, proxy or
+required email settings and names variables without printing values.

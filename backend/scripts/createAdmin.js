@@ -1,9 +1,12 @@
 require("../src/config/loadEnv");
 
+const CONFIRMATION = "--confirm-admin-provision";
 const required = [
   "MONGODB_URI",
+  "MONGODB_DB_NAME",
   "ADMIN_EMAIL",
   "ADMIN_PASSWORD",
+  "ADMIN_PROVISION_DB_NAME",
 ];
 const missing = required.filter((name) => !process.env[name]);
 
@@ -17,7 +20,18 @@ if (process.env.ADMIN_PASSWORD.length < 12) {
   process.exit(1);
 }
 
+if (!process.argv.includes(CONFIRMATION)) {
+  console.error(`Explicit admin provisioning confirmation is required: ${CONFIRMATION}`);
+  process.exit(1);
+}
+
+if (process.env.ADMIN_PROVISION_DB_NAME !== process.env.MONGODB_DB_NAME) {
+  console.error("ADMIN_PROVISION_DB_NAME must exactly match MONGODB_DB_NAME.");
+  process.exit(1);
+}
+
 const userData = require("../src/data/userData");
+const auditLogData = require("../src/data/auditLogData");
 const { connectDatabase, disconnectDatabase } = require("../src/config/database");
 
 const createAdmin = async () => {
@@ -32,11 +46,18 @@ const createAdmin = async () => {
       );
     }
 
-    console.log(`Admin account already exists: ${email}`);
+    await auditLogData.log({
+      user_id: existingUser.id,
+      action: "PLATFORM_ADMIN_PROVISION_RECONCILED",
+      resource: "user",
+      resource_id: existingUser.id,
+      changes: { source: "controlled_cli", created: false },
+    });
+    console.log(`Admin account confirmed and audited: ${existingUser.id}`);
     return;
   }
 
-  await userData.createUser({
+  const admin = await userData.createUser({
     email,
     password: process.env.ADMIN_PASSWORD,
     role: "admin",
@@ -46,7 +67,15 @@ const createAdmin = async () => {
     },
   });
 
-  console.log(`Admin account created: ${email}`);
+  await auditLogData.log({
+    user_id: admin.id,
+    action: "PLATFORM_ADMIN_PROVISIONED",
+    resource: "user",
+    resource_id: admin.id,
+    changes: { source: "controlled_cli" },
+  });
+
+  console.log(`Admin account created and audited: ${admin.id}`);
 };
 
 createAdmin().catch((error) => {
