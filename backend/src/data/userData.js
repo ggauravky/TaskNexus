@@ -30,7 +30,7 @@ const listUsers = ({ filters = {}, page, limit, sortBy, sortOrder, search }) => 
   if (search) query.email = trustedOperators({ $regex: escapeRegex(search), $options: "i" });
   const safeSort = ["created_at", "updated_at", "email", "role", "status"].includes(sortBy) ? sortBy : "created_at";
   const [items, total] = await Promise.all([
-    User.find(query).sort({ [safeSort]: sortOrder === "asc" ? 1 : -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    User.find(query).sort({ [safeSort]: sortOrder === "asc" ? 1 : -1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
     User.countDocuments(query),
   ]);
   return { items: toApps(items), total, page, limit };

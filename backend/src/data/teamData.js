@@ -17,12 +17,26 @@ const findMembership = async (teamId, userId, options = {}) => toApp(await TeamM
 const listTeams = async ({ userId, scope, search, interest, joinPolicy, page, limit }) => {
   if (scope === "mine") {
     if (!userId) return { items: [], total: 0, page, limit };
-    const memberships = await TeamMembership.find({ user_id: userId, status: "active" })
-      .sort({ updated_at: -1 }).skip((page - 1) * limit).limit(limit).lean();
-    const total = await TeamMembership.countDocuments({ user_id: userId, status: "active" });
-    const teams = await Team.find({ _id: trustedIn(memberships.map((item) => item.team_id)), status: "active" }).lean();
-    const byId = new Map(teams.map((item) => [String(item._id), toApp(item)]));
-    return { items: memberships.map((item) => ({ team: byId.get(item.team_id), membership: toApp(item) })).filter((item) => item.team), total, page, limit };
+    const [result = { items: [], total: [] }] = await TeamMembership.aggregate([
+      { $match: { user_id: userId, status: "active" } },
+      { $lookup: { from: "teams", localField: "team_id", foreignField: "_id", as: "team" } },
+      { $unwind: "$team" },
+      { $match: { "team.status": "active" } },
+      { $sort: { updated_at: -1, _id: 1 } },
+      { $facet: {
+        items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+        total: [{ $count: "value" }],
+      } },
+    ]);
+    return {
+      items: result.items.map(({ team, ...membership }) => ({
+        team: toApp(team),
+        membership: toApp(membership),
+      })),
+      total: result.total[0]?.value || 0,
+      page,
+      limit,
+    };
   }
   const filter = { visibility: "public", status: "active" };
   if (interest) filter.primary_interests = interest;
@@ -32,7 +46,7 @@ const listTeams = async ({ userId, scope, search, interest, joinPolicy, page, li
     filter.$or = mongoose.trusted([{ name: pattern }, { tagline: pattern }, { slug: pattern }]);
   }
   const [items, total] = await Promise.all([
-    Team.find(filter).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Team.find(filter).sort({ created_at: -1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
     Team.countDocuments(filter),
   ]);
   return { items: toApps(items), total, page, limit };
@@ -98,7 +112,7 @@ const viewerRelationships = async (teamIds, userId) => {
 const listMembers = async (teamId, { page, limit }) => {
   const filter = { team_id: teamId, status: "active" };
   const [items, total] = await Promise.all([
-    TeamMembership.find(filter).sort({ role: 1, joined_at: 1 }).skip((page - 1) * limit).limit(limit).lean(),
+    TeamMembership.find(filter).sort({ role: 1, joined_at: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
     TeamMembership.countDocuments(filter),
   ]);
   return { items: toApps(items), total, page, limit };
@@ -107,7 +121,7 @@ const listMembers = async (teamId, { page, limit }) => {
 const listActivity = async (teamId, { page, limit }) => {
   const filter = { team_id: teamId };
   const [items, total] = await Promise.all([
-    TeamActivity.find(filter).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    TeamActivity.find(filter).sort({ created_at: -1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
     TeamActivity.countDocuments(filter),
   ]);
   return { items: toApps(items), total, page, limit };

@@ -219,21 +219,37 @@ exports.updateTask = async (req, res, next) => {
       });
     }
 
-    const allowedUpdates = [
-      "title",
-      "description",
-      "category",
-      "budget",
-      "deadline",
-    ];
+    const allowedUpdates = {
+      title: "title",
+      description: "description",
+      category: "type",
+      budget: "budget",
+      deadline: "deadline",
+    };
     const updates = {};
     const taskDetailsUpdate = { ...task.task_details };
 
-    allowedUpdates.forEach((field) => {
+    Object.entries(allowedUpdates).forEach(([field, target]) => {
       if (req.body[field] !== undefined) {
-        taskDetailsUpdate[field] = req.body[field];
+        const value = field === "budget"
+          ? Number(req.body[field])
+          : field === "deadline"
+            ? new Date(req.body[field])
+            : req.body[field];
+        taskDetailsUpdate[target] = value;
+        updates[field] = value;
       }
     });
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "No editable task fields supplied",
+        },
+      });
+    }
 
     const updatedTask = await taskData.updateTask(req.params.id, { task_details: taskDetailsUpdate });
 

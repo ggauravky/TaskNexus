@@ -1,7 +1,7 @@
 {
   "environment": "synthetic non-production",
   "database": "tasknexus_v2_performance",
-  "startedAt": "2026-09-13T20:37:25.900Z",
+  "startedAt": "2026-09-15T19:09:18.141Z",
   "dataset": {
     "users": 10000,
     "user_profiles": 10000,
@@ -26,9 +26,9 @@
       "returned": 50,
       "documentsExamined": 50,
       "keysExamined": 50,
-      "executionTimeMs": 0,
-      "p50Ms": 34.271,
-      "p95Ms": 39.424,
+      "executionTimeMs": 1,
+      "p50Ms": 74.406,
+      "p95Ms": 111.248,
       "samples": 12
     },
     {
@@ -39,8 +39,8 @@
       "documentsExamined": 50,
       "keysExamined": 50,
       "executionTimeMs": 0,
-      "p50Ms": 33.252,
-      "p95Ms": 36.901,
+      "p50Ms": 42.132,
+      "p95Ms": 69.455,
       "samples": 12
     },
     {
@@ -51,8 +51,8 @@
       "documentsExamined": 5,
       "keysExamined": 5,
       "executionTimeMs": 0,
-      "p50Ms": 31.324,
-      "p95Ms": 35.585,
+      "p50Ms": 34.221,
+      "p95Ms": 44.978,
       "samples": 12
     },
     {
@@ -63,8 +63,8 @@
       "documentsExamined": 5,
       "keysExamined": 5,
       "executionTimeMs": 0,
-      "p50Ms": 32.18,
-      "p95Ms": 38.326,
+      "p50Ms": 38.924,
+      "p95Ms": 67.978,
       "samples": 12
     },
     {
@@ -75,8 +75,8 @@
       "documentsExamined": 50,
       "keysExamined": 50,
       "executionTimeMs": 0,
-      "p50Ms": 36.327,
-      "p95Ms": 85.626,
+      "p50Ms": 37.865,
+      "p95Ms": 81.609,
       "samples": 12
     },
     {
@@ -87,8 +87,8 @@
       "documentsExamined": 50,
       "keysExamined": 50,
       "executionTimeMs": 0,
-      "p50Ms": 58.418,
-      "p95Ms": 168.375,
+      "p50Ms": 42.944,
+      "p95Ms": 83.876,
       "samples": 12
     },
     {
@@ -99,8 +99,8 @@
       "documentsExamined": 1,
       "keysExamined": 1,
       "executionTimeMs": 0,
-      "p50Ms": 31.003,
-      "p95Ms": 39.81,
+      "p50Ms": 39.68,
+      "p95Ms": 72.291,
       "samples": 12
     },
     {
@@ -111,8 +111,8 @@
       "documentsExamined": 2,
       "keysExamined": 2,
       "executionTimeMs": 0,
-      "p50Ms": 31.602,
-      "p95Ms": 34.164,
+      "p50Ms": 37.323,
+      "p95Ms": 46.742,
       "samples": 12
     },
     {
@@ -123,8 +123,8 @@
       "documentsExamined": 50,
       "keysExamined": 50,
       "executionTimeMs": 0,
-      "p50Ms": 34.773,
-      "p95Ms": 40.243,
+      "p50Ms": 37.114,
+      "p95Ms": 51.553,
       "samples": 12
     },
     {
@@ -135,8 +135,8 @@
       "documentsExamined": 3,
       "keysExamined": 3,
       "executionTimeMs": 0,
-      "p50Ms": 30.877,
-      "p95Ms": 33.093,
+      "p50Ms": 33.149,
+      "p95Ms": 59.511,
       "samples": 12
     }
   ],
@@ -146,8 +146,8 @@
       "method": "POST",
       "path": "/api/auth/login",
       "samples": 12,
-      "p50Ms": 146.512,
-      "p95Ms": 435.603,
+      "p50Ms": 156.436,
+      "p95Ms": 547.178,
       "errorRate": 0
     },
     {
@@ -155,8 +155,8 @@
       "method": "GET",
       "path": "/api/people?limit=50",
       "samples": 12,
-      "p50Ms": 420.716,
-      "p95Ms": 633.975,
+      "p50Ms": 450.014,
+      "p95Ms": 653.234,
       "errorRate": 0
     },
     {
@@ -164,8 +164,8 @@
       "method": "GET",
       "path": "/api/projects?limit=20",
       "samples": 12,
-      "p50Ms": 216.642,
-      "p95Ms": 267.791,
+      "p50Ms": 178.214,
+      "p95Ms": 192.87,
       "errorRate": 0
     },
     {
@@ -173,8 +173,8 @@
       "method": "GET",
       "path": "/api/opportunities?limit=20",
       "samples": 12,
-      "p50Ms": 138.966,
-      "p95Ms": 223.423,
+      "p50Ms": 143.962,
+      "p95Ms": 201.742,
       "errorRate": 0
     },
     {
@@ -182,21 +182,21 @@
       "method": "GET",
       "path": "/api/applications?limit=20",
       "samples": 12,
-      "p50Ms": 147.855,
-      "p95Ms": 535.271,
+      "p50Ms": 167.349,
+      "p95Ms": 356.887,
       "errorRate": 0
     },
     {
       "name": "Recruiter applicants",
       "method": "GET",
-      "path": "/api/organizations/8ed2fede-be3a-431e-b478-903e367d2fe9/applications?limit=20",
+      "path": "/api/organizations/4b5f3fa0-84ab-4787-ae0e-dcd17cdbe66d/applications?limit=20",
       "samples": 12,
-      "p50Ms": 153.738,
-      "p95Ms": 164.532,
+      "p50Ms": 172.351,
+      "p95Ms": 192.888,
       "errorRate": 0
     }
   ],
-  "completedAt": "2026-09-13T20:38:43.897Z",
-  "durationSeconds": 77.997,
+  "completedAt": "2026-09-15T19:10:46.895Z",
+  "durationSeconds": 88.754,
   "cleanup": "completed before evidence was written"
 }

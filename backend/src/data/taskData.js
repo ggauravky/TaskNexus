@@ -14,7 +14,7 @@ const listTasks = ({ filters = {}, page, limit, sortBy, sortOrder, search }) => 
   if (search) query["task_details.title"] = trustedOperators({ $regex: escapeRegex(search), $options: "i" });
   const safeSort = ["created_at", "updated_at", "priority", "status", "task_id"].includes(sortBy) ? sortBy : "created_at";
   const [items, total] = await Promise.all([
-    Task.find(query).sort({ [safeSort]: sortOrder === "asc" ? 1 : -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Task.find(query).sort({ [safeSort]: sortOrder === "asc" ? 1 : -1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
     Task.countDocuments(query),
   ]);
   return { items: toApps(items), total, page, limit };

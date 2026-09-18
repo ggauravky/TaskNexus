@@ -10,12 +10,21 @@ const databaseName = () => process.env.MONGODB_DB_NAME || "tasknexus_v2";
 
 const configureDnsServers = () => {
   const configured = process.env.MONGODB_DNS_SERVERS;
-  if (!configured) return;
-  const servers = configured.split(",").map((server) => server.trim()).filter(Boolean);
-  if (!servers.length || servers.some((server) => !net.isIP(server))) {
-    throw new Error("MONGODB_DNS_SERVERS must contain comma-separated IP addresses");
+  if (configured) {
+    const servers = configured.split(",").map((server) => server.trim()).filter(Boolean);
+    if (!servers.length || servers.some((server) => !net.isIP(server))) {
+      throw new Error("MONGODB_DNS_SERVERS must contain comma-separated IP addresses");
+    }
+    dns.setServers(servers);
+    return;
   }
-  dns.setServers(servers);
+
+  if (process.env.NODE_ENV !== "test") {
+    const current = dns.getServers();
+    if (current.length === 1 && current[0] === "127.0.0.1") {
+      dns.setServers(["8.8.8.8", "1.1.1.1"]);
+    }
+  }
 };
 
 const safeMessage = (error) => {
@@ -42,6 +51,28 @@ const connectDatabase = async () => {
     logger.info(`MongoDB connected to database ${databaseName()}`);
     return mongoose.connection;
   } catch (error) {
+    let isIpAccessError = /whitelist|access list|SSL alert number 80|tlsv1 alert/i.test(error?.message || "");
+    if (!isIpAccessError && error?.reason?.servers) {
+      for (const [, desc] of error.reason.servers) {
+        if (/alert number 80|tlsv1 alert/i.test(desc?.error?.message || "")) {
+          isIpAccessError = true;
+          break;
+        }
+      }
+    }
+
+    if (isIpAccessError) {
+      logger.error("MongoDB Atlas connection rejected: client IP may not be allowed in Atlas Network Access", {
+        hint: "Add your current public IP address to MongoDB Atlas -> Network Access -> IP Access List (or allow 0.0.0.0/0 for development).",
+      });
+    } else if (error?.code === "ETIMEOUT" || error?.code === "ECONNREFUSED") {
+      logger.error("MongoDB DNS / connection timed out or refused", {
+        code: error?.code,
+        dnsServers: dns.getServers(),
+        hint: "Verify MONGODB_DNS_SERVERS in .env or .env.local (recommended: 8.8.8.8, 1.1.1.1).",
+      });
+    }
+
     const sanitized = new Error(safeMessage(error));
     sanitized.code = "DATABASE_CONNECTION_FAILED";
     throw sanitized;

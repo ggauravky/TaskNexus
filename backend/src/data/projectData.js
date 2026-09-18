@@ -29,7 +29,7 @@ const listForTeam = async (teamId, filters) => {
     filter._id = trustedIn(rows.map((item) => item.project_id));
   }
   const [items, total] = await Promise.all([
-    Project.find(filter).sort({ updated_at: -1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
+    Project.find(filter).sort({ updated_at: -1, _id: 1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
     Project.countDocuments(filter),
   ]);
   return { items: toApps(items), total, page: filters.page, limit: filters.limit };
@@ -38,19 +38,36 @@ const listForTeam = async (teamId, filters) => {
 const listMine = async (userId, filters) => {
   const participantFilter = { user_id: userId, status: "active" };
   if (filters.role) participantFilter.role = filters.role;
-  const participations = await ProjectParticipant.find(participantFilter).sort({ updated_at: -1 }).lean();
-  const projectIds = participations.map((item) => item.project_id);
-  const filter = { _id: trustedIn(projectIds), status: mongoose.trusted({ $ne: "archived" }) };
-  if (filters.status) filter.status = filters.status;
+  const projectFilter = { "project.status": { $ne: "archived" } };
+  if (filters.status) projectFilter["project.status"] = filters.status;
   if (filters.search) {
     const pattern = new RegExp(escapeRegex(filters.search), "i");
-    filter.$or = mongoose.trusted([{ name: pattern }, { tagline: pattern }]);
+    projectFilter.$or = [
+      { "project.name": pattern },
+      { "project.tagline": pattern },
+    ];
   }
-  const [items, total] = await Promise.all([
-    Project.find(filter).sort({ updated_at: -1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
-    Project.countDocuments(filter),
+  const [result = { items: [], total: [] }] = await ProjectParticipant.aggregate([
+    { $match: participantFilter },
+    { $lookup: { from: "projects", localField: "project_id", foreignField: "_id", as: "project" } },
+    { $unwind: "$project" },
+    { $match: projectFilter },
+    { $sort: { "project.updated_at": -1, "project._id": 1 } },
+    { $facet: {
+      items: [
+        { $skip: (filters.page - 1) * filters.limit },
+        { $limit: filters.limit },
+        { $replaceWith: "$project" },
+      ],
+      total: [{ $count: "value" }],
+    } },
   ]);
-  return { items: toApps(items), total, page: filters.page, limit: filters.limit };
+  return {
+    items: toApps(result.items),
+    total: result.total[0]?.value || 0,
+    page: filters.page,
+    limit: filters.limit,
+  };
 };
 
 const projectCounts = async (projectIds) => {
@@ -86,7 +103,7 @@ const skillsByIds = async (skillIds) => {
 const listParticipants = async (projectId, filters = {}) => {
   const filter = { project_id: projectId, ...(filters.activeOnly === false ? {} : { status: "active" }) };
   const [items, total] = await Promise.all([
-    ProjectParticipant.find(filter).sort({ role: 1, joined_at: 1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
+    ProjectParticipant.find(filter).sort({ role: 1, joined_at: 1, _id: 1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
     ProjectParticipant.countDocuments(filter),
   ]);
   return { items: toApps(items), total, page: filters.page, limit: filters.limit };
@@ -99,7 +116,7 @@ const listTasks = async (projectId, filters) => {
   if (filters.assigneeId) filter.assignee_ids = filters.assigneeId;
   if (filters.milestoneId) filter.milestone_id = filters.milestoneId;
   const [items, total] = await Promise.all([
-    ProjectTask.find(filter).sort({ status: 1, due_date: 1, updated_at: -1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
+    ProjectTask.find(filter).sort({ status: 1, due_date: 1, updated_at: -1, _id: 1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
     ProjectTask.countDocuments(filter),
   ]);
   return { items: toApps(items), total, page: filters.page, limit: filters.limit };
@@ -110,7 +127,7 @@ const listMilestones = async (projectId) => toApps(await ProjectMilestone.find({
 const listActivity = async (projectId, filters) => {
   const filter = { project_id: projectId };
   const [items, total] = await Promise.all([
-    ProjectActivity.find(filter).sort({ created_at: -1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
+    ProjectActivity.find(filter).sort({ created_at: -1, _id: 1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
     ProjectActivity.countDocuments(filter),
   ]);
   return { items: toApps(items), total, page: filters.page, limit: filters.limit };
