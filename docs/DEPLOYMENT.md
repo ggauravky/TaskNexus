@@ -54,8 +54,10 @@ staging database names and any attachment mode other than `gridfs`.
 
 Set project root `frontend`, `VITE_SITE_URL` to the assigned frontend HTTPS
 origin, and `VITE_API_URL` to the assigned backend HTTPS origin plus `/api`.
-Update CSP connect sources when the backend domain is assigned. Do not commit a
-guessed domain. SPA routes and headers are owned by `frontend/vercel.json`.
+Both production values must match `frontend/production.config.json`; the frontend
+build fails when the API variable, restrictive CSP, or Render origin contract
+drifts from that canonical file. SPA routes and headers are owned by
+`frontend/vercel.json`.
 
 Set backend `APP_ORIGIN` to the exact frontend origin and include only approved
 additional origins in `ALLOWED_ORIGINS`. For different Vercel/Render sites use

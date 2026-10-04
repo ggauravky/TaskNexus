@@ -20,8 +20,8 @@ deployment secret store. `.env.local` and `.env` are untracked local inputs.
 | `GRIDFS_BUCKET_NAME` | Environment-specific safe bucket, 3–64 characters; production example is `tasknexus_attachments_production`. |
 | `UPLOAD_PATH` | Development-only local adapter root; never use for production persistence. |
 | `EMAIL_DELIVERY_MODE` | `disabled`, `optional`, or `required`; required also needs valid Brevo configuration. |
-| `VITE_API_URL` | Public backend base ending `/api`. |
-| `VITE_SITE_URL` | Assigned canonical frontend origin. |
+| `VITE_API_URL` | Public backend base ending `/api`; production must match `frontend/production.config.json`. |
+| `VITE_SITE_URL` | Canonical frontend origin; production defaults to `frontend/production.config.json`. |
 
 ## Controlled command confirmations
 

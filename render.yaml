@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: tasknexus-backend
+    name: tasknexus-942u
     env: node
     region: oregon  # change if you need another region
     plan: starter
@@ -18,9 +18,9 @@ services:
       - key: PORT
         value: 10000
       - key: APP_ORIGIN
-        value: https://tasknexus.vercel.app
+        value: https://task-nexus-official.vercel.app
       - key: ALLOWED_ORIGINS
-        value: https://tasknexus.vercel.app
+        value: https://task-nexus-official.vercel.app
       - key: REFRESH_COOKIE_SAME_SITE
         value: none
       - key: TRUST_PROXY_HOPS

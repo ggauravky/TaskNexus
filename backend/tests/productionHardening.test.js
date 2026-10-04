@@ -1,4 +1,5 @@
 const request = require("supertest");
+const { createCorsOptions } = require("../src/config/cors");
 const { validateEnvironment } = require("../src/config/environment");
 const requireTrustedOrigin = require("../src/middleware/trustedOrigin");
 
@@ -7,6 +8,25 @@ process.env.APP_ENV = "test";
 process.env.ALLOWED_ORIGINS = "http://localhost:5173";
 
 describe("production runtime hardening", () => {
+  test("production CORS permits only the canonical credentialed frontend origin", async () => {
+    const options = createCorsOptions({
+      APP_ORIGIN: "https://task-nexus-official.vercel.app",
+      ALLOWED_ORIGINS: "https://task-nexus-official.vercel.app",
+    });
+    const check = (origin) => new Promise((resolve) => {
+      options.origin(origin, (error, allowed) => resolve({ error, allowed }));
+    });
+
+    await expect(check("https://task-nexus-official.vercel.app")).resolves.toEqual({
+      error: null,
+      allowed: true,
+    });
+    await expect(check("https://evil.example")).resolves.toMatchObject({
+      error: { statusCode: 403 },
+    });
+    expect(options.credentials).toBe(true);
+  });
+
   test("accepts a complete isolated production contract", () => {
     const runtime = validateEnvironment({
       NODE_ENV: "production",

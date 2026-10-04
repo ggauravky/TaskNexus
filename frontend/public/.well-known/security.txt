@@ -1,4 +1,4 @@
 Contact: mailto:support@tasknexus.com
 Preferred-Languages: en
-Canonical: https://tasknexus.vercel.app/.well-known/security.txt
+Canonical: https://task-nexus-official.vercel.app/.well-known/security.txt
 Expires: 2027-09-13T00:00:00Z

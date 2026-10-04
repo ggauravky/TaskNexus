@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import { USER_ROLES } from './utils/constants';
+import { SITE_URL, USER_ROLES } from './utils/constants';
 
 // Page imports
 import LandingPage from './pages/LandingPage';
@@ -44,8 +44,6 @@ const ApplicationsPage = lazy(() => import('./pages/ApplicationsPage'));
 const OrganizationPage = lazy(() => import('./pages/OrganizationPage'));
 const OrganizationWorkspacePage = lazy(() => import('./pages/OrganizationWorkspacePage'));
 const OrganizationInvitationsPage = lazy(() => import('./pages/OrganizationInvitationsPage'));
-
-const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://tasknexus.vercel.app').replace(/\/$/, '');
 
 const PUBLIC_METADATA = {
     '/': { title: 'TaskNexus', description: 'A focused workspace for organizing tasks, tracking progress, and collaborating around delivery.' },

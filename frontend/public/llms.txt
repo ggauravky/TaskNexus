@@ -6,6 +6,6 @@ hackathons, evidence-backed portfolios, and early-career opportunities.
 Public pages may be indexed. Authenticated workspaces, applications, team
 settings, organization workspaces, and other private routes must not be indexed.
 
-- Site: https://tasknexus.vercel.app/
-- Opportunities: https://tasknexus.vercel.app/opportunities
-- Hackathons: https://tasknexus.vercel.app/hackathons
+- Site: https://task-nexus-official.vercel.app/
+- Opportunities: https://task-nexus-official.vercel.app/opportunities
+- Hackathons: https://task-nexus-official.vercel.app/hackathons

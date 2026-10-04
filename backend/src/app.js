@@ -8,8 +8,7 @@ const { apiLimiter } = require("./middleware/rateLimiter");
 const requestContext = require("./middleware/requestContext");
 const requestLogger = require("./middleware/requestLogger");
 const { isDatabaseReady } = require("./config/database");
-const { parseOrigins } = require("./config/environment");
-const { errors } = require("./utils/appError");
+const { createCorsOptions } = require("./config/cors");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
@@ -50,27 +49,9 @@ app.use(helmet({
   strictTransportSecurity: production ? undefined : false,
 }));
 
-// CORS configuration with an exact origin allowlist
-const normalizeOrigin = (origin) => (origin ? origin.replace(/\/$/, "") : origin);
-const allowedOrigins = parseOrigins(process.env).map(normalizeOrigin);
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow server-to-server or tools (no origin header)
-    if (!origin) return callback(null, true);
-
-    const normalizedOrigin = normalizeOrigin(origin);
-
-    // Exact allowlist match
-    if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
-
-    return callback(errors.forbidden("Origin is not allowed by CORS"));
-  },
-  credentials: true,
-  optionsSuccessStatus: 200,
-};
-
-app.use(cors(corsOptions));
+// Browser requests use an exact credentialed origin allowlist. There is no
+// wildcard fallback in production or development.
+app.use(cors(createCorsOptions(process.env)));
 
 // Body parser middleware
 const bodyLimit = Number(process.env.API_BODY_LIMIT_BYTES) || 1024 * 1024;

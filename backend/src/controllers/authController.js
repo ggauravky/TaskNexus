@@ -370,5 +370,6 @@ module.exports = {
   logout,
   getCurrentUser,
   hashRefreshToken,
+  refreshCookieOptions,
   refreshTokenMatches,
 };

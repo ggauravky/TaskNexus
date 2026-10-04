@@ -9,11 +9,24 @@ import {
   TASK_TYPES,
   USER_ROLES,
 } from "../contracts/domain";
+import productionConfig from "../../production.config.json";
 
 export { NOTIFICATION_TYPES, TASK_PRIORITY, TASK_STATUS, TASK_TYPES, USER_ROLES };
 
-export const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const withoutTrailingSlash = (value) => String(value || "").trim().replace(/\/$/, "");
+const configuredApiUrl = withoutTrailingSlash(import.meta.env.VITE_API_URL);
+
+if (import.meta.env.PROD && configuredApiUrl && configuredApiUrl !== productionConfig.apiBaseUrl) {
+  throw new Error("VITE_API_URL does not match the canonical production API URL");
+}
+
+export const API_URL = import.meta.env.PROD
+  ? productionConfig.apiBaseUrl
+  : configuredApiUrl || "/api";
+
+export const SITE_URL = withoutTrailingSlash(
+  import.meta.env.VITE_SITE_URL || productionConfig.siteOrigin,
+);
 
 export const TASK_STATUS_LABELS = {
   [TASK_STATUS.SUBMITTED]: "Submitted",

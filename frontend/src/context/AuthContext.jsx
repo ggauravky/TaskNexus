@@ -1,22 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import authService from '../services/authService';
 import { clearAccessToken, setAccessToken } from '../services/api';
+import { normalizeAuthError } from '../utils/authError';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
-
-const SERVER_UNREACHABLE_MESSAGE = 'Unable to reach the TaskNexus server. Please try again.';
-
-const authError = (error, fallback) => {
-    const errorData = error.response?.data?.error;
-
-    if (errorData?.message) return errorData;
-    if (!error.response && (error.request || error.code === 'ERR_NETWORK')) {
-        return { message: SERVER_UNREACHABLE_MESSAGE };
-    }
-
-    return { message: fallback };
-};
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
@@ -85,7 +73,7 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true, user };
         } catch (error) {
-            const errorData = authError(error, 'Login failed');
+            const errorData = normalizeAuthError(error, 'Login failed. Please try again.');
             toast.error(errorData.message);
             return { success: false, error: errorData.message };
         }
@@ -107,7 +95,7 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true, user };
         } catch (error) {
-            const errorData = authError(error, 'Registration failed');
+            const errorData = normalizeAuthError(error, 'Registration failed. Please try again.');
 
             // Show detailed validation errors if available
             if (errorData?.details && Array.isArray(errorData.details)) {

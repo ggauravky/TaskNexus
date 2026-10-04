@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PublicNavigation from "../components/marketing/PublicNavigation";
 import api from "../services/api";
+import { SITE_URL } from "../utils/constants";
 import { formatDate } from "../utils/projects";
 
-const SITE_URL = (import.meta.env.VITE_SITE_URL || "https://tasknexus.vercel.app").replace(/\/$/, "");
 const setMeta = (selector, attribute, value) => { const node = document.querySelector(selector); if (node && value) node.setAttribute(attribute, value); };
 
 const PublicShowcasePage = () => {

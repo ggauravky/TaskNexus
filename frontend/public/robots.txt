@@ -16,4 +16,4 @@ Disallow: /teams/*/projects/*/settings
 Disallow: /teams/*/projects/*/showcase
 Disallow: /organizations/*/workspace
 
-Sitemap: https://tasknexus.vercel.app/sitemap.xml
+Sitemap: https://task-nexus-official.vercel.app/sitemap.xml

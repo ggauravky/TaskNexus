@@ -35,7 +35,7 @@
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-YqFK/Zo/Oc4wO/PyeB1znoXOLeIRwaxJ4nmDlXWUme0=' 'sha256-JCrqmKADBPUDLFmE48KTyYzCAOmXZpmttGPUWZ18HE0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://tasknexus-backend.onrender.com; upgrade-insecure-requests" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-UXBR7WFJu6fD+qAkZB4DRAm15Gda9h0hV1Y7X0GPjns=' 'sha256-vp8w3yf7n5GEExOV2UB3j9shTewMH2a7ALxj+bvqvsg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://tasknexus-942u.onrender.com; upgrade-insecure-requests" }
       ]
     }
   ]

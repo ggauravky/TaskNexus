@@ -7,6 +7,7 @@ const models = require("../src/models");
 
 const root = path.resolve(__dirname, "../..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
+const productionFrontend = JSON.parse(read("frontend/production.config.json"));
 const checks = [];
 const check = (name, callback) => {
   callback();
@@ -36,6 +37,8 @@ check("MongoDB model registry", () => {
 
 check("Render deployment guardrails", () => {
   const render = read("render.yaml");
+  assert.match(render, new RegExp(`name: ${productionFrontend.apiOrigin.split("//")[1].split(".")[0]}`));
+  assert.ok(render.includes(`value: ${productionFrontend.siteOrigin}`));
   assert.match(render, /buildCommand: npm ci/);
   assert.match(render, /healthCheckPath: \/api\/ready/);
   assert.match(render, /maxShutdownDelaySeconds: 30/);
@@ -47,6 +50,9 @@ check("Vercel browser security headers", () => {
   for (const header of ["Content-Security-Policy", "Strict-Transport-Security", "X-Content-Type-Options", "Permissions-Policy"]) {
     assert.ok(vercel.includes(header), `Missing ${header}`);
   }
+  assert.ok(vercel.includes(`connect-src 'self' ${productionFrontend.apiOrigin}`));
+  assert.ok(!vercel.includes("tasknexus-backend.onrender.com"));
+  assert.ok(!/connect-src[^;]*\*/.test(vercel));
   const builtHtml = read("frontend/dist/index.html");
   const inlineJsonLd = [...builtHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
   for (const match of inlineJsonLd) {

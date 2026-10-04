@@ -25,6 +25,7 @@ jest.mock("../src/services/email/emailService", () => ({
 
 const userData = require("../src/data/userData");
 const app = require("../src/app");
+const { refreshCookieOptions } = require("../src/controllers/authController");
 
 const profile = { firstName: "Asha", lastName: "Kumar" };
 
@@ -292,5 +293,68 @@ describe("Phase 0 authentication and authorization baseline", () => {
       .get("/api/admin/users")
       .set("Authorization", `Bearer ${loginResponse.body.data.accessToken}`);
     expect(response.status).toBe(403);
+  });
+
+  test("production refresh cookies stay HttpOnly, Secure, host-only, and auth-scoped", () => {
+    const previous = {
+      APP_ENV: process.env.APP_ENV,
+      REFRESH_COOKIE_SAME_SITE: process.env.REFRESH_COOKIE_SAME_SITE,
+    };
+    process.env.APP_ENV = "production";
+    process.env.REFRESH_COOKIE_SAME_SITE = "none";
+
+    try {
+      expect(refreshCookieOptions()).toEqual({
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/api/auth",
+      });
+      expect(refreshCookieOptions().domain).toBeUndefined();
+    } finally {
+      if (previous.APP_ENV === undefined) delete process.env.APP_ENV;
+      else process.env.APP_ENV = previous.APP_ENV;
+      if (previous.REFRESH_COOKIE_SAME_SITE === undefined) {
+        delete process.env.REFRESH_COOKIE_SAME_SITE;
+      } else {
+        process.env.REFRESH_COOKIE_SAME_SITE = previous.REFRESH_COOKIE_SAME_SITE;
+      }
+    }
+  });
+
+  test("register, me, refresh after reload, logout, and second registration remain coherent", async () => {
+    const registration = await register("client", "auth-flow-client@example.com");
+    expect(registration.status).toBe(201);
+    const initialAccessToken = registration.body.data.accessToken;
+    const initialRefreshToken = registration.headers["set-cookie"][0]
+      .match(/^refreshToken=([^;]+)/)[1];
+
+    const initialMe = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${initialAccessToken}`);
+    expect(initialMe.status).toBe(200);
+    expect(initialMe.body.data.user.email).toBe("auth-flow-client@example.com");
+
+    const refresh = await request(app)
+      .post("/api/auth/refresh")
+      .set("Cookie", [`refreshToken=${initialRefreshToken}`]);
+    expect(refresh.status).toBe(200);
+    const rotatedRefreshToken = refresh.headers["set-cookie"][0]
+      .match(/^refreshToken=([^;]+)/)[1];
+
+    const reloadedMe = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${refresh.body.data.accessToken}`);
+    expect(reloadedMe.status).toBe(200);
+
+    const logout = await request(app)
+      .post("/api/auth/logout")
+      .set("Cookie", [`refreshToken=${rotatedRefreshToken}`]);
+    expect(logout.status).toBe(200);
+    expect(users[0].refresh_token).toBeNull();
+
+    const secondRegistration = await register("freelancer", "auth-flow-freelancer@example.com");
+    expect(secondRegistration.status).toBe(201);
+    expect(secondRegistration.body.data.user.role).toBe("freelancer");
   });
 });
