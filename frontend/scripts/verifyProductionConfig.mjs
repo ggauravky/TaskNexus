@@ -27,10 +27,18 @@ assert.ok(render.includes(`value: ${production.siteOrigin}`));
 assert.ok(!render.includes("https://tasknexus.vercel.app"));
 
 const inlineJsonLd = [...builtHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
-for (const match of inlineJsonLd) {
-  const hash = crypto.createHash("sha256").update(match[1]).digest("base64");
-  assert.ok(csp.includes(`sha256-${hash}`), "CSP is missing an inline JSON-LD hash");
-}
+assert.ok(inlineJsonLd.length > 0, "Built HTML must contain inline JSON-LD");
+const expectedJsonLdHashes = inlineJsonLd.map((match) =>
+  `sha256-${crypto.createHash("sha256").update(match[1]).digest("base64")}`
+);
+const scriptSrc = csp.match(/(?:^|;\s*)script-src\s+([^;]+)/)?.[1] || "";
+const configuredScriptHashes = [...scriptSrc.matchAll(/'((?:sha256)-[^']+)'/g)]
+  .map((match) => match[1]);
+assert.deepEqual(
+  configuredScriptHashes.sort(),
+  expectedJsonLdHashes.sort(),
+  `CSP JSON-LD hashes differ from built HTML. Expected: ${expectedJsonLdHashes.join(" ")}`,
+);
 
 assert.equal(
   normalizeAuthError({ request: {}, code: "ERR_NETWORK" }, "Registration failed").message,
