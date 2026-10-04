@@ -23,6 +23,7 @@
         "verify:opportunities": "node scripts/verifyOpportunityIntegration.js --confirm-tasknexus-v2-staging",
         "verify:organizations": "node scripts/verifyOrganizationIntegration.js --confirm-tasknexus-v2-staging",
         "verify:production": "node scripts/verifyProduction.js",
+        "verify:email": "node scripts/verifyEmail.js",
         "verify:launch": "node scripts/verifyLaunch.js",
         "verify:secrets": "node scripts/verifySourceSecrets.js",
         "verify:storage": "node scripts/verifyStorageIntegration.js --confirm-tasknexus-v2-staging",
@@ -62,6 +63,7 @@
         "mongodb": "~7.5.0",
         "mongoose": "9.9.4",
         "multer": "^1.4.5-lts.1",
+        "nodemailer": "^10.0.14",
         "pdfkit": "^0.18.0",
         "winston": "^3.11.0"
     },

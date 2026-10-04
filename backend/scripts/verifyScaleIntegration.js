@@ -242,7 +242,7 @@ const run = async () => {
     const queries = [];
     for (const definition of definitions) queries.push(await measureQuery(db, definition));
 
-    process.env.EMAIL_DELIVERY_MODE = "disabled";
+    process.env.EMAIL_ENABLED = "false";
     process.env.RATE_LIMIT_MAX_REQUESTS = "10000";
     const app = require("../src/app");
     const { generateAccessToken } = require("../src/config/jwt");

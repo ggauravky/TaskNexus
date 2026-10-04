@@ -1,6 +1,6 @@
 const VALID_APP_ENVIRONMENTS = new Set(["development", "test", "staging", "production"]);
 const VALID_UPLOAD_MODES = new Set(["local", "gridfs", "disabled"]);
-const VALID_EMAIL_MODES = new Set(["disabled", "optional", "required"]);
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const value = (env, name) => String(env[name] || "").trim();
 
@@ -21,6 +21,14 @@ const parseOrigins = (env) => {
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
   return [...new Set([appOrigin, ...extras].filter(Boolean))];
+};
+
+const parseBoolean = (env, name, fallback = false) => {
+  const raw = value(env, name).toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  throw new Error(`${name} must be true or false`);
 };
 
 const unsafeProductionDatabaseName = (databaseName) =>
@@ -79,10 +87,47 @@ const validateEnvironment = (env = process.env) => {
     errors.push("GRIDFS_BUCKET_NAME must be a safe name between 3 and 64 characters");
   }
 
-  const emailMode = value(env, "EMAIL_DELIVERY_MODE") || "optional";
-  if (!VALID_EMAIL_MODES.has(emailMode)) errors.push("EMAIL_DELIVERY_MODE must be disabled, optional, or required");
-  if (emailMode === "required") {
-    ["BREVO_API_KEY", "BREVO_SENDER_EMAIL", "BREVO_SENDER_NAME"].forEach(requireValue);
+  let emailEnabled = false;
+  try {
+    emailEnabled = parseBoolean(env, "EMAIL_ENABLED", false);
+  } catch (error) {
+    errors.push(error.message);
+  }
+
+  if (emailEnabled) {
+    [
+      "BREVO_SMTP_HOST",
+      "BREVO_SMTP_PORT",
+      "BREVO_SMTP_USER",
+      "BREVO_SMTP_PASS",
+      "BREVO_SENDER_EMAIL",
+      "BREVO_SENDER_NAME",
+    ].forEach(requireValue);
+  }
+
+  const smtpPort = value(env, "BREVO_SMTP_PORT");
+  if (smtpPort && (!Number.isInteger(Number(smtpPort)) || Number(smtpPort) < 1 || Number(smtpPort) > 65535)) {
+    errors.push("BREVO_SMTP_PORT must be an integer between 1 and 65535");
+  }
+  const senderEmail = value(env, "BREVO_SENDER_EMAIL");
+  if (senderEmail && !EMAIL_PATTERN.test(senderEmail)) {
+    errors.push("BREVO_SENDER_EMAIL must be a valid email address");
+  }
+  const replyToEmail = value(env, "BREVO_REPLY_TO_EMAIL");
+  if (replyToEmail && !EMAIL_PATTERN.test(replyToEmail)) {
+    errors.push("BREVO_REPLY_TO_EMAIL must be a valid email address");
+  }
+  try {
+    parseInteger(env, "EMAIL_MAX_ATTEMPTS", 3, { min: 1, max: 5 });
+    parseInteger(env, "EMAIL_RETRY_BASE_MS", 1000, { min: 1, max: 60000 });
+  } catch (error) {
+    errors.push(error.message);
+  }
+  for (const name of ["EMAIL_APP_URL", "EMAIL_SUPPORT_URL"]) {
+    const url = value(env, name).replace(/\/$/, "");
+    if (production && url && !/^https:\/\/[^/]+(?:\/[^\s]*)?$/.test(url)) {
+      errors.push(`${name} must be an HTTPS URL in production`);
+    }
   }
 
   const origins = parseOrigins(env);
@@ -115,10 +160,16 @@ const validateEnvironment = (env = process.env) => {
     allowedOrigins: origins,
     uploadMode,
     gridFsBucketName,
-    emailMode,
+    emailEnabled,
     trustProxyHops,
     bodyLimitBytes,
   });
 };
 
-module.exports = { parseInteger, parseOrigins, unsafeProductionDatabaseName, validateEnvironment };
+module.exports = {
+  parseBoolean,
+  parseInteger,
+  parseOrigins,
+  unsafeProductionDatabaseName,
+  validateEnvironment,
+};

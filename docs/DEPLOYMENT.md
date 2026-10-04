@@ -50,6 +50,14 @@ health check and becomes 200 only after MongoDB connects; `/health` is liveness.
 The service drains HTTP/SSE and MongoDB on `SIGTERM`. Production startup rejects
 staging database names and any attachment mode other than `gridfs`.
 
+Transactional email uses the singleton Nodemailer transport in
+`backend/src/services/email/transporter.js` and Brevo SMTP only. Set
+`EMAIL_ENABLED=true`, the `BREVO_SMTP_*` credentials, verified sender identity,
+and TaskNexus frontend URLs from `backend/.env.production.example`. No HTTP API
+credential is used for mail delivery. Normal startup validates SMTP
+configuration without contacting the provider; run `npm run verify:email --
+--connect` explicitly to verify SMTP authentication without sending mail.
+
 ## Vercel frontend and domain boundary
 
 Set project root `frontend`, `VITE_SITE_URL` to the assigned frontend HTTPS

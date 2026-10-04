@@ -19,7 +19,12 @@ deployment secret store. `.env.local` and `.env` are untracked local inputs.
 | `UPLOAD_STORAGE_MODE` | `local`, `gridfs`, or `disabled`; production requires `gridfs`. |
 | `GRIDFS_BUCKET_NAME` | Environment-specific safe bucket, 3–64 characters; production example is `tasknexus_attachments_production`. |
 | `UPLOAD_PATH` | Development-only local adapter root; never use for production persistence. |
-| `EMAIL_DELIVERY_MODE` | `disabled`, `optional`, or `required`; required also needs valid Brevo configuration. |
+| `EMAIL_ENABLED` | `true` or `false`; when true, Nodemailer sends through Brevo SMTP. |
+| `BREVO_SMTP_HOST` / `BREVO_SMTP_PORT` | Brevo relay host and numeric port; production uses `smtp-relay.brevo.com:587`. |
+| `BREVO_SMTP_USER` / `BREVO_SMTP_PASS` | SMTP credentials; required when email is enabled and never exposed to the frontend. |
+| `BREVO_SENDER_EMAIL` / `BREVO_SENDER_NAME` | Verified Brevo sender identity; required when email is enabled. |
+| `BREVO_REPLY_TO_EMAIL` / `BREVO_REPLY_TO_NAME` | Optional reply-to identity; defaults to the sender. |
+| `EMAIL_APP_URL` / `EMAIL_SUPPORT_URL` | User-facing TaskNexus HTTPS URLs used by templates. |
 | `VITE_API_URL` | Public backend base ending `/api`; production must match `frontend/production.config.json`. |
 | `VITE_SITE_URL` | Canonical frontend origin; production defaults to `frontend/production.config.json`. |
 
@@ -40,9 +45,12 @@ These are operator safeguards, not long-lived application configuration:
 MongoDB selection/connect default 10s, socket 45s, heartbeat 10s, pool up to 20.
 HTTP body default 1 MiB; upload limit 10 MiB and five files. Access JWT default
 15m, refresh 7d, cookie age 7d. Production SameSite defaults to `none`, Secure is
-forced and HttpOnly always set. Request/provider rate limits and Brevo/GitHub
-timeouts are configurable using the documented example files.
+forced and HttpOnly always set. Request/provider rate limits, bounded SMTP
+retries, and GitHub behavior are configurable using the documented example
+files.
 
 Production logs are structured JSON stdout at `LOG_LEVEL=info`. The application
 fails before listening on unsafe origin, database, secrets, storage, proxy or
-required email settings and names variables without printing values.
+enabled SMTP settings and names variables without printing values. SMTP
+availability is not probed during normal startup; use `npm run verify:email --
+--connect` for an explicit connection/authentication check that sends no mail.

@@ -33,14 +33,36 @@ services:
         sync: false
       - key: MONGODB_DB_NAME
         sync: false
-      - key: EMAIL_DELIVERY_MODE
-        value: required
-      - key: BREVO_API_KEY
+      - key: EMAIL_ENABLED
+        value: true
+      - key: EMAIL_APP_NAME
+        value: TaskNexus
+      - key: BREVO_SMTP_HOST
+        value: smtp-relay.brevo.com
+      - key: BREVO_SMTP_PORT
+        value: 587
+      - key: BREVO_SMTP_USER
+        sync: false
+      - key: BREVO_SMTP_PASS
         sync: false
       - key: BREVO_SENDER_EMAIL
         sync: false
       - key: BREVO_SENDER_NAME
         value: TaskNexus
+      - key: BREVO_REPLY_TO_EMAIL
+        sync: false
+      - key: BREVO_REPLY_TO_NAME
+        value: TaskNexus Support
+      - key: EMAIL_APP_URL
+        value: https://task-nexus-official.vercel.app
+      - key: EMAIL_SUPPORT_URL
+        value: https://task-nexus-official.vercel.app
+      - key: EMAIL_MAX_ATTEMPTS
+        value: 3
+      - key: EMAIL_RETRY_BASE_MS
+        value: 1000
+      - key: BREVO_ADMIN_NOTIFICATION_EMAIL
+        sync: false
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET

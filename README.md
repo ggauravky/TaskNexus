@@ -27,7 +27,7 @@ Payment records are workflow data; TaskNexus does not provide a production payme
 - Database: MongoDB Atlas (`tasknexus_v2` by default)
 - Authentication: short-lived JWT access token in memory and rotating refresh token in an HttpOnly cookie
 - Realtime: authenticated Server-Sent Events
-- Email: Brevo
+- Email: Nodemailer through the Brevo SMTP relay
 - File handling: authenticated local-disk task attachments
 - Deployment: Vercel frontend and Render backend
 
@@ -57,7 +57,9 @@ Backend:
 - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`
 - `ALLOWED_ORIGINS`, `REFRESH_COOKIE_SAME_SITE`
 - `UPLOAD_PATH`, `MAX_FILE_SIZE`
-- `BREVO_*` when email delivery is enabled
+- `EMAIL_ENABLED` and `BREVO_SMTP_*` when email delivery is enabled; sender,
+  reply-to, application URL, and bounded retry settings are documented in
+  `backend/.env.example`
 - `GITHUB_TOKEN` is optional. When present it raises GitHub REST API limits for backend-only, read-only verification requests; it is never exposed to the browser.
 
 Frontend: `VITE_API_URL` and `VITE_SITE_URL`.

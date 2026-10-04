@@ -26,9 +26,32 @@ check("production environment contract", () => {
     JWT_REFRESH_SECRET: "b".repeat(48),
     UPLOAD_STORAGE_MODE: "gridfs",
     GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
-    EMAIL_DELIVERY_MODE: "disabled",
+    EMAIL_ENABLED: "false",
   });
   assert.equal(runtime.production, true);
+});
+
+check("production SMTP email contract", () => {
+  const runtime = validateEnvironment({
+    NODE_ENV: "production",
+    APP_ENV: "production",
+    APP_ORIGIN: productionFrontend.siteOrigin,
+    MONGODB_URI: "mongodb+srv://user:password@example.invalid/app",
+    MONGODB_DB_NAME: "tasknexus_production",
+    JWT_ACCESS_SECRET: "a".repeat(48),
+    JWT_REFRESH_SECRET: "b".repeat(48),
+    UPLOAD_STORAGE_MODE: "gridfs",
+    EMAIL_ENABLED: "true",
+    EMAIL_APP_URL: productionFrontend.siteOrigin,
+    EMAIL_SUPPORT_URL: productionFrontend.siteOrigin,
+    BREVO_SMTP_HOST: "smtp-relay.brevo.com",
+    BREVO_SMTP_PORT: "587",
+    BREVO_SMTP_USER: "placeholder-user",
+    BREVO_SMTP_PASS: "placeholder-password",
+    BREVO_SENDER_EMAIL: "verified-sender@example.invalid",
+    BREVO_SENDER_NAME: "TaskNexus",
+  });
+  assert.equal(runtime.emailEnabled, true);
 });
 
 check("MongoDB model registry", () => {
@@ -43,6 +66,10 @@ check("Render deployment guardrails", () => {
   assert.match(render, /healthCheckPath: \/api\/ready/);
   assert.match(render, /maxShutdownDelaySeconds: 30/);
   assert.match(render, /key: UPLOAD_STORAGE_MODE\s+value: gridfs/);
+  assert.match(render, /key: EMAIL_ENABLED\s+value: true/);
+  assert.match(render, /key: BREVO_SMTP_HOST\s+value: smtp-relay\.brevo\.com/);
+  assert.match(render, /key: BREVO_SMTP_PORT\s+value: 587/);
+  assert.doesNotMatch(render, /BREVO_API_KEY|EMAIL_DELIVERY_MODE/);
 });
 
 check("Vercel browser security headers", () => {
@@ -84,6 +111,7 @@ check("operations documentation", () => {
     "PRODUCTION_READINESS.md", "DEPLOYMENT.md", "OPERATIONS_RUNBOOK.md", "ENVIRONMENT_VARIABLES.md",
     "SECURITY_MODEL.md", "BACKUP_RESTORE.md", "PHASE10_COMPLETION_REPORT.md",
     "LAUNCH_BLOCKERS.md", "PRIVACY_OPERATIONS.md", "MONITORING_RUNBOOK.md", "PHASE11_COMPLETION_REPORT.md",
+    "EMAIL.md",
   ]) {
     assert.ok(fs.existsSync(path.join(root, "docs", filename)), `Missing docs/${filename}`);
   }

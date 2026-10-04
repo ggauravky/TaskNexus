@@ -87,8 +87,12 @@ PASS — structured logger redaction covers sensitive keys and bearer material. 
 
 - Required outside tests: `MONGODB_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`.
 - Additionally required in production: `MONGODB_DB_NAME`, exact HTTPS `APP_ORIGIN`, and durable `UPLOAD_STORAGE_MODE=gridfs`.
-- Required only when email delivery is `required`: `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`.
-- Optional/validated: `ALLOWED_ORIGINS`, `GRIDFS_BUCKET_NAME`, `EMAIL_DELIVERY_MODE`, `TRUST_PROXY_HOPS`, `API_BODY_LIMIT_BYTES`, Mongo timeout/pool/DNS tuning, and sender metadata.
+- Required only when `EMAIL_ENABLED=true`: Brevo SMTP host, port, username,
+  password, sender email, and sender name. The Brevo HTTP API key is not used
+  for mail delivery.
+- Optional/validated: `ALLOWED_ORIGINS`, `GRIDFS_BUCKET_NAME`, `EMAIL_ENABLED`,
+  `TRUST_PROXY_HOPS`, `API_BODY_LIMIT_BYTES`, Mongo timeout/pool/DNS tuning,
+  reply-to metadata, and bounded email retry settings.
 - Test-only behavior: runtime secrets/database connection may be omitted when `APP_ENV=test`.
 - Production database names explicitly reject development/test/QA/staging/performance names.
 
@@ -104,7 +108,9 @@ PASS — read-only provider behavior, URL/host construction, timeouts, response 
 
 ## 21. Email Code
 
-PASS for repository code — delivery modes, provider timeout/failure handling, bounded template inputs, and non-destructive optional delivery were reviewed. No real email was sent and no provider configuration was touched.
+PASS for repository code — Nodemailer/Brevo SMTP enablement, bounded transient
+retry behavior, template inputs, and non-destructive delivery failure semantics
+were reviewed. No real email was sent and no provider configuration was touched.
 
 ## 22. Query Performance
 

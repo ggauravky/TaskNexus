@@ -39,9 +39,32 @@ describe("production runtime hardening", () => {
       JWT_REFRESH_SECRET: "b".repeat(48),
       UPLOAD_STORAGE_MODE: "gridfs",
       GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
-      EMAIL_DELIVERY_MODE: "disabled",
+      EMAIL_ENABLED: "false",
     });
     expect(runtime).toMatchObject({ production: true, uploadMode: "gridfs", trustProxyHops: 1 });
+  });
+
+  test("accepts SMTP production email without a Brevo HTTP API key", () => {
+    const runtime = validateEnvironment({
+      NODE_ENV: "production",
+      APP_ENV: "production",
+      APP_ORIGIN: "https://task-nexus-official.vercel.app",
+      MONGODB_URI: "mongodb+srv://example.invalid/app",
+      MONGODB_DB_NAME: "tasknexus_production",
+      JWT_ACCESS_SECRET: "a".repeat(48),
+      JWT_REFRESH_SECRET: "b".repeat(48),
+      UPLOAD_STORAGE_MODE: "gridfs",
+      EMAIL_ENABLED: "true",
+      EMAIL_APP_URL: "https://task-nexus-official.vercel.app",
+      EMAIL_SUPPORT_URL: "https://task-nexus-official.vercel.app",
+      BREVO_SMTP_HOST: "smtp-relay.brevo.com",
+      BREVO_SMTP_PORT: "587",
+      BREVO_SMTP_USER: "smtp-user",
+      BREVO_SMTP_PASS: "smtp-password",
+      BREVO_SENDER_EMAIL: "verified@example.com",
+      BREVO_SENDER_NAME: "TaskNexus",
+    });
+    expect(runtime.emailEnabled).toBe(true);
   });
 
   test("rejects staging data, weak secrets, HTTP origin, and local production uploads", () => {
@@ -54,7 +77,7 @@ describe("production runtime hardening", () => {
       JWT_ACCESS_SECRET: "same-short-secret",
       JWT_REFRESH_SECRET: "same-short-secret",
       UPLOAD_STORAGE_MODE: "local",
-      EMAIL_DELIVERY_MODE: "disabled",
+      EMAIL_ENABLED: "false",
     })).toThrow(/Invalid runtime configuration/);
   });
 
@@ -69,7 +92,7 @@ describe("production runtime hardening", () => {
       JWT_REFRESH_SECRET: "b".repeat(48),
       UPLOAD_STORAGE_MODE: "gridfs",
       GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
-      EMAIL_DELIVERY_MODE: "disabled",
+      EMAIL_ENABLED: "false",
     })).toThrow(/NODE_ENV must be production/);
   });
 
@@ -141,7 +164,7 @@ describe("production runtime hardening", () => {
         JWT_REFRESH_SECRET: "b".repeat(48),
         UPLOAD_STORAGE_MODE: "gridfs",
         GRIDFS_BUCKET_NAME: "tasknexus_attachments_production",
-        EMAIL_DELIVERY_MODE: "disabled",
+        EMAIL_ENABLED: "false",
       })).toThrow(/development, test, QA, staging, or performance/);
     }
   });

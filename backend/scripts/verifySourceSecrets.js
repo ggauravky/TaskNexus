@@ -9,7 +9,7 @@ const trackedAndUntracked = execFileSync(
   { cwd: root },
 ).toString("utf8").split("\0").filter(Boolean);
 
-const credentialAssignment = /\b(MONGODB_URI|JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|BREVO_API_KEY|GITHUB_TOKEN|ADMIN_PASSWORD)[ \t]*=[ \t]*([^\s"'#]+)/g;
+const credentialAssignment = /\b(MONGODB_URI|JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|BREVO_SMTP_USER|BREVO_SMTP_PASS|BREVO_CONTACTS_API_KEY|GITHUB_TOKEN|ADMIN_PASSWORD)[ \t]*=[ \t]*([^\s"'#]+)/g;
 const knownPlaceholder = (value) =>
   !value || /^(?:<.*>|REPLACE_|CHANGE_|your_|example|dummy|test|fake|\$\{|%)/i.test(value) ||
   value.includes("example.invalid");
@@ -17,6 +17,7 @@ const findings = [];
 
 for (const relativePath of trackedAndUntracked) {
   const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
   const stat = fs.statSync(absolutePath);
   if (!stat.isFile() || stat.size > 2 * 1024 * 1024) continue;
   const bytes = fs.readFileSync(absolutePath);
