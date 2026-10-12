@@ -1,1224 +1,258 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import {
-  Plus,
-  FileText,
-  Clock,
-  CheckCircle,
-  DollarSign,
-  AlertCircle,
-  TrendingUp,
-  Calendar,
-  Eye,
-  RefreshCw,
-  List,
-  Search,
-  Star,
-  Filter,
-  Target,
-  Sparkles,
-} from 'lucide-react';
-import api from '../services/api';
-import toast from 'react-hot-toast';
-import Loading from '../components/common/Loading';
-import EmptyState from '../components/common/EmptyState';
-import StatCard from '../components/common/StatCard';
-import StatusBadge from '../components/common/StatusBadge';
-import CreateTaskModal from '../components/client/CreateTaskModal';
-import TaskDetailsModal from '../components/client/TaskDetailsModal';
-import DashboardSettings from '../components/common/DashboardSettings';
-import { usePreferences } from '../hooks/usePreferences';
-import useBoardState from '../hooks/useBoardState';
-import useRealtimeEvents from '../hooks/useRealtimeEvents';
-import { TASK_STATUS } from '../utils/constants';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, CreditCard, FileCheck2, ListChecks, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
+import toast from "react-hot-toast";
+import CreateTaskModal from "../components/client/CreateTaskModal";
+import TaskDetailsModal from "../components/client/TaskDetailsModal";
+import EmptyState from "../components/common/EmptyState";
+import Loading from "../components/common/Loading";
+import StatusBadge from "../components/common/StatusBadge";
+import WorkspaceSettingsDialog from "../components/dashboard/WorkspaceSettingsDialog";
+import { MetricStrip, Pagination, SectionCard, WorkspaceHeader } from "../components/dashboard/WorkspacePrimitives";
+import { usePreferences } from "../hooks/usePreferences";
+import useRealtimeEvents from "../hooks/useRealtimeEvents";
+import api from "../services/api";
+import { TASK_STATUS } from "../utils/constants";
+import { apiError, dueLabel, formatCurrency, formatDate, personName, taskBudget, taskDeadline, taskTitle } from "../utils/marketplace";
 
-const PINNED_STORAGE_KEY = 'tasknexus_client_pinned_tasks_v1';
-
-const TASK_TEMPLATES = [
-  {
-    id: 'landing-refresh',
-    title: 'Landing page refresh',
-    description:
-      'Redesign the homepage for better conversion, clearer value proposition, and mobile-first responsiveness.',
-    category: 'design',
-    budget: 900,
-    experienceLevel: 'intermediate',
-    skillsRequired: ['UI Design', 'Figma', 'Responsive Design'],
-  },
-  {
-    id: 'api-integration',
-    title: 'API integration and QA',
-    description:
-      'Integrate third-party APIs into an existing app and deliver tested flows with edge-case coverage.',
-    category: 'web_development',
-    budget: 1400,
-    experienceLevel: 'expert',
-    skillsRequired: ['React', 'Node.js', 'API Integration', 'Testing'],
-  },
-  {
-    id: 'content-campaign',
-    title: 'Content campaign package',
-    description:
-      'Create a multi-channel content package with blog drafts, social copy, and campaign messaging.',
-    category: 'writing',
-    budget: 700,
-    experienceLevel: 'intermediate',
-    skillsRequired: ['Copywriting', 'Content Strategy', 'SEO'],
-  },
+const VIEWS = [
+  ["overview", "Overview"],
+  ["tasks", "My tasks"],
+  ["deliveries", "Deliveries"],
+  ["payments", "Payments"],
 ];
 
-const TASK_FILTER_OPTIONS = [
-  { id: 'all', label: 'All' },
-  { id: 'active', label: 'Active' },
-  { id: 'pending_review', label: 'Pending review' },
-  { id: 'completed', label: 'Completed' },
+const statusOptions = [
+  ["", "All statuses"],
+  [TASK_STATUS.SUBMITTED, "Submitted"],
+  [TASK_STATUS.UNDER_REVIEW, "Marketplace review"],
+  [TASK_STATUS.ASSIGNED, "Assigned"],
+  [TASK_STATUS.IN_PROGRESS, "In progress"],
+  [TASK_STATUS.DELIVERED, "Delivered"],
+  [TASK_STATUS.CLIENT_REVISION, "Revision in progress"],
+  [TASK_STATUS.COMPLETED, "Completed"],
 ];
 
-const TASK_SORT_OPTIONS = [
-  { id: 'newest', label: 'Newest first' },
-  { id: 'oldest', label: 'Oldest first' },
-  { id: 'budget_high', label: 'Highest budget' },
-  { id: 'budget_low', label: 'Lowest budget' },
-  { id: 'deadline_soon', label: 'Nearest deadline' },
-];
-
-const getTaskId = (task) => task?.id || '';
-const getTaskTitle = (task) => task?.task_details?.title || task?.title || 'Untitled Task';
-const getTaskDescription = (task) => task?.task_details?.description || task?.description || 'No description';
-const getTaskBudget = (task) => Number(task?.task_details?.budget ?? task?.budget ?? 0);
-const getTaskDeadline = (task) => task?.task_details?.deadline || task?.deadline || null;
-const getTaskCreatedAt = (task) => task?.created_at || task?.createdAt || null;
-
-const formatDate = (value) => {
-  if (!value) return 'No date';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'No date';
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
-
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(Number(amount || 0));
-
-const getDueBadge = (task) => {
-  const deadline = getTaskDeadline(task);
-  if (!deadline) return { label: 'No deadline', tone: 'muted' };
-
-  const due = new Date(deadline);
-  if (Number.isNaN(due.getTime())) return { label: 'No deadline', tone: 'muted' };
-
-  const now = new Date();
-  const days = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (days < 0) return { label: `${Math.abs(days)}d overdue`, tone: 'danger' };
-  if (days === 0) return { label: 'Due today', tone: 'warning' };
-  if (days <= 3) return { label: `Due in ${days}d`, tone: 'warning' };
-  return { label: `Due in ${days}d`, tone: 'ok' };
-};
-
-const getSafeStorageArray = (key) => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(key));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const csvEscape = (value) => {
-  const stringValue = String(value ?? '');
-  return `"${stringValue.replace(/"/g, '""')}"`;
-};
-
-const badgeTone = (tone) => {
-  const tones = {
-    ok: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    warning: 'bg-amber-50 text-amber-700 border border-amber-200',
-    danger: 'bg-rose-50 text-rose-700 border border-rose-200',
-    muted: 'bg-slate-100 text-slate-600 border border-slate-200',
-  };
-  return tones[tone] || tones.muted;
-};
-
-/**
- * Major Client Workspace
- */
 const ClientDashboard = () => {
-  const { user } = useAuth();
-
+  const [view, setView] = useState("overview");
+  const [dashboard, setDashboard] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [taskPagination, setTaskPagination] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sectionLoading, setSectionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [taskDetail, setTaskDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [busyAction, setBusyAction] = useState("");
+  const preferenceState = usePreferences();
+  const { preferences } = preferenceState;
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-
-  const [viewAllTasks, setViewAllTasks] = useState(false);
-  const [taskSearch, setTaskSearch] = useState('');
-  const [taskFilter, setTaskFilter] = useState('all');
-  const [taskSort, setTaskSort] = useState('newest');
-
-  const [stats, setStats] = useState({
-    totalTasks: 0,
-    activeTasks: 0,
-    completedTasks: 0,
-    pendingReview: 0,
-    totalSpent: 0,
-    avgCompletionTime: 0,
-  });
-  const [recentTasks, setRecentTasks] = useState([]);
-  const [allTasks, setAllTasks] = useState([]);
-  const [pinnedTaskIds, setPinnedTaskIds] = useState([]);
-
-  const {
-    preferences,
-    presets,
-    activePresetId,
-    loadingPreferences,
-    savingPreferences,
-    syncError,
-    togglePreference,
-    setPreference,
-    resetPreferences,
-    applyPreset,
-    savePreset,
-  } = usePreferences();
-  const {
-    boardState,
-    orderedColumns,
-    savingBoard,
-    updateBoardState,
-    resetBoardState,
-    moveTask,
-    reorderColumns,
-    sortTasksByColumnOrder,
-  } = useBoardState({ boardKey: 'client-dashboard', role: 'client' });
-
-  const [draggingTask, setDraggingTask] = useState(null);
-  const [draggingColumn, setDraggingColumn] = useState(null);
-
-  useEffect(() => {
-    setPinnedTaskIds(getSafeStorageArray(PINNED_STORAGE_KEY));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(pinnedTaskIds));
-  }, [pinnedTaskIds]);
-
-  useEffect(() => {
-    setTaskFilter(boardState.filter || preferences.defaultTaskFilter || 'all');
-  }, [boardState.filter, preferences.defaultTaskFilter]);
-
-  useEffect(() => {
-    setTaskSort(boardState.sort || preferences.defaultTaskSort || 'newest');
-  }, [boardState.sort, preferences.defaultTaskSort]);
-
-  const fetchDashboardData = useCallback(async ({ silent = false } = {}) => {
+  const loadOverview = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
-      if (!silent) setLoading(true);
-
-      const [dashboardRes, tasksRes] = await Promise.all([
-        api.get('/client/dashboard'),
-        api.get('/client/tasks?limit=8&sortBy=created_at&sortOrder=desc'),
-      ]);
-
-      if (dashboardRes.data.success) {
-        setStats(dashboardRes.data.data || {});
-      }
-
-      if (tasksRes.data.success) {
-        setRecentTasks(tasksRes.data.data?.tasks || []);
-      }
-
-      setError(null);
-    } catch (fetchError) {
-      const message = fetchError?.message || 'Failed to load dashboard data';
+      const response = await api.get("/client/dashboard");
+      setDashboard(response.data.data);
+      setError("");
+    } catch (requestError) {
+      const message = apiError(requestError, "Client workspace could not be loaded");
       setError(message);
-      if (!silent) {
-        toast.error('Failed to load dashboard data. Please try refreshing.');
-      }
+      if (!silent) toast.error(message);
     } finally {
       if (!silent) setLoading(false);
     }
   }, []);
 
-  const fetchAllTasks = useCallback(async () => {
+  const loadTasks = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setSectionLoading(true);
     try {
-      setLoading(true);
-      const response = await api.get('/client/tasks?limit=100&sortBy=created_at&sortOrder=desc');
-
-      if (response.data.success) {
-        setAllTasks(response.data.data?.tasks || []);
-        setViewAllTasks(true);
-      }
-    } catch (fetchError) {
-      toast.error(fetchError?.message || 'Failed to load all tasks');
+      const response = await api.get("/client/tasks", { params: {
+        page,
+        limit: 10,
+        status: status || undefined,
+        search: debouncedSearch || undefined,
+        sortBy: "created_at",
+        sortOrder: preferences.defaultTaskSort === "oldest" ? "asc" : "desc",
+      } });
+      setTasks(response.data.data?.tasks || []);
+      setTaskPagination(response.data.meta?.pagination || null);
+    } catch (requestError) {
+      toast.error(apiError(requestError, "Tasks could not be loaded"));
     } finally {
-      setLoading(false);
+      if (!silent) setSectionLoading(false);
+    }
+  }, [debouncedSearch, page, preferences.defaultTaskSort, status]);
+
+  const loadSubmissions = useCallback(async () => {
+    setSectionLoading(true);
+    try {
+      const response = await api.get("/client/submissions", { params: { status: "pending" } });
+      setSubmissions(response.data.data || []);
+    } catch (requestError) {
+      toast.error(apiError(requestError, "Deliveries could not be loaded"));
+    } finally {
+      setSectionLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  useEffect(() => {
-    if (!preferences.autoRefresh) {
-      return undefined;
+  const loadPayments = useCallback(async () => {
+    setSectionLoading(true);
+    try {
+      const response = await api.get("/client/payments");
+      setPayments(response.data.data || []);
+    } catch (requestError) {
+      toast.error(apiError(requestError, "Payments could not be loaded"));
+    } finally {
+      setSectionLoading(false);
     }
+  }, []);
 
-    const seconds = Math.max(30, Number(preferences.autoRefreshSeconds || 120));
-    const timer = window.setInterval(() => {
-      fetchDashboardData({ silent: true });
-    }, seconds * 1000);
-
+  useEffect(() => { loadOverview(); }, [loadOverview]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setPage(1); setDebouncedSearch(search.trim()); }, 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  useEffect(() => { if (view === "tasks") loadTasks(); }, [loadTasks, view]);
+  useEffect(() => { if (view === "deliveries") loadSubmissions(); }, [loadSubmissions, view]);
+  useEffect(() => { if (view === "payments") loadPayments(); }, [loadPayments, view]);
+  useEffect(() => {
+    if (!preferences.autoRefresh) return undefined;
+    const timer = window.setInterval(() => loadOverview({ silent: true }), Math.max(30, Number(preferences.autoRefreshSeconds || 120)) * 1000);
     return () => window.clearInterval(timer);
-  }, [preferences.autoRefresh, preferences.autoRefreshSeconds, fetchDashboardData]);
+  }, [loadOverview, preferences.autoRefresh, preferences.autoRefreshSeconds]);
 
-  const handleRefresh = async () => {
+  useRealtimeEvents(useCallback((event) => {
+    if (["task.created", "task.updated", "task.status_changed", "task.progress.updated"].includes(event?.type)) {
+      loadOverview({ silent: true });
+      if (view === "tasks") loadTasks({ silent: true });
+    }
+    if (["submission.updated", "task.status_changed"].includes(event?.type) && view === "deliveries") loadSubmissions();
+  }, [loadOverview, loadSubmissions, loadTasks, view]));
+
+  const refresh = async () => {
     setRefreshing(true);
-    await fetchDashboardData({ silent: false });
-    if (viewAllTasks) {
-      await fetchAllTasks();
-    }
+    await loadOverview({ silent: true });
+    if (view === "tasks") await loadTasks({ silent: true });
+    if (view === "deliveries") await loadSubmissions();
+    if (view === "payments") await loadPayments();
     setRefreshing(false);
-    toast.success('Client workspace refreshed');
+    toast.success("Workspace refreshed");
   };
 
-  const handleTaskCreated = async () => {
-    await fetchDashboardData();
-    if (viewAllTasks) {
-      await fetchAllTasks();
+  const openTask = async (task) => {
+    setTaskDetail({ task });
+    setDetailLoading(true);
+    try {
+      const response = await api.get(`/client/tasks/${task.id}`);
+      setTaskDetail(response.data.data);
+    } catch (requestError) {
+      toast.error(apiError(requestError, "Task details could not be loaded"));
+      setTaskDetail(null);
+    } finally {
+      setDetailLoading(false);
     }
-    toast.success('Task created successfully');
   };
 
-  const handleToggleAllTasks = async () => {
-    if (viewAllTasks) {
-      setViewAllTasks(false);
-      return;
-    }
-
-    await fetchAllTasks();
-  };
-
-  const togglePinTask = (taskId) => {
-    if (!preferences.quickActions.pinning || !taskId) {
-      return;
-    }
-
-    setPinnedTaskIds((prev) =>
-      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [taskId, ...prev],
-    );
-  };
-
-  const handleTaskFilterChange = useCallback(
-    (nextFilter) => {
-      setTaskFilter(nextFilter);
-      updateBoardState({ filter: nextFilter });
-    },
-    [updateBoardState],
-  );
-
-  const handleTaskSortChange = useCallback(
-    (nextSort) => {
-      setTaskSort(nextSort);
-      updateBoardState({ sort: nextSort });
-    },
-    [updateBoardState],
-  );
-
-  const taskLayout = boardState.view || preferences.taskLayout || 'list';
-  const handleTaskLayoutChange = useCallback(
-    (nextLayout) => {
-      setPreference('taskLayout', nextLayout);
-      updateBoardState({ view: nextLayout });
-    },
-    [setPreference, updateBoardState],
-  );
-
-  useRealtimeEvents(
-    useCallback(
-      (event) => {
-        const type = event?.type;
-        if (!type) return;
-
-        const dashboardEvents = new Set([
-          'task.created',
-          'task.updated',
-          'task.status_changed',
-          'task.progress.updated',
-          'task.comment.created',
-          'task.subtask.created',
-          'task.subtask.updated',
-          'task.subtask.deleted',
-          'notification.created',
-          'settings.preferences.updated',
-          'settings.preset.applied',
-          'settings.board.updated',
-        ]);
-
-        if (dashboardEvents.has(type)) {
-          fetchDashboardData({ silent: true });
-          if (viewAllTasks) {
-            fetchAllTasks();
-          }
-        }
-      },
-      [fetchDashboardData, fetchAllTasks, viewAllTasks],
-    ),
-  );
-
-  const sourceTasks = viewAllTasks ? allTasks : recentTasks;
-
-  const filteredTasks = useMemo(() => {
-    const filteredByStatus = sourceTasks.filter((task) => {
-      if (taskFilter === 'all') return true;
-
-      const status = task?.status;
-      if (!status) return false;
-
-      if (taskFilter === 'completed') {
-        return status === TASK_STATUS.COMPLETED;
-      }
-
-      if (taskFilter === 'pending_review') {
-        return [
-          TASK_STATUS.SUBMITTED,
-          TASK_STATUS.UNDER_REVIEW,
-          TASK_STATUS.SUBMITTED_WORK,
-          TASK_STATUS.QA_REVIEW,
-          TASK_STATUS.REVISION_REQUESTED,
-          TASK_STATUS.CLIENT_REVISION,
-        ].includes(status);
-      }
-
-      if (taskFilter === 'active') {
-        return [
-          TASK_STATUS.ASSIGNED,
-          TASK_STATUS.IN_PROGRESS,
-          TASK_STATUS.SUBMITTED,
-          TASK_STATUS.SUBMITTED_WORK,
-          TASK_STATUS.DELIVERED,
-        ].includes(status);
-      }
-
-      return true;
-    });
-
-    const filteredBySearch = filteredByStatus.filter((task) => {
-      if (!taskSearch.trim()) return true;
-
-      const query = taskSearch.toLowerCase();
-      const title = getTaskTitle(task).toLowerCase();
-      const id = String(getTaskId(task)).toLowerCase();
-      const description = getTaskDescription(task).toLowerCase();
-
-      return title.includes(query) || id.includes(query) || description.includes(query);
-    });
-
-    const sorted = [...filteredBySearch].sort((left, right) => {
-      if (taskSort === 'newest') {
-        return new Date(getTaskCreatedAt(right) || 0) - new Date(getTaskCreatedAt(left) || 0);
-      }
-
-      if (taskSort === 'oldest') {
-        return new Date(getTaskCreatedAt(left) || 0) - new Date(getTaskCreatedAt(right) || 0);
-      }
-
-      if (taskSort === 'budget_high') {
-        return getTaskBudget(right) - getTaskBudget(left);
-      }
-
-      if (taskSort === 'budget_low') {
-        return getTaskBudget(left) - getTaskBudget(right);
-      }
-
-      if (taskSort === 'deadline_soon') {
-        const leftDeadline = new Date(getTaskDeadline(left) || '9999-12-31').getTime();
-        const rightDeadline = new Date(getTaskDeadline(right) || '9999-12-31').getTime();
-        return leftDeadline - rightDeadline;
-      }
-
-      return 0;
-    });
-
-    if (!preferences.quickActions.pinning || pinnedTaskIds.length === 0) {
-      return sorted;
-    }
-
-    return sorted.sort((left, right) => {
-      const leftPinned = pinnedTaskIds.includes(getTaskId(left));
-      const rightPinned = pinnedTaskIds.includes(getTaskId(right));
-      if (leftPinned === rightPinned) return 0;
-      return leftPinned ? -1 : 1;
-    });
-  }, [sourceTasks, taskFilter, taskSearch, taskSort, preferences.quickActions.pinning, pinnedTaskIds]);
-
-  const boardMatchers = useMemo(
-    () => ({
-      planning: (status) => [TASK_STATUS.SUBMITTED, TASK_STATUS.UNDER_REVIEW].includes(status),
-      execution: (status) =>
-        [
-          TASK_STATUS.ASSIGNED,
-          TASK_STATUS.IN_PROGRESS,
-          TASK_STATUS.SUBMITTED_WORK,
-          TASK_STATUS.QA_REVIEW,
-          TASK_STATUS.REVISION_REQUESTED,
-          TASK_STATUS.CLIENT_REVISION,
-          TASK_STATUS.DELIVERED,
-        ].includes(status),
-      done: (status) => status === TASK_STATUS.COMPLETED,
-      other: (status) => [TASK_STATUS.CANCELLED, TASK_STATUS.DISPUTED].includes(status),
-    }),
-    [],
-  );
-
-  const boardColumns = useMemo(
-    () =>
-      (orderedColumns.length > 0
-        ? orderedColumns
-        : [
-            { id: 'planning', title: 'Planning' },
-            { id: 'execution', title: 'Execution' },
-            { id: 'done', title: 'Done' },
-            { id: 'other', title: 'Other' },
-          ]
-      ).map((column) => ({
-        ...column,
-        matcher: boardMatchers[column.id] || (() => false),
-      })),
-    [boardMatchers, orderedColumns],
-  );
-
-  const taskColumnOverrides = useMemo(() => {
-    const overrideMap = {};
-    Object.entries(boardState.taskOrder || {}).forEach(([columnId, taskIds]) => {
-      (Array.isArray(taskIds) ? taskIds : []).forEach((taskId) => {
-        overrideMap[taskId] = columnId;
+  const reviewSubmission = async (submissionId, action, feedback) => {
+    const key = `review-${submissionId}`;
+    if (busyAction) return;
+    setBusyAction(key);
+    try {
+      await api.post(`/client/submissions/${submissionId}/review`, {
+        action,
+        ...(action === "request_revision" ? { revisionRequested: feedback } : { feedback }),
       });
-    });
-    return overrideMap;
-  }, [boardState.taskOrder]);
-
-  const groupedBoard = useMemo(() => {
-    const grouped = boardColumns.reduce((acc, column) => {
-      acc[column.id] = [];
-      return acc;
-    }, {});
-
-    filteredTasks.forEach((task) => {
-      const taskId = getTaskId(task);
-      const manualColumn = taskColumnOverrides[taskId];
-
-      if (manualColumn && grouped[manualColumn]) {
-        grouped[manualColumn].push(task);
-        return;
-      }
-
-      const defaultColumn =
-        boardColumns.find((column) => column.matcher(task?.status))?.id ||
-        boardColumns[boardColumns.length - 1]?.id;
-
-      if (defaultColumn) {
-        grouped[defaultColumn].push(task);
-      }
-    });
-
-    return boardColumns.map((column) => ({
-      ...column,
-      tasks: sortTasksByColumnOrder(column.id, grouped[column.id] || []),
-    }));
-  }, [boardColumns, filteredTasks, sortTasksByColumnOrder, taskColumnOverrides]);
-
-  const deadlineSource = allTasks.length > 0 ? allTasks : recentTasks;
-
-  const upcomingDeadlines = useMemo(() => {
-    return deadlineSource
-      .filter((task) => {
-        const status = task?.status;
-        if ([TASK_STATUS.COMPLETED, TASK_STATUS.CANCELLED].includes(status)) {
-          return false;
-        }
-
-        const deadline = getTaskDeadline(task);
-        if (!deadline) return false;
-        return !Number.isNaN(new Date(deadline).getTime());
-      })
-      .sort((left, right) => new Date(getTaskDeadline(left)) - new Date(getTaskDeadline(right)))
-      .slice(0, 6);
-  }, [deadlineSource]);
-
-  const advancedInsights = useMemo(() => {
-    const completionRate = stats.totalTasks
-      ? Math.round((Number(stats.completedTasks || 0) / Number(stats.totalTasks || 1)) * 100)
-      : 0;
-
-    const overdueCount = (allTasks.length > 0 ? allTasks : recentTasks).filter((task) => {
-      const due = getTaskDeadline(task);
-      if (!due) return false;
-      const dueTime = new Date(due).getTime();
-      if (Number.isNaN(dueTime)) return false;
-      const status = task?.status;
-      if ([TASK_STATUS.COMPLETED, TASK_STATUS.CANCELLED].includes(status)) return false;
-      return dueTime < Date.now();
-    }).length;
-
-    const budgetPool = (allTasks.length > 0 ? allTasks : recentTasks).map((task) => getTaskBudget(task));
-    const averageBudget =
-      budgetPool.length > 0
-        ? Math.round(budgetPool.reduce((sum, amount) => sum + amount, 0) / budgetPool.length)
-        : 0;
-
-    return {
-      completionRate,
-      overdueCount,
-      averageBudget,
-      highBudgetCount: budgetPool.filter((amount) => amount >= 1000).length,
-    };
-  }, [stats, allTasks, recentTasks]);
-
-  const exportTasksToCsv = () => {
-    if (filteredTasks.length === 0) {
-      toast.error('No tasks to export');
-      return;
+      toast.success(action === "approve" ? "Delivery approved" : "Revision requested");
+      await Promise.all([loadOverview({ silent: true }), loadSubmissions()]);
+      if (taskDetail?.task) await openTask(taskDetail.task);
+    } catch (requestError) {
+      toast.error(apiError(requestError, "The delivery could not be reviewed"));
+    } finally {
+      setBusyAction("");
     }
-
-    const header = ['Task ID', 'Title', 'Status', 'Budget', 'Deadline', 'Created'];
-    const rows = filteredTasks.map((task) => [
-      getTaskId(task),
-      getTaskTitle(task),
-      task?.status || '',
-      getTaskBudget(task),
-      formatDate(getTaskDeadline(task)),
-      formatDate(getTaskCreatedAt(task)),
-    ]);
-
-    const csv = [header, ...rows]
-      .map((row) => row.map((value) => csvEscape(value)).join(','))
-      .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `tasknexus-client-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-
-    toast.success('Task CSV exported');
   };
 
-  const handleBoardTaskDragStart = (taskId, fromColumnId) => {
-    setDraggingTask({ taskId, fromColumnId });
-  };
-
-  const handleBoardTaskDrop = (toColumnId, insertAt = 0) => {
-    if (!draggingTask?.taskId) return;
-    moveTask(draggingTask.taskId, draggingTask.fromColumnId, toColumnId, insertAt);
-    setDraggingTask(null);
-  };
-
-  const handleBoardColumnDragStart = (columnId) => {
-    setDraggingColumn(columnId);
-  };
-
-  const handleBoardColumnDrop = (toColumnId) => {
-    if (!draggingColumn || draggingColumn === toColumnId) return;
-    const fromIndex = boardColumns.findIndex((column) => column.id === draggingColumn);
-    const toIndex = boardColumns.findIndex((column) => column.id === toColumnId);
-    if (fromIndex >= 0 && toIndex >= 0) {
-      reorderColumns(fromIndex, toIndex);
+  const rateFreelancer = async (taskId, rating, feedback) => {
+    if (busyAction) return;
+    setBusyAction(`rate-${taskId}`);
+    try {
+      await api.post("/client/rate-freelancer", { taskId, rating, feedback });
+      toast.success("Rating submitted");
+      if (taskDetail?.task) await openTask(taskDetail.task);
+    } catch (requestError) {
+      toast.error(apiError(requestError, "Rating could not be submitted"));
+    } finally {
+      setBusyAction("");
     }
-    setDraggingColumn(null);
   };
 
-  if (loading) {
-    return <Loading fullScreen={true} text="Loading client workspace..." />;
-  }
+  const recentTasks = dashboard?.recentTasks || [];
+  const activeRecent = recentTasks.filter((task) => ![TASK_STATUS.COMPLETED, TASK_STATUS.CANCELLED].includes(task.status));
+  const completedRecent = recentTasks.filter((task) => task.status === TASK_STATUS.COMPLETED);
+  const metrics = useMemo(() => [
+    { label: "Active tasks", value: dashboard?.activeTasks || 0 },
+    { label: "Awaiting your review", value: dashboard?.pendingReview || 0 },
+    { label: "Completed", value: dashboard?.completedTasks || 0 },
+    { label: "Total spent", value: preferences.hideFinancials ? "Hidden" : formatCurrency(dashboard?.totalSpent || 0) },
+  ], [dashboard, preferences.hideFinancials]);
 
-  if (error && !stats.totalTasks) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#010102] px-4 text-[#f7f8f8]">
-        <div className="text-center max-w-lg bg-white/90 border border-slate-100 rounded-3xl p-8 shadow-xl">
-          <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Unable to load workspace</h2>
-          <p className="text-slate-600 mb-5">{error}</p>
-          <button onClick={handleRefresh} className="btn btn-primary">
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <Loading fullScreen text="Loading client workspace..." />;
+  if (error && !dashboard) return <WorkspaceError message={error} onRetry={loadOverview} />;
 
   return (
     <div className="min-h-screen bg-[#010102] text-[#f7f8f8]">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <div className="flex items-center justify-between gap-4 border-b border-[#23252a] pb-5">
-          <div><p className="team-eyebrow">Client workspace</p><p className="mt-1 text-sm text-[#8a8f98]">Delivery overview and task controls</p></div>
-          <button onClick={handleRefresh} disabled={refreshing} className="team-button-secondary">
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
-          </button>
-        </div>
-        {!preferences.focusMode && (
-          <section className="relative overflow-hidden rounded-xl border border-[#23252a] bg-[#0f1011] text-white">
-            <div className="relative p-8">
-              <h2 className="text-3xl font-bold mb-2">
-                Welcome back, {user?.profile?.firstName || 'Client'}
-              </h2>
-              <p className="text-white/90">
-                Run your delivery pipeline with templates, board views, automation, and priority tracking.
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-                <HeroBadge>
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  {stats.completedTasks || 0} completed
-                </HeroBadge>
-                <HeroBadge>
-                  <Clock className="w-4 h-4 mr-1" />
-                  {stats.activeTasks || 0} active
-                </HeroBadge>
-                <HeroBadge>
-                  <Sparkles className="w-4 h-4 mr-1" />
-                  Layout: {taskLayout}
-                </HeroBadge>
-              </div>
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <WorkspaceHeader eyebrow="Client workspace" title="Manage delivery without the noise." description="Create work, review deliveries, and keep every active task moving." actions={<><button type="button" onClick={() => setShowCreate(true)} className="team-button-primary"><Plus className="h-4 w-4" /> Create task</button><button type="button" onClick={refresh} disabled={refreshing} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh</button><button type="button" onClick={() => setShowSettings(true)} className="team-icon-button" aria-label="Open workspace settings"><Settings2 className="h-4 w-4" /></button></>} />
+        <nav className="flex gap-1 overflow-x-auto pb-1" aria-label="Client workspace views">{VIEWS.map(([id, label]) => <button key={id} type="button" onClick={() => setView(id)} aria-pressed={view === id} className={`team-choice whitespace-nowrap ${view === id ? "is-active" : ""}`}>{label}{id === "deliveries" && dashboard?.pendingReview ? <span className="team-chip">{dashboard.pendingReview}</span> : null}</button>)}</nav>
+
+        {view === "overview" ? <>
+          <MetricStrip items={metrics} />
+          {!dashboard?.totalTasks ? <SectionCard title="No tasks yet" description="Create your first task to start a delivery."><EmptyState icon={ListChecks} title="Your client workspace is ready" description="Post a clear brief and TaskNexus will move it through review, assignment, delivery, and approval." action={<button onClick={() => setShowCreate(true)} className="team-button-primary"><Plus className="h-4 w-4" /> Create your first task</button>} /></SectionCard> : <>
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,0.8fr)]">
+              <SectionCard title="Needs attention" description="Only work that requires a client decision or is overdue.">{dashboard?.attentionTasks?.length ? <div className="space-y-2">{dashboard.attentionTasks.map((task) => <AttentionRow key={task.id} task={task} onOpen={() => openTask(task)} />)}</div> : <EmptyState icon={FileCheck2} title="You're all caught up" description="There are no deliveries or overdue tasks requiring action." className="py-7" />}</SectionCard>
+              <SectionCard title="Quick actions" description="The shortest path to your next step"><div className="grid gap-2"><button onClick={() => setShowCreate(true)} className="team-button-primary w-full"><Plus className="h-4 w-4" /> Create task</button><button onClick={() => setView("deliveries")} className="team-button-secondary w-full"><FileCheck2 className="h-4 w-4" /> Review deliveries</button><button onClick={() => setView("tasks")} className="team-button-secondary w-full"><ListChecks className="h-4 w-4" /> View tasks</button></div></SectionCard>
             </div>
-          </section>
-        )}
+            <SectionCard title="Active work" description="Recently updated marketplace tasks" action={<button onClick={() => setView("tasks")} className="text-sm text-[#b7bdf8] hover:text-white">View all</button>}><TaskTable tasks={activeRecent.slice(0, 5)} onOpen={openTask} hideFinancials={preferences.hideFinancials} empty="No active work right now." /></SectionCard>
+            {completedRecent.length ? <SectionCard title="Recent completed work"><TaskTable tasks={completedRecent} onOpen={openTask} hideFinancials={preferences.hideFinancials} /></SectionCard> : null}
+          </>}
+        </> : null}
 
-        <section className="flex flex-wrap gap-3 items-start">
-          <button
-            onClick={() => {
-              setSelectedTemplate(null);
-              setShowCreateModal(true);
-            }}
-            className="btn btn-primary flex items-center rounded-full px-5"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Create Task
-          </button>
-          <button
-            onClick={handleToggleAllTasks}
-            className="btn btn-secondary flex items-center rounded-full px-5"
-          >
-            <List className="w-5 h-5 mr-2" />
-            {viewAllTasks ? 'Show Recent Tasks' : 'View All Tasks'}
-          </button>
-          {preferences.quickActions.export && (
-            <button onClick={exportTasksToCsv} className="btn btn-secondary flex items-center rounded-full px-5">
-              <FileText className="w-5 h-5 mr-2" />
-              Export CSV
-            </button>
-          )}
-          <button
-            onClick={() =>
-              handleTaskLayoutChange(
-                taskLayout === 'list' ? 'grid' : taskLayout === 'grid' ? 'board' : 'list',
-              )
-            }
-            className="btn btn-ghost rounded-full px-5"
-          >
-            Switch Layout
-          </button>
-        </section>
+        {view === "tasks" ? <SectionCard title="My tasks" description="Server-paginated task history and active work">
+          <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]"><label><span className="team-label">Search tasks</span><span className="relative block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#62666d]" /><input className="team-input pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title" /></span></label><label><span className="team-label">Status</span><select className="team-input" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>{statusOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label></div>
+          {sectionLoading ? <SectionSpinner /> : <TaskTable tasks={tasks} onOpen={openTask} hideFinancials={preferences.hideFinancials} empty="No tasks match these filters." />}
+          <Pagination pagination={taskPagination} onPage={setPage} disabled={sectionLoading} />
+        </SectionCard> : null}
 
-        {preferences.quickActions.templates && (
-          <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm uppercase tracking-wide font-semibold text-slate-500 flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary-600" />
-                Task Templates
-              </h3>
-              <p className="text-xs text-slate-500">One click prefill for recurring work.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {TASK_TEMPLATES.map((template) => (
-                <TemplateCard
-                  key={template.id}
-                  template={template}
-                  onUse={() => {
-                    setSelectedTemplate(template);
-                    setShowCreateModal(true);
-                  }}
-                  hideFinancials={preferences.hideFinancials}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+        {view === "deliveries" ? <SectionCard title="Deliveries" description="Submitted work awaiting your decision">{sectionLoading ? <SectionSpinner /> : submissions.length ? <div className="space-y-3">{submissions.map((submission) => <article key={submission.id} className="team-row-card"><div className="min-w-0"><StatusBadge status={submission.task?.status} /><h3 className="mt-2 truncate text-sm font-medium">{taskTitle(submission.task)}</h3><p className="mt-1 text-xs text-[#62666d]">Submitted {formatDate(submission.created_at)} · {submission.content?.deliverables?.length || 0} deliverable(s)</p></div><button onClick={() => openTask(submission.task)} className="team-button-primary">Review delivery</button></article>)}</div> : <EmptyState icon={FileCheck2} title="No deliveries awaiting review" description="New submissions will appear here when client action is required." />}</SectionCard> : null}
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
-          <StatCard
-            title="Total Tasks"
-            value={stats.totalTasks || 0}
-            icon={<FileText className="w-8 h-8 text-primary-600" />}
-            color="bg-primary-50"
-          />
-          <StatCard
-            title="Active"
-            value={stats.activeTasks || 0}
-            icon={<Clock className="w-8 h-8 text-amber-600" />}
-            color="bg-amber-50"
-          />
-          <StatCard
-            title="Completed"
-            value={stats.completedTasks || 0}
-            icon={<CheckCircle className="w-8 h-8 text-emerald-600" />}
-            color="bg-emerald-50"
-          />
-          <StatCard
-            title="Pending Review"
-            value={stats.pendingReview || 0}
-            icon={<AlertCircle className="w-8 h-8 text-orange-600" />}
-            color="bg-orange-50"
-          />
-          <StatCard
-            title="Total Spent"
-            value={preferences.hideFinancials ? 'Hidden' : formatCurrency(stats.totalSpent || 0)}
-            icon={<DollarSign className="w-8 h-8 text-violet-600" />}
-            color="bg-violet-50"
-          />
-          <StatCard
-            title="Avg Completion"
-            value={`${stats.avgCompletionTime || 0}d`}
-            icon={<TrendingUp className="w-8 h-8 text-sky-600" />}
-            color="bg-sky-50"
-          />
-        </section>
-
-        {preferences.showAdvancedStats && (
-          <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <InsightCard title="Completion Rate" value={`${advancedInsights.completionRate}%`} subtitle="Closed vs total" />
-            <InsightCard title="Overdue Tasks" value={advancedInsights.overdueCount} subtitle="Need immediate action" />
-            <InsightCard
-              title="Avg Budget"
-              value={preferences.hideFinancials ? 'Hidden' : formatCurrency(advancedInsights.averageBudget)}
-              subtitle="Across loaded tasks"
-            />
-            <InsightCard title="High Budget Tasks" value={advancedInsights.highBudgetCount} subtitle="At or above $1,000" />
-          </section>
-        )}
-
-        {preferences.showDeadlineRail && upcomingDeadlines.length > 0 && (
-          <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm uppercase tracking-wide font-semibold text-slate-500 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary-600" />
-                Upcoming Deadlines
-              </h3>
-              <p className="text-xs text-slate-500">Closest due dates across your pipeline.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {upcomingDeadlines.map((task) => {
-                const dueBadge = getDueBadge(task);
-                return (
-                  <button
-                    key={getTaskId(task)}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTask(task);
-                      setShowDetailsModal(true);
-                    }}
-                    className="text-left rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-primary-200 hover:shadow-sm transition"
-                  >
-                    <p className="font-semibold text-slate-900 text-sm line-clamp-1">{getTaskTitle(task)}</p>
-                    <p className="text-xs text-slate-500 mt-1">{formatDate(getTaskDeadline(task))}</p>
-                    <span className={`mt-2 inline-flex px-2 py-1 rounded-full text-[11px] font-semibold ${badgeTone(dueBadge.tone)}`}>
-                      {dueBadge.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-5">
-          <DashboardSettings
-            preferences={preferences}
-            togglePreference={togglePreference}
-            setPreference={setPreference}
-            resetPreferences={resetPreferences}
-            presets={presets}
-            activePresetId={activePresetId}
-            applyPreset={applyPreset}
-            savePreset={savePreset}
-            savingPreferences={savingPreferences || loadingPreferences}
-            syncError={syncError}
-            title="Client Workspace Settings"
-          />
-        </section>
-
-        <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">
-                {viewAllTasks ? `All Tasks (${sourceTasks.length})` : `Recent Tasks (${sourceTasks.length})`}
-              </h3>
-              <p className="text-xs text-slate-500">Showing {filteredTasks.length} task(s) after filters and sort.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {['list', 'grid', 'board'].map((layout) => (
-                <button
-                  key={layout}
-                  type="button"
-                  onClick={() => handleTaskLayoutChange(layout)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border ${
-                    taskLayout === layout
-                      ? 'bg-primary-50 text-primary-700 border-primary-200'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary-200'
-                  }`}
-                >
-                  {layout}
-                </button>
-              ))}
-              <button type="button" onClick={resetBoardState} className="btn-sm btn-secondary">
-                Reset Board
-              </button>
-              {savingBoard && <span className="text-[11px] text-slate-500">Saving board...</span>}
-            </div>
-          </div>
-
-          <div className="px-5 py-4 border-b border-slate-100 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-              <div className="relative md:col-span-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  type="text"
-                  value={taskSearch}
-                  onChange={(event) => setTaskSearch(event.target.value)}
-                  placeholder="Search by title, description, or task ID"
-                  className="input pl-9 py-2"
-                />
-              </div>
-              <label className="block">
-                <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 flex items-center gap-1">
-                  <Filter className="w-3 h-3" />
-                  Filter
-                </p>
-                <select
-                  value={taskFilter}
-                  onChange={(event) => handleTaskFilterChange(event.target.value)}
-                  className="input py-2"
-                >
-                  {TASK_FILTER_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Sort</p>
-                <select
-                  value={taskSort}
-                  onChange={(event) => handleTaskSortChange(event.target.value)}
-                  className="input py-2"
-                >
-                  {TASK_SORT_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {TASK_FILTER_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => handleTaskFilterChange(option.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-                    taskFilter === option.id
-                      ? 'bg-primary-50 text-primary-700 border-primary-200'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary-200'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="p-5">
-            {filteredTasks.length === 0 ? (
-              <EmptyState
-                icon={FileText}
-                title="No tasks match your current view"
-                description="Adjust filter/sort criteria or create a new task."
-                action={
-                  <button
-                    onClick={() => {
-                      setSelectedTemplate(null);
-                      setShowCreateModal(true);
-                    }}
-                    className="btn btn-primary"
-                  >
-                    Create task
-                  </button>
-                }
-              />
-            ) : taskLayout === 'board' ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-                {groupedBoard.map((column) => (
-                  <div
-                    key={column.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"
-                    draggable
-                    onDragStart={() => handleBoardColumnDragStart(column.id)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => handleBoardColumnDrop(column.id)}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-semibold text-slate-700">{column.title}</h4>
-                      <span className="text-xs font-semibold text-slate-500">{column.tasks.length}</span>
-                    </div>
-                    <div
-                      className="space-y-2 min-h-[60px]"
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={() => handleBoardTaskDrop(column.id, column.tasks.length)}
-                    >
-                      {column.tasks.map((task, index) => (
-                        <BoardCard
-                          key={getTaskId(task)}
-                          task={task}
-                          columnId={column.id}
-                          onDragStart={handleBoardTaskDragStart}
-                          onDropAt={(toColumnId) => handleBoardTaskDrop(toColumnId, index)}
-                          onClick={() => {
-                            setSelectedTask(task);
-                            setShowDetailsModal(true);
-                          }}
-                          isPinned={pinnedTaskIds.includes(getTaskId(task))}
-                          onTogglePin={() => togglePinTask(getTaskId(task))}
-                          canPin={preferences.quickActions.pinning}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className={taskLayout === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-4'}>
-                {filteredTasks.map((task) => (
-                  <TaskCard
-                    key={getTaskId(task)}
-                    task={task}
-                    onViewDetails={() => {
-                      setSelectedTask(task);
-                      setShowDetailsModal(true);
-                    }}
-                    onTogglePin={() => togglePinTask(getTaskId(task))}
-                    isPinned={pinnedTaskIds.includes(getTaskId(task))}
-                    canPin={preferences.quickActions.pinning}
-                    hideFinancials={preferences.hideFinancials}
-                    preferences={preferences}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
+        {view === "payments" ? <SectionCard title="Payments" description="Authoritative payment records for completed work">{sectionLoading ? <SectionSpinner /> : payments.length ? <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="text-xs text-[#62666d]"><tr><th className="pb-3 pr-5 font-medium">Payment</th><th className="pb-3 pr-5 font-medium">Status</th><th className="pb-3 pr-5 font-medium">Amount</th><th className="pb-3 font-medium">Date</th></tr></thead><tbody className="divide-y divide-[#23252a]">{payments.map((payment) => <tr key={payment.id}><td className="py-4 pr-5 text-[#d0d6e0]">{payment.payment_id || payment.id}</td><td className="py-4 pr-5 capitalize text-[#8a8f98]">{payment.status}</td><td className="py-4 pr-5">{preferences.hideFinancials ? "Hidden" : formatCurrency(payment.amounts?.taskBudget)}</td><td className="py-4 text-[#8a8f98]">{formatDate(payment.created_at)}</td></tr>)}</tbody></table></div> : <EmptyState icon={CreditCard} title="No payment records" description="Payment records are created after an approved delivery." />}</SectionCard> : null}
       </main>
 
-      <CreateTaskModal
-        isOpen={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false);
-          setSelectedTemplate(null);
-        }}
-        onTaskCreated={handleTaskCreated}
-        initialData={selectedTemplate}
-      />
-
-      <TaskDetailsModal
-        isOpen={showDetailsModal}
-        onClose={() => setShowDetailsModal(false)}
-        task={selectedTask}
-      />
+      <CreateTaskModal isOpen={showCreate} onClose={() => setShowCreate(false)} onTaskCreated={async () => { setShowCreate(false); await loadOverview(); if (view === "tasks") await loadTasks(); }} />
+      <TaskDetailsModal isOpen={Boolean(taskDetail)} onClose={() => setTaskDetail(null)} detail={taskDetail} loading={detailLoading} busyAction={busyAction} onReview={reviewSubmission} onRate={rateFreelancer} />
+      <WorkspaceSettingsDialog open={showSettings} onClose={() => setShowSettings(false)} role="client" settings={preferenceState} />
     </div>
   );
 };
 
-const TaskCard = ({
-  task,
-  onViewDetails,
-  onTogglePin,
-  isPinned,
-  canPin,
-  hideFinancials,
-  preferences,
-}) => {
-  const compact = preferences?.compactCards || preferences?.taskDensity === 'compact';
-  const progress = task?.metrics?.progress ?? null;
-  const dueBadge = getDueBadge(task);
-
-  return (
-    <div
-      className={`border border-slate-200 rounded-xl ${compact ? 'p-4' : 'p-5'} hover:shadow-xl transition-all duration-200 hover:border-primary-200 bg-white/80 backdrop-blur-sm`}
-    >
-      <div className="flex justify-between items-start gap-3 mb-3">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-slate-900 mb-1 text-lg line-clamp-1">{getTaskTitle(task)}</h4>
-          <p className="text-sm text-slate-600 line-clamp-2">{getTaskDescription(task)}</p>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <StatusBadge status={task?.status} />
-          {canPin && (
-            <button
-              type="button"
-              onClick={onTogglePin}
-              className={`text-xs font-semibold inline-flex items-center gap-1 px-2 py-1 rounded-full border ${
-                isPinned
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-amber-200'
-              }`}
-            >
-              <Star className={`w-3.5 h-3.5 ${isPinned ? 'fill-amber-400 text-amber-500' : ''}`} />
-              {isPinned ? 'Pinned' : 'Pin'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center flex-wrap gap-4 text-sm text-slate-600 mb-4 pb-4 border-b border-slate-100">
-        <span className="flex items-center font-medium">
-          <DollarSign className="w-4 h-4 mr-1 text-emerald-600" />
-          {hideFinancials ? 'Hidden' : formatCurrency(getTaskBudget(task))}
-        </span>
-        <span className="flex items-center">
-          <Calendar className="w-4 h-4 mr-1 text-blue-600" />
-          {formatDate(getTaskDeadline(task))}
-        </span>
-        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${badgeTone(dueBadge.tone)}`}>
-          {dueBadge.label}
-        </span>
-        {progress !== null && (
-          <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-2 py-1 rounded-full">
-            {progress}% complete
-          </span>
-        )}
-      </div>
-
-      {progress !== null && preferences?.showProgressBars && (
-        <div className="mb-4">
-          <div className="w-full bg-slate-100 rounded-full h-2">
-            <div
-              className="h-2 rounded-full bg-[#5e6ad2]"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">Created {formatDate(getTaskCreatedAt(task))}</p>
-        <button onClick={onViewDetails} className="btn-sm btn-primary flex items-center rounded-full px-4">
-          <Eye className="w-4 h-4 mr-1" />
-          View
-        </button>
-      </div>
-    </div>
-  );
+const AttentionRow = ({ task, onOpen }) => {
+  const delivered = task.status === TASK_STATUS.DELIVERED;
+  const due = dueLabel(task);
+  return <div className="flex flex-col gap-3 rounded-lg border border-[#23252a] bg-[#141516] p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusBadge status={task.status} />{due.urgent ? <span className="team-chip border-amber-900 text-amber-200">{due.label}</span> : null}</div><p className="mt-2 truncate text-sm font-medium">{taskTitle(task)}</p></div><button onClick={onOpen} className={delivered ? "team-button-primary" : "team-button-secondary"}>{delivered ? "Review delivery" : "Open task"}</button></div>;
 };
 
-const BoardCard = ({
-  task,
-  columnId,
-  onDragStart,
-  onDropAt,
-  onClick,
-  isPinned,
-  onTogglePin,
-  canPin,
-}) => {
-  const dueBadge = getDueBadge(task);
+const TaskTable = ({ tasks, onOpen, hideFinancials, empty = "No tasks yet." }) => tasks.length ? (
+  <div className="overflow-x-auto"><table className="min-w-[760px] w-full text-left text-sm"><thead className="text-xs text-[#62666d]"><tr><th className="pb-3 pr-5 font-medium">Task</th><th className="pb-3 pr-5 font-medium">Freelancer</th><th className="pb-3 pr-5 font-medium">Status</th><th className="pb-3 pr-5 font-medium">Deadline</th><th className="pb-3 pr-5 font-medium">Budget</th><th className="pb-3 text-right font-medium">Next action</th></tr></thead><tbody className="divide-y divide-[#23252a]">{tasks.map((task) => <tr key={task.id}><td className="max-w-64 py-4 pr-5"><p className="truncate font-medium text-[#f7f8f8]">{taskTitle(task)}</p><p className="mt-1 text-xs text-[#62666d]">{task.task_id}</p></td><td className="py-4 pr-5 text-[#8a8f98]">{personName(task.freelancer)}</td><td className="py-4 pr-5"><StatusBadge status={task.status} /></td><td className="py-4 pr-5 text-[#8a8f98]">{formatDate(taskDeadline(task))}</td><td className="py-4 pr-5">{hideFinancials ? "Hidden" : formatCurrency(taskBudget(task))}</td><td className="py-4 text-right"><button onClick={() => onOpen(task)} className={task.status === TASK_STATUS.DELIVERED ? "team-button-primary" : "team-button-secondary"}>{task.status === TASK_STATUS.DELIVERED ? "Review" : "Open"}</button></td></tr>)}</tbody></table></div>
+) : <p className="py-8 text-center text-sm text-[#62666d]">{empty}</p>;
 
-  return (
-    <div
-      className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm cursor-grab"
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move';
-        onDragStart?.(getTaskId(task), columnId);
-      }}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        event.preventDefault();
-        onDropAt?.(columnId);
-      }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <button type="button" onClick={onClick} className="text-left min-w-0">
-          <p className="text-sm font-semibold text-slate-900 line-clamp-1">{getTaskTitle(task)}</p>
-          <p className="text-xs text-slate-500 mt-1">{formatDate(getTaskDeadline(task))}</p>
-        </button>
-        {canPin && (
-          <button
-            type="button"
-            onClick={onTogglePin}
-            className="text-slate-400 hover:text-amber-500 transition"
-            aria-label="Pin task"
-          >
-            <Star className={`w-4 h-4 ${isPinned ? 'fill-amber-400 text-amber-500' : ''}`} />
-          </button>
-        )}
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <StatusBadge status={task?.status} />
-        <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${badgeTone(dueBadge.tone)}`}>
-          {dueBadge.label}
-        </span>
-      </div>
-    </div>
-  );
-};
-
-const TemplateCard = ({ template, onUse, hideFinancials }) => (
-  <div className="rounded-xl border border-slate-200 bg-white p-4 hover:border-primary-200 hover:shadow-sm transition">
-    <p className="text-sm font-semibold text-slate-900 mb-1">{template.title}</p>
-    <p className="text-xs text-slate-600 line-clamp-3">{template.description}</p>
-    <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-      <span className="px-2 py-1 rounded-full bg-primary-50 text-primary-700 border border-primary-100">
-        {template.category.replace(/_/g, ' ')}
-      </span>
-      <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-        {hideFinancials ? 'Budget hidden' : formatCurrency(template.budget)}
-      </span>
-    </div>
-    <button onClick={onUse} className="btn-sm btn-primary mt-4 w-full">
-      Use template
-    </button>
-  </div>
-);
-
-const InsightCard = ({ title, value, subtitle }) => (
-  <div className="rounded-xl border border-slate-100 bg-white/90 p-4 shadow-sm">
-    <p className="text-xs uppercase tracking-wide font-semibold text-slate-500">{title}</p>
-    <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
-    <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
-  </div>
-);
-
-const HeroBadge = ({ children }) => (
-  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30">
-    {children}
-  </span>
-);
+const SectionSpinner = () => <div className="flex min-h-40 items-center justify-center"><RefreshCw className="h-5 w-5 animate-spin text-[#828fff]" aria-label="Loading" /></div>;
+const WorkspaceError = ({ message, onRetry }) => <main className="flex min-h-[70dvh] items-center justify-center bg-[#010102] px-4 text-[#f7f8f8]"><div className="max-w-md rounded-xl border border-red-900 bg-red-950/20 p-6 text-center"><AlertCircle className="mx-auto h-7 w-7 text-red-300" /><h1 className="mt-4 text-xl font-semibold">Unable to load workspace</h1><p className="mt-2 text-sm text-[#8a8f98]">{message}</p><button onClick={() => onRetry()} className="team-button-primary mt-5">Try again</button></div></main>;
 
 export default ClientDashboard;

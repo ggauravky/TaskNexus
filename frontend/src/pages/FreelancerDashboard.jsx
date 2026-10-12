@@ -1,1229 +1,150 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import {
-  Briefcase,
-  DollarSign,
-  Star,
-  Clock,
-  CheckCircle,
-  RefreshCw,
-  Eye,
-  Target,
-  Search,
-  Calendar,
-  Award,
-  Activity,
-  AlertCircle,
-} from 'lucide-react';
-import api from '../services/api';
-import toast from 'react-hot-toast';
-import Loading from '../components/common/Loading';
-import EmptyState from '../components/common/EmptyState';
-import StatCard from '../components/common/StatCard';
-import StatusBadge from '../components/common/StatusBadge';
-import TaskDetailsModal from '../components/freelancer/TaskDetailsModal';
-import DashboardSettings from '../components/common/DashboardSettings';
-import { usePreferences } from '../hooks/usePreferences';
-import useBoardState from '../hooks/useBoardState';
-import useRealtimeEvents from '../hooks/useRealtimeEvents';
-import { TASK_STATUS } from '../utils/constants';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Briefcase, Compass, DollarSign, RefreshCw, Search, Settings2, Star } from "lucide-react";
+import toast from "react-hot-toast";
+import EmptyState from "../components/common/EmptyState";
+import Loading from "../components/common/Loading";
+import StatusBadge from "../components/common/StatusBadge";
+import WorkspaceSettingsDialog from "../components/dashboard/WorkspaceSettingsDialog";
+import { MetricStrip, Pagination, SectionCard, WorkspaceHeader } from "../components/dashboard/WorkspacePrimitives";
+import TaskDetailsModal from "../components/freelancer/TaskDetailsModal";
+import { useAuth } from "../context/AuthContext";
+import { usePreferences } from "../hooks/usePreferences";
+import useRealtimeEvents from "../hooks/useRealtimeEvents";
+import api from "../services/api";
+import { TASK_STATUS } from "../utils/constants";
+import { apiError, dueLabel, formatCurrency, formatDate, personName, taskBudget, taskDeadline, taskTitle } from "../utils/marketplace";
 
-const FREELANCER_PINNED_STORAGE_KEY = 'tasknexus_freelancer_pinned_tasks_v1';
-const LOCAL_PROGRESS_KEY = 'tasknexus_freelancer_progress';
-
-const TASK_SORT_OPTIONS = [
-  { id: 'newest', label: 'Newest first' },
-  { id: 'oldest', label: 'Oldest first' },
-  { id: 'budget_high', label: 'Highest budget' },
-  { id: 'budget_low', label: 'Lowest budget' },
-  { id: 'deadline_soon', label: 'Nearest deadline' },
-];
-
-const MY_TASK_FILTER_OPTIONS = [
-  { id: 'all', label: 'All statuses' },
-  { id: TASK_STATUS.ASSIGNED, label: 'Assigned' },
-  { id: TASK_STATUS.IN_PROGRESS, label: 'In progress' },
-  { id: TASK_STATUS.SUBMITTED_WORK, label: 'Submitted work' },
-  { id: TASK_STATUS.COMPLETED, label: 'Completed' },
-];
-
-const getTaskId = (task) => task?.id || '';
-const getTaskTitle = (task) => task?.task_details?.title || task?.title || 'Untitled Task';
-const getTaskDescription = (task) => task?.task_details?.description || task?.description || 'No description';
-const getTaskBudget = (task) => Number(task?.task_details?.budget ?? task?.budget ?? 0);
-const getTaskDeadline = (task) => task?.task_details?.deadline || task?.deadline || null;
-const getTaskCreatedAt = (task) => task?.created_at || task?.createdAt || null;
-
-const formatDate = (value) => {
-  if (!value) return 'No date';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'No date';
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
-
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(Number(amount || 0));
-
-const getSafeStorageArray = (key) => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(key));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const getDueBadge = (task) => {
-  const deadline = getTaskDeadline(task);
-  if (!deadline) return { label: 'No deadline', tone: 'muted' };
-
-  const due = new Date(deadline);
-  if (Number.isNaN(due.getTime())) return { label: 'No deadline', tone: 'muted' };
-
-  const now = new Date();
-  const days = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (days < 0) return { label: `${Math.abs(days)}d overdue`, tone: 'danger' };
-  if (days === 0) return { label: 'Due today', tone: 'warning' };
-  if (days <= 3) return { label: `Due in ${days}d`, tone: 'warning' };
-  return { label: `Due in ${days}d`, tone: 'ok' };
-};
-
-const badgeTone = (tone) => {
-  const tones = {
-    ok: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    warning: 'bg-amber-50 text-amber-700 border border-amber-200',
-    danger: 'bg-rose-50 text-rose-700 border border-rose-200',
-    muted: 'bg-slate-100 text-slate-600 border border-slate-200',
-  };
-  return tones[tone] || tones.muted;
-};
-
-const csvEscape = (value) => {
-  const stringValue = String(value ?? '');
-  return `"${stringValue.replace(/"/g, '""')}"`;
-};
+const VIEWS = [["overview", "Overview"], ["work", "My work"], ["available", "Find work"], ["earnings", "Earnings"], ["reviews", "Reviews"]];
+const availabilityOptions = [["available", "Available"], ["part_time", "Limited"], ["busy", "Busy"]];
+const workStatuses = [["", "All statuses"], [TASK_STATUS.ASSIGNED, "Assigned"], [TASK_STATUS.IN_PROGRESS, "In progress"], [TASK_STATUS.DELIVERED, "Awaiting review"], [TASK_STATUS.CLIENT_REVISION, "Revision requested"], [TASK_STATUS.COMPLETED, "Completed"]];
 
 const FreelancerDashboard = () => {
   const { user, updateUser } = useAuth();
-
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-
-  const [activeTab, setActiveTab] = useState('myTasks');
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-
-  const [stats, setStats] = useState({
-    activeTasks: 0,
-    completedTasks: 0,
-    pendingTasks: 0,
-    totalEarnings: 0,
-    pendingEarnings: 0,
-    performanceScore: 0,
-    rating: 0,
-    totalReviews: 0,
-    onTimeDeliveryRate: 0,
-    totalTasks: 0,
-  });
-
+  const preferenceState = usePreferences();
+  const { preferences } = preferenceState;
+  const [view, setView] = useState("overview");
+  const [dashboard, setDashboard] = useState(null);
   const [myTasks, setMyTasks] = useState([]);
   const [availableTasks, setAvailableTasks] = useState([]);
+  const [myPagination, setMyPagination] = useState(null);
+  const [availablePagination, setAvailablePagination] = useState(null);
   const [earnings, setEarnings] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [myPage, setMyPage] = useState(1);
+  const [availablePage, setAvailablePage] = useState(1);
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [busyAction, setBusyAction] = useState("");
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [taskSort, setTaskSort] = useState('newest');
-  const [matchSkills, setMatchSkills] = useState(false);
-
-  const [pinnedTaskIds, setPinnedTaskIds] = useState([]);
-  const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
-
-  const {
-    preferences,
-    presets,
-    activePresetId,
-    loadingPreferences,
-    savingPreferences,
-    syncError,
-    togglePreference,
-    setPreference,
-    resetPreferences,
-    applyPreset,
-    savePreset,
-  } = usePreferences();
-  const {
-    boardState,
-    orderedColumns,
-    savingBoard,
-    updateBoardState,
-    resetBoardState,
-    moveTask,
-    reorderColumns,
-    sortTasksByColumnOrder,
-  } = useBoardState({ boardKey: 'freelancer-dashboard', role: 'freelancer' });
-
-  const [draggingTask, setDraggingTask] = useState(null);
-  const [draggingColumn, setDraggingColumn] = useState(null);
-
-  useEffect(() => {
-    setPinnedTaskIds(getSafeStorageArray(FREELANCER_PINNED_STORAGE_KEY));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(FREELANCER_PINNED_STORAGE_KEY, JSON.stringify(pinnedTaskIds));
-  }, [pinnedTaskIds]);
-
-  useEffect(() => {
-    setTaskSort(boardState.sort || preferences.defaultTaskSort || 'newest');
-  }, [boardState.sort, preferences.defaultTaskSort]);
-
-  useEffect(() => {
-    setFilterStatus(boardState.filter || 'all');
-  }, [boardState.filter]);
-
-  const loadProgressCache = useCallback(() => {
+  const loadOverview = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
-      return JSON.parse(localStorage.getItem(LOCAL_PROGRESS_KEY)) || {};
-    } catch {
-      return {};
-    }
-  }, []);
-
-  const saveProgressCache = useCallback(
-    (taskId, metrics) => {
-      const cache = loadProgressCache();
-      cache[taskId] = metrics;
-      localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(cache));
-    },
-    [loadProgressCache],
-  );
-
-  const mergeProgressFromCache = useCallback(
-    (tasks) => {
-      const cache = loadProgressCache();
-      return (tasks || []).map((task) => {
-        const id = getTaskId(task);
-        if (!id) return task;
-
-        if (task.metrics || !cache[id]) {
-          return task;
-        }
-
-        return {
-          ...task,
-          metrics: cache[id],
-        };
-      });
-    },
-    [loadProgressCache],
-  );
-
-  const fetchDashboardData = useCallback(async ({ silent = false } = {}) => {
-    try {
-      if (!silent) setLoading(true);
-
-      const [dashboardRes, myTasksRes, availableRes] = await Promise.all([
-        api.get('/freelancer/dashboard'),
-        api.get('/freelancer/my-tasks?limit=50'),
-        api.get('/freelancer/available-tasks?limit=50'),
+      const [summary, offers] = await Promise.all([
+        api.get("/freelancer/dashboard"),
+        api.get("/freelancer/available-tasks", { params: { page: 1, limit: 4, sortBy: "updated_at", sortOrder: "desc" } }),
       ]);
-
-      if (dashboardRes.data.success) {
-        setStats(dashboardRes.data.data || {});
-      }
-
-      if (myTasksRes.data.success) {
-        setMyTasks(mergeProgressFromCache(myTasksRes.data.data.tasks || []));
-      }
-
-      if (availableRes.data.success) {
-        setAvailableTasks(mergeProgressFromCache(availableRes.data.data.tasks || []));
-      }
-
-      setError(null);
-    } catch (fetchError) {
-      const message = fetchError?.message || 'Failed to load dashboard';
+      setDashboard(summary.data.data);
+      setAvailableTasks(offers.data.data?.tasks || []);
+      setAvailablePagination(offers.data.meta?.pagination || null);
+      setError("");
+    } catch (requestError) {
+      const message = apiError(requestError, "Freelancer workspace could not be loaded");
       setError(message);
-      if (!silent) {
-        toast.error('Failed to load freelancer workspace. Please refresh.');
-      }
+      if (!silent) toast.error(message);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [mergeProgressFromCache]);
-
-  const fetchEarnings = useCallback(async () => {
-    try {
-      const response = await api.get('/freelancer/earnings?limit=80');
-      if (response.data.success) {
-        setEarnings(response.data.data.payments || []);
-      }
-    } catch (fetchError) {
-      toast.error(fetchError?.message || 'Failed to load earnings');
-    }
   }, []);
 
-  const fetchReviews = useCallback(async () => {
+  const loadMyWork = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setSectionLoading(true);
     try {
-      const response = await api.get('/freelancer/reviews?limit=80');
-      if (response.data.success) {
-        setReviews(response.data.data || []);
-      }
-    } catch (fetchError) {
-      toast.error(fetchError?.message || 'Failed to load reviews');
-    }
-  }, []);
+      const response = await api.get("/freelancer/my-tasks", { params: { page: myPage, limit: 10, status: status || undefined, search: debouncedSearch || undefined, sortBy: "created_at", sortOrder: preferences.defaultTaskSort === "oldest" ? "asc" : "desc" } });
+      setMyTasks(response.data.data?.tasks || []);
+      setMyPagination(response.data.meta?.pagination || null);
+    } catch (requestError) { toast.error(apiError(requestError, "Your work could not be loaded")); }
+    finally { if (!silent) setSectionLoading(false); }
+  }, [debouncedSearch, myPage, preferences.defaultTaskSort, status]);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  useEffect(() => {
-    if (!preferences.autoRefresh) {
-      return undefined;
-    }
-
-    const seconds = Math.max(30, Number(preferences.autoRefreshSeconds || 120));
-    const timer = window.setInterval(() => {
-      fetchDashboardData({ silent: true });
-    }, seconds * 1000);
-
-    return () => window.clearInterval(timer);
-  }, [preferences.autoRefresh, preferences.autoRefreshSeconds, fetchDashboardData]);
-
-  useEffect(() => {
-    if (activeTab === 'earnings' && earnings.length === 0) {
-      fetchEarnings();
-    }
-    if (activeTab === 'reviews' && reviews.length === 0) {
-      fetchReviews();
-    }
-  }, [activeTab, earnings.length, reviews.length, fetchEarnings, fetchReviews]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchDashboardData({ silent: false });
-    if (activeTab === 'earnings') await fetchEarnings();
-    if (activeTab === 'reviews') await fetchReviews();
-    setRefreshing(false);
-    toast.success('Freelancer workspace refreshed');
-  };
-
-  const handleAcceptTask = async (taskId) => {
+  const loadAvailable = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setSectionLoading(true);
     try {
-      const response = await api.post(`/freelancer/tasks/${taskId}/accept`);
-      if (response.data.success) {
-        toast.success('Task accepted successfully');
-        await fetchDashboardData();
-        setActiveTab('myTasks');
-      }
-    } catch (acceptError) {
-      const message =
-        acceptError.response?.data?.error?.message ||
-        acceptError.response?.data?.message ||
-        'Failed to accept task';
-      toast.error(message);
+      const response = await api.get("/freelancer/available-tasks", { params: { page: availablePage, limit: 10, search: debouncedSearch || undefined, sortBy: "created_at", sortOrder: preferences.defaultTaskSort === "oldest" ? "asc" : "desc" } });
+      setAvailableTasks(response.data.data?.tasks || []);
+      setAvailablePagination(response.data.meta?.pagination || null);
+    } catch (requestError) { toast.error(apiError(requestError, "Available work could not be loaded")); }
+    finally { if (!silent) setSectionLoading(false); }
+  }, [availablePage, debouncedSearch, preferences.defaultTaskSort]);
+
+  const loadEarnings = useCallback(async () => { setSectionLoading(true); try { const response = await api.get("/freelancer/earnings"); setEarnings(response.data.data?.payments || []); } catch (error) { toast.error(apiError(error, "Earnings could not be loaded")); } finally { setSectionLoading(false); } }, []);
+  const loadReviews = useCallback(async () => { setSectionLoading(true); try { const response = await api.get("/freelancer/reviews"); setReviews(response.data.data || []); } catch (error) { toast.error(apiError(error, "Reviews could not be loaded")); } finally { setSectionLoading(false); } }, []);
+
+  useEffect(() => { loadOverview(); }, [loadOverview]);
+  useEffect(() => { const timer = window.setTimeout(() => { setMyPage(1); setAvailablePage(1); setDebouncedSearch(search.trim()); }, 250); return () => window.clearTimeout(timer); }, [search]);
+  useEffect(() => { if (view === "work") loadMyWork(); }, [loadMyWork, view]);
+  useEffect(() => { if (view === "available") loadAvailable(); }, [loadAvailable, view]);
+  useEffect(() => { if (view === "earnings") loadEarnings(); }, [loadEarnings, view]);
+  useEffect(() => { if (view === "reviews") loadReviews(); }, [loadReviews, view]);
+  useEffect(() => { if (!preferences.autoRefresh) return undefined; const timer = window.setInterval(() => loadOverview({ silent: true }), Math.max(30, Number(preferences.autoRefreshSeconds || 120)) * 1000); return () => window.clearInterval(timer); }, [loadOverview, preferences.autoRefresh, preferences.autoRefreshSeconds]);
+
+  useRealtimeEvents(useCallback((event) => {
+    const type = event?.type;
+    if (["task.status_changed", "task.progress.updated"].includes(type)) {
+      loadOverview({ silent: true });
+      if (view === "work") loadMyWork({ silent: true });
     }
+    if (["offer.new", "offer.updated"].includes(type) && view === "available") loadAvailable({ silent: true });
+    if (type === "payout.new" && view === "earnings") loadEarnings();
+    if (type === "review.new" && view === "reviews") loadReviews();
+  }, [loadAvailable, loadEarnings, loadMyWork, loadOverview, loadReviews, view]));
+
+  const refresh = async () => { setRefreshing(true); await loadOverview({ silent: true }); if (view === "work") await loadMyWork({ silent: true }); if (view === "available") await loadAvailable({ silent: true }); if (view === "earnings") await loadEarnings(); if (view === "reviews") await loadReviews(); setRefreshing(false); toast.success("Workspace refreshed"); };
+  const mutateTask = async (key, request, success) => {
+    if (busyAction) return false;
+    setBusyAction(key);
+    try { await request(); toast.success(success); setSelectedTask(null); await loadOverview({ silent: true }); if (view === "work") await loadMyWork({ silent: true }); if (view === "available") await loadAvailable({ silent: true }); return true; }
+    catch (error) { const fallback = error?.response?.status === 409 ? "This task is no longer available." : "The task could not be updated"; toast.error(apiError(error, fallback)); return false; }
+    finally { setBusyAction(""); }
   };
-
-  const handleStartWorking = async (task) => {
-    try {
-      await api.put(`/freelancer/tasks/${getTaskId(task)}/start`);
-      toast.success('Task marked as in progress');
-      setShowDetailsModal(false);
-      await fetchDashboardData();
-    } catch (startError) {
-      toast.error(startError.response?.data?.message || 'Could not start task');
-    }
-  };
-
-  const handleCancelTask = async (task) => {
-    try {
-      await api.put(`/freelancer/tasks/${getTaskId(task)}/cancel`);
-      toast.success('Task returned to available pool');
-      setShowDetailsModal(false);
-      await fetchDashboardData();
-    } catch (cancelError) {
-      toast.error(cancelError.response?.data?.message || 'Could not cancel task');
-    }
-  };
-
-  const handleUpdateProgress = async (taskId, progressPayload) => {
-    try {
-      await api.put(`/freelancer/tasks/${taskId}/progress`, progressPayload);
-      toast.success('Progress updated');
-      saveProgressCache(taskId, {
-        ...(selectedTask?.metrics || {}),
-        ...progressPayload,
-        progressUpdatedAt: new Date().toISOString(),
-      });
-      await fetchDashboardData();
-    } catch (progressError) {
-      toast.error(progressError.response?.data?.message || 'Could not update progress');
-    }
-  };
-
-  const handleAvailabilityChange = async (availability) => {
-    try {
-      setAvailabilityUpdating(true);
-      const response = await api.put('/freelancer/profile', { availability });
-      if (response.data.success) {
-        toast.success(`Availability set to ${availability.replace('_', ' ')}`);
-        updateUser({
-          ...user,
-          freelancer_profile: response.data.data.freelancerProfile,
-        });
-      }
-    } catch (availabilityError) {
-      toast.error(availabilityError.response?.data?.message || 'Could not update availability');
-    } finally {
-      setAvailabilityUpdating(false);
-    }
-  };
-
-  const mySkills = (user?.freelancer_profile?.skills || []).map((skill) => skill.toLowerCase());
-
-  const togglePinTask = (taskId) => {
-    if (!preferences.quickActions.pinning || !taskId) return;
-
-    setPinnedTaskIds((prev) =>
-      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [taskId, ...prev],
-    );
-  };
-
-  const handleTaskSortChange = useCallback(
-    (nextSort) => {
-      setTaskSort(nextSort);
-      updateBoardState({ sort: nextSort });
-    },
-    [updateBoardState],
-  );
-
-  const handleFilterStatusChange = useCallback(
-    (nextFilter) => {
-      setFilterStatus(nextFilter);
-      updateBoardState({ filter: nextFilter });
-    },
-    [updateBoardState],
-  );
-
-  const taskLayout = boardState.view || preferences.taskLayout || 'list';
-  const handleTaskLayoutChange = useCallback(
-    (nextLayout) => {
-      setPreference('taskLayout', nextLayout);
-      updateBoardState({ view: nextLayout });
-    },
-    [setPreference, updateBoardState],
-  );
-
-  useRealtimeEvents(
-    useCallback(
-      (event) => {
-        const type = event?.type;
-        if (!type) return;
-
-        const refreshEvents = new Set([
-          'task.status_changed',
-          'task.progress.updated',
-          'task.comment.created',
-          'task.subtask.created',
-          'task.subtask.updated',
-          'task.subtask.deleted',
-          'offer.new',
-          'offer.updated',
-          'notification.created',
-          'settings.preferences.updated',
-          'settings.preset.applied',
-          'settings.board.updated',
-        ]);
-
-        if (refreshEvents.has(type)) {
-          fetchDashboardData({ silent: true });
-        }
-
-        if (type === 'review.new') {
-          toast.success('New review received');
-          if (activeTab === 'reviews') {
-            fetchReviews();
-          }
-        }
-
-        if (type === 'payout.new') {
-          toast.success('New payout update available');
-          if (activeTab === 'earnings') {
-            fetchEarnings();
-          }
-        }
-      },
-      [activeTab, fetchDashboardData, fetchEarnings, fetchReviews],
-    ),
-  );
-
-  const processTasks = useCallback(
-    (tasks, { allowStatusFilter = false } = {}) => {
-      let filtered = [...tasks];
-
-      if (allowStatusFilter && filterStatus !== 'all') {
-        filtered = filtered.filter((task) => task.status === filterStatus);
-      }
-
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        filtered = filtered.filter((task) => {
-          const title = getTaskTitle(task).toLowerCase();
-          const description = getTaskDescription(task).toLowerCase();
-          return title.includes(query) || description.includes(query);
-        });
-      }
-
-      if (!allowStatusFilter && matchSkills && mySkills.length > 0) {
-        filtered = filtered.filter((task) => {
-          const haystack = `${getTaskTitle(task)} ${getTaskDescription(task)}`.toLowerCase();
-          return mySkills.some((skill) => haystack.includes(skill));
-        });
-      }
-
-      const sorted = filtered.sort((left, right) => {
-        if (taskSort === 'newest') {
-          return new Date(getTaskCreatedAt(right) || 0) - new Date(getTaskCreatedAt(left) || 0);
-        }
-        if (taskSort === 'oldest') {
-          return new Date(getTaskCreatedAt(left) || 0) - new Date(getTaskCreatedAt(right) || 0);
-        }
-        if (taskSort === 'budget_high') {
-          return getTaskBudget(right) - getTaskBudget(left);
-        }
-        if (taskSort === 'budget_low') {
-          return getTaskBudget(left) - getTaskBudget(right);
-        }
-        if (taskSort === 'deadline_soon') {
-          const leftDeadline = new Date(getTaskDeadline(left) || '9999-12-31').getTime();
-          const rightDeadline = new Date(getTaskDeadline(right) || '9999-12-31').getTime();
-          return leftDeadline - rightDeadline;
-        }
-        return 0;
-      });
-
-      if (!preferences.quickActions.pinning || pinnedTaskIds.length === 0) {
-        return sorted;
-      }
-
-      return sorted.sort((left, right) => {
-        const leftPinned = pinnedTaskIds.includes(getTaskId(left));
-        const rightPinned = pinnedTaskIds.includes(getTaskId(right));
-        if (leftPinned === rightPinned) return 0;
-        return leftPinned ? -1 : 1;
-      });
-    },
-    [filterStatus, matchSkills, mySkills, taskSort, searchTerm, preferences.quickActions.pinning, pinnedTaskIds],
-  );
-
-  const filteredMyTasks = useMemo(() => processTasks(myTasks, { allowStatusFilter: true }), [myTasks, processTasks]);
-  const filteredAvailableTasks = useMemo(() => processTasks(availableTasks), [availableTasks, processTasks]);
-
-  const boardMatchers = useMemo(
-    () => ({
-      active: (status) => [TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS].includes(status),
-      review: (status) => [TASK_STATUS.SUBMITTED_WORK, TASK_STATUS.QA_REVIEW].includes(status),
-      done: (status) => status === TASK_STATUS.COMPLETED,
-      other: (status) =>
-        ![
-          TASK_STATUS.ASSIGNED,
-          TASK_STATUS.IN_PROGRESS,
-          TASK_STATUS.SUBMITTED_WORK,
-          TASK_STATUS.QA_REVIEW,
-          TASK_STATUS.COMPLETED,
-        ].includes(status),
-    }),
-    [],
-  );
-
-  const boardColumns = useMemo(
-    () =>
-      (orderedColumns.length > 0
-        ? orderedColumns
-        : [
-            { id: 'active', title: 'Active' },
-            { id: 'review', title: 'Review' },
-            { id: 'done', title: 'Done' },
-            { id: 'other', title: 'Other' },
-          ]
-      ).map((column) => ({
-        ...column,
-        matcher: boardMatchers[column.id] || (() => false),
-      })),
-    [boardMatchers, orderedColumns],
-  );
-
-  const taskColumnOverrides = useMemo(() => {
-    const overrideMap = {};
-    Object.entries(boardState.taskOrder || {}).forEach(([columnId, taskIds]) => {
-      (Array.isArray(taskIds) ? taskIds : []).forEach((taskId) => {
-        overrideMap[taskId] = columnId;
-      });
-    });
-    return overrideMap;
-  }, [boardState.taskOrder]);
-
-  const groupedMyTasks = useMemo(() => {
-    const grouped = boardColumns.reduce((acc, column) => {
-      acc[column.id] = [];
-      return acc;
-    }, {});
-
-    filteredMyTasks.forEach((task) => {
-      const taskId = getTaskId(task);
-      const manualColumn = taskColumnOverrides[taskId];
-
-      if (manualColumn && grouped[manualColumn]) {
-        grouped[manualColumn].push(task);
-        return;
-      }
-
-      const defaultColumn =
-        boardColumns.find((column) => column.matcher(task.status))?.id ||
-        boardColumns[boardColumns.length - 1]?.id;
-
-      if (defaultColumn) {
-        grouped[defaultColumn].push(task);
-      }
-    });
-
-    return boardColumns.map((column) => ({
-      ...column,
-      tasks: sortTasksByColumnOrder(column.id, grouped[column.id] || []),
-    }));
-  }, [boardColumns, filteredMyTasks, sortTasksByColumnOrder, taskColumnOverrides]);
-
-  const deadlineRailTasks = useMemo(
-    () =>
-      myTasks
-        .filter((task) => {
-          const due = getTaskDeadline(task);
-          if (!due) return false;
-          if ([TASK_STATUS.COMPLETED, TASK_STATUS.CANCELLED].includes(task.status)) return false;
-          return !Number.isNaN(new Date(due).getTime());
-        })
-        .sort((left, right) => new Date(getTaskDeadline(left)) - new Date(getTaskDeadline(right)))
-        .slice(0, 6),
-    [myTasks],
-  );
-
-  const earningsSummary = useMemo(() => {
-    const released = earnings
-      .filter((payment) => payment.status === 'released')
-      .reduce((sum, payment) => sum + Number(payment.amounts?.freelancerPayout || 0), 0);
-
-    const escrowed = earnings
-      .filter((payment) => payment.status === 'escrowed')
-      .reduce((sum, payment) => sum + Number(payment.amounts?.freelancerPayout || 0), 0);
-
-    const last7Days = earnings
-      .filter((payment) => {
-        if (payment.status !== 'released') return false;
-        const createdAt = new Date(payment.created_at || payment.createdAt || 0).getTime();
-        if (Number.isNaN(createdAt)) return false;
-        return Date.now() - createdAt <= 7 * 24 * 60 * 60 * 1000;
-      })
-      .reduce((sum, payment) => sum + Number(payment.amounts?.freelancerPayout || 0), 0);
-
-    return {
-      released,
-      escrowed,
-      last7Days,
-    };
-  }, [earnings]);
-
-  const goalsProgress = useMemo(() => {
-    const earningsGoal = Math.max(1, Number(preferences.goals.weeklyEarnings || 1));
-    const tasksGoal = Math.max(1, Number(preferences.goals.weeklyCompletedTasks || 1));
-
-    const earningsValue = earningsSummary.last7Days || Number(stats.totalEarnings || 0);
-    const completedValue = Number(stats.completedTasks || 0);
-
-    return {
-      earnings: {
-        value: earningsValue,
-        goal: earningsGoal,
-        progress: Math.min(100, Math.round((earningsValue / earningsGoal) * 100)),
-      },
-      completed: {
-        value: completedValue,
-        goal: tasksGoal,
-        progress: Math.min(100, Math.round((completedValue / tasksGoal) * 100)),
-      },
-    };
-  }, [preferences.goals.weeklyEarnings, preferences.goals.weeklyCompletedTasks, earningsSummary.last7Days, stats.totalEarnings, stats.completedTasks]);
-
-  const exportEarningsCsv = () => {
-    if (earnings.length === 0) {
-      toast.error('No earnings data to export');
-      return;
-    }
-
-    const header = ['Task', 'Client', 'Amount', 'Status', 'Date'];
-    const rows = earnings.map((payment) => [
-      payment.task?.task_details?.title || 'Untitled',
-      `${payment.client?.profile?.firstName || ''} ${payment.client?.profile?.lastName || ''}`.trim(),
-      Number(payment.amounts?.freelancerPayout || 0),
-      payment.status || '',
-      formatDate(payment.created_at || payment.createdAt),
-    ]);
-
-    const csv = [header, ...rows]
-      .map((row) => row.map((value) => csvEscape(value)).join(','))
-      .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `tasknexus-freelancer-earnings-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-
-    toast.success('Earnings CSV exported');
-  };
-
-  const handleBoardTaskDragStart = (taskId, fromColumnId) => {
-    setDraggingTask({ taskId, fromColumnId });
-  };
-
-  const handleBoardTaskDrop = (toColumnId, insertAt = 0) => {
-    if (!draggingTask?.taskId) return;
-    moveTask(draggingTask.taskId, draggingTask.fromColumnId, toColumnId, insertAt);
-    setDraggingTask(null);
-  };
-
-  const handleBoardColumnDragStart = (columnId) => {
-    setDraggingColumn(columnId);
-  };
-
-  const handleBoardColumnDrop = (toColumnId) => {
-    if (!draggingColumn || draggingColumn === toColumnId) return;
-    const fromIndex = boardColumns.findIndex((column) => column.id === draggingColumn);
-    const toIndex = boardColumns.findIndex((column) => column.id === toColumnId);
-    if (fromIndex >= 0 && toIndex >= 0) {
-      reorderColumns(fromIndex, toIndex);
-    }
-    setDraggingColumn(null);
-  };
-
-  if (loading) {
-    return <Loading fullScreen={true} text="Loading freelancer workspace..." />;
-  }
-
-  if (error && !stats.totalTasks) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#010102] px-4 text-[#f7f8f8]">
-        <div className="text-center max-w-lg bg-white/90 border border-slate-100 rounded-3xl p-8 shadow-xl">
-          <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Unable to load workspace</h2>
-          <p className="text-slate-600 mb-5">{error}</p>
-          <button onClick={handleRefresh} className="btn btn-primary">Try Again</button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#010102] text-[#f7f8f8]">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <div className="flex flex-col gap-4 border-b border-[#23252a] pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="team-eyebrow">Freelancer workspace</p><p className="mt-1 text-sm text-[#8a8f98]">Assignments, availability, and delivery controls</p></div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => handleAvailabilityChange('available')} disabled={availabilityUpdating} className={user?.freelancer_profile?.availability === 'available' ? 'team-button-primary' : 'team-button-secondary'}>Available</button>
-            <button onClick={() => handleAvailabilityChange('busy')} disabled={availabilityUpdating} className={user?.freelancer_profile?.availability === 'busy' ? 'team-button-primary' : 'team-button-secondary'}>Busy</button>
-            <button onClick={handleRefresh} disabled={refreshing} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh</button>
-          </div>
-        </div>
-        {!preferences.focusMode && (
-          <section className="relative overflow-hidden rounded-xl border border-[#23252a] bg-[#0f1011] text-white">
-            <div className="relative p-8">
-              <h2 className="text-3xl font-bold mb-2">Welcome back, {user?.profile?.firstName || 'Freelancer'}</h2>
-              <p className="text-white/90">Run your workflow with board views, goals, smart filters, and progress controls.</p>
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-                <HeroBadge><Star className="w-4 h-4 mr-1" />{stats.rating || 0}/5 rating</HeroBadge>
-                <HeroBadge><Award className="w-4 h-4 mr-1" />{stats.onTimeDeliveryRate || 0}% on-time</HeroBadge>
-                <HeroBadge><Target className="w-4 h-4 mr-1" />{taskLayout} layout</HeroBadge>
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
-          <StatCard title="Active Tasks" value={stats.activeTasks || 0} icon={<Activity className="w-8 h-8 text-primary-600" />} color="bg-primary-50" />
-          <StatCard title="Pending Review" value={stats.pendingTasks || 0} icon={<Clock className="w-8 h-8 text-amber-600" />} color="bg-amber-50" />
-          <StatCard title="Completed" value={stats.completedTasks || 0} icon={<CheckCircle className="w-8 h-8 text-emerald-600" />} color="bg-emerald-50" />
-          <StatCard title="Total Earned" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(stats.totalEarnings || 0)} icon={<DollarSign className="w-8 h-8 text-green-600" />} color="bg-green-50" />
-          <StatCard title="Pending Payout" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(stats.pendingEarnings || 0)} icon={<DollarSign className="w-8 h-8 text-orange-600" />} color="bg-orange-50" />
-          <StatCard title="Performance" value={stats.performanceScore || 0} icon={<Target className="w-8 h-8 text-violet-600" />} color="bg-violet-50" />
-        </section>
-
-        {preferences.showAdvancedStats && (
-          <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <InsightCard title="Weekly Earnings Goal" value={`${goalsProgress.earnings.progress}%`} subtitle={`${preferences.hideFinancials ? 'Hidden' : formatCurrency(goalsProgress.earnings.value)} / ${preferences.hideFinancials ? 'Hidden' : formatCurrency(goalsProgress.earnings.goal)}`} />
-            <InsightCard title="Completed Goal" value={`${goalsProgress.completed.progress}%`} subtitle={`${goalsProgress.completed.value} / ${goalsProgress.completed.goal} tasks`} />
-            <InsightCard title="Last 7 Days" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(earningsSummary.last7Days)} subtitle="Released payouts" />
-            <InsightCard title="Escrowed" value={preferences.hideFinancials ? 'Hidden' : formatCurrency(earningsSummary.escrowed)} subtitle="Pending release" />
-          </section>
-        )}
-
-        {preferences.showDeadlineRail && deadlineRailTasks.length > 0 && (
-          <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm uppercase tracking-wide font-semibold text-slate-500 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary-600" />
-                Due Soon
-              </h3>
-              <p className="text-xs text-slate-500">Your nearest active deadlines.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {deadlineRailTasks.map((task) => {
-                const dueBadge = getDueBadge(task);
-                return (
-                  <button
-                    key={getTaskId(task)}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTask(task);
-                      setShowDetailsModal(true);
-                    }}
-                    className="text-left rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-primary-200 hover:shadow-sm transition"
-                  >
-                    <p className="font-semibold text-slate-900 text-sm line-clamp-1">{getTaskTitle(task)}</p>
-                    <p className="text-xs text-slate-500 mt-1">{formatDate(getTaskDeadline(task))}</p>
-                    <span className={`mt-2 inline-flex px-2 py-1 rounded-full text-[11px] font-semibold ${badgeTone(dueBadge.tone)}`}>
-                      {dueBadge.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm p-5">
-          <DashboardSettings
-            preferences={preferences}
-            togglePreference={togglePreference}
-            setPreference={setPreference}
-            resetPreferences={resetPreferences}
-            presets={presets}
-            activePresetId={activePresetId}
-            applyPreset={applyPreset}
-            savePreset={savePreset}
-            savingPreferences={savingPreferences || loadingPreferences}
-            syncError={syncError}
-            title="Freelancer Workspace Settings"
-          />
-        </section>
-
-        <section className="bg-white/90 border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <nav className="flex flex-wrap gap-2">
-              {[
-                { id: 'myTasks', label: `My Tasks (${myTasks.length})` },
-                { id: 'available', label: `Available (${availableTasks.length})` },
-                { id: 'earnings', label: 'Earnings' },
-                { id: 'reviews', label: `Reviews (${stats.totalReviews || 0})` },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border ${
-                    activeTab === tab.id
-                      ? 'bg-primary-50 text-primary-700 border-primary-200'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-            <div className="flex flex-wrap gap-2">
-              {['list', 'grid', 'board'].map((layout) => (
-                <button
-                  key={layout}
-                  type="button"
-                  onClick={() => handleTaskLayoutChange(layout)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border ${
-                    taskLayout === layout
-                      ? 'bg-primary-50 text-primary-700 border-primary-200'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary-200'
-                  }`}
-                >
-                  {layout}
-                </button>
-              ))}
-              <button type="button" onClick={resetBoardState} className="btn-sm btn-secondary">
-                Reset Board
-              </button>
-              {savingBoard && <span className="text-[11px] text-slate-500">Saving board...</span>}
-            </div>
-          </div>
-
-          {(activeTab === 'myTasks' || activeTab === 'available') && (
-            <div className="px-5 py-4 border-b border-slate-100 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="relative md:col-span-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search tasks by title or description"
-                    className="input pl-9 py-2"
-                  />
-                </div>
-
-                {activeTab === 'myTasks' ? (
-                  <label className="block">
-                    <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Status</p>
-                    <select
-                      value={filterStatus}
-                      onChange={(event) => handleFilterStatusChange(event.target.value)}
-                      className="input py-2"
-                    >
-                      {MY_TASK_FILTER_OPTIONS.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={matchSkills}
-                      onChange={(event) => setMatchSkills(event.target.checked)}
-                      className="accent-primary-600"
-                    />
-                    <span>Match my skills</span>
-                  </label>
-                )}
-
-                <label className="block">
-                  <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Sort</p>
-                  <select
-                    value={taskSort}
-                    onChange={(event) => handleTaskSortChange(event.target.value)}
-                    className="input py-2"
-                  >
-                    {TASK_SORT_OPTIONS.map((option) => (
-                      <option key={option.id} value={option.id}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-          )}
-
-          <div className="p-5">
-            {activeTab === 'myTasks' && (
-              filteredMyTasks.length === 0 ? (
-                <EmptyState icon={Briefcase} title="No tasks found" description="Try adjusting your filters or accept new work." />
-              ) : taskLayout === 'board' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-                  {groupedMyTasks.map((column) => (
-                    <div
-                      key={column.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"
-                      draggable
-                      onDragStart={() => handleBoardColumnDragStart(column.id)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={() => handleBoardColumnDrop(column.id)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-semibold text-slate-700">{column.title}</h4>
-                        <span className="text-xs font-semibold text-slate-500">{column.tasks.length}</span>
-                      </div>
-                      <div
-                        className="space-y-2 min-h-[60px]"
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => handleBoardTaskDrop(column.id, column.tasks.length)}
-                      >
-                        {column.tasks.map((task, index) => (
-                          <BoardTaskCard
-                            key={getTaskId(task)}
-                            task={task}
-                            columnId={column.id}
-                            onDragStart={handleBoardTaskDragStart}
-                            onDropAt={(toColumnId) => handleBoardTaskDrop(toColumnId, index)}
-                            onClick={() => {
-                              setSelectedTask(task);
-                              setShowDetailsModal(true);
-                            }}
-                            isPinned={pinnedTaskIds.includes(getTaskId(task))}
-                            onTogglePin={() => togglePinTask(getTaskId(task))}
-                            canPin={preferences.quickActions.pinning}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className={taskLayout === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-4'}>
-                  {filteredMyTasks.map((task) => (
-                    <FreelancerTaskCard
-                      key={getTaskId(task)}
-                      task={task}
-                      onView={() => {
-                        setSelectedTask(task);
-                        setShowDetailsModal(true);
-                      }}
-                      isPinned={pinnedTaskIds.includes(getTaskId(task))}
-                      onTogglePin={() => togglePinTask(getTaskId(task))}
-                      canPin={preferences.quickActions.pinning}
-                      hideFinancials={preferences.hideFinancials}
-                      preferences={preferences}
-                    />
-                  ))}
-                </div>
-              )
-            )}
-
-            {activeTab === 'available' && (
-              filteredAvailableTasks.length === 0 ? (
-                <EmptyState icon={Search} title="No available tasks" description="Check back later for new opportunities." />
-              ) : (
-                <div className={taskLayout === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-4'}>
-                  {filteredAvailableTasks.map((task) => (
-                    <FreelancerTaskCard
-                      key={getTaskId(task)}
-                      task={task}
-                      onView={() => {
-                        setSelectedTask(task);
-                        setShowDetailsModal(true);
-                      }}
-                      isPinned={pinnedTaskIds.includes(getTaskId(task))}
-                      onTogglePin={() => togglePinTask(getTaskId(task))}
-                      canPin={preferences.quickActions.pinning}
-                      hideFinancials={preferences.hideFinancials}
-                      preferences={preferences}
-                      isAvailable={true}
-                      onAccept={() => handleAcceptTask(getTaskId(task))}
-                    />
-                  ))}
-                </div>
-              )
-            )}
-
-            {activeTab === 'earnings' && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-lg font-semibold text-slate-900">Earnings Overview</h3>
-                  {preferences.quickActions.export && (
-                    <button onClick={exportEarningsCsv} className="btn btn-secondary">Export CSV</button>
-                  )}
-                </div>
-                {earnings.length === 0 ? (
-                  <EmptyState icon={DollarSign} title="No earnings yet" description="Complete tasks to start earning." />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                      <thead className="bg-slate-50 border-b border-slate-100">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Task</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Client</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Amount</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {earnings.map((payment) => (
-                          <tr key={payment.id} className="hover:bg-slate-50/70">
-                            <td className="px-4 py-3 text-sm text-slate-900">{payment.task?.task_details?.title || 'Untitled task'}</td>
-                            <td className="px-4 py-3 text-sm text-slate-600">{payment.client?.profile?.firstName} {payment.client?.profile?.lastName}</td>
-                            <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{preferences.hideFinancials ? 'Hidden' : formatCurrency(payment.amounts?.freelancerPayout)}</td>
-                            <td className="px-4 py-3 text-sm text-slate-600">{payment.status}</td>
-                            <td className="px-4 py-3 text-sm text-slate-600">{formatDate(payment.created_at || payment.createdAt)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'reviews' && (
-              reviews.length === 0 ? (
-                <EmptyState icon={Star} title="No reviews yet" description="Complete more work to collect reviews." />
-              ) : (
-                <div className="space-y-4">
-                  {reviews.map((review) => (
-                    <div key={review.id} className="border border-slate-200 rounded-xl p-4 bg-white">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div>
-                          <p className="font-semibold text-slate-900">{review.task?.task_details?.title || 'Untitled task'}</p>
-                          <p className="text-sm text-slate-600">{review.reviewer?.profile?.firstName} {review.reviewer?.profile?.lastName}</p>
-                        </div>
-                        <div className="flex items-center">
-                          {[...Array(5)].map((_, idx) => (
-                            <Star key={idx} className={`w-4 h-4 ${idx < review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`} />
-                          ))}
-                        </div>
-                      </div>
-                      {review.feedback && <p className="text-sm text-slate-700 mb-2">{review.feedback}</p>}
-                      <p className="text-xs text-slate-500">{formatDate(review.created_at || review.createdAt)}</p>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-          </div>
-        </section>
-      </main>
-
-      <TaskDetailsModal
-        isOpen={showDetailsModal}
-        onClose={() => setShowDetailsModal(false)}
-        task={selectedTask}
-        onStartWorking={handleStartWorking}
-        onCancelTask={handleCancelTask}
-        onUpdateProgress={handleUpdateProgress}
-      />
-    </div>
-  );
+  const accept = (task) => mutateTask(`accept-${task.id}`, () => api.post(`/freelancer/tasks/${task.id}/accept`), "Task accepted");
+  const start = (task) => mutateTask(`start-${task.id}`, () => api.put(`/freelancer/tasks/${task.id}/start`), "Work started");
+  const cancel = (task) => mutateTask(`cancel-${task.id}`, () => api.put(`/freelancer/tasks/${task.id}/cancel`), "Task returned to the marketplace");
+  const progress = (task, payload) => mutateTask(`progress-${task.id}`, () => api.put(`/freelancer/tasks/${task.id}/progress`, payload), "Progress updated");
+  const submit = (task, payload) => mutateTask(`submit-${task.id}`, () => api.post(`/tasks/${task.id}/submit`, payload), "Work submitted for review");
+  const revise = (task, payload) => mutateTask(`revision-${task.id}`, () => api.put(`/freelancer/submissions/${task.active_submission.id}`, payload), "Revision submitted for review");
+  const updateAvailability = async (availability) => { if (busyAction) return; setBusyAction("availability"); try { const response = await api.put("/freelancer/profile", { availability }); updateUser({ ...user, freelancer_profile: response.data.data.freelancerProfile }); toast.success("Availability updated"); } catch (error) { toast.error(apiError(error, "Availability could not be updated")); } finally { setBusyAction(""); } };
+
+  const metrics = useMemo(() => [
+    { label: "Active work", value: dashboard?.activeTasks || 0 },
+    { label: "Awaiting review", value: dashboard?.pendingTasks || 0 },
+    { label: "Total earnings", value: preferences.hideFinancials ? "Hidden" : formatCurrency(dashboard?.totalEarnings || 0) },
+    { label: "Rating", value: dashboard?.totalReviews ? `${dashboard.rating}/5` : "No reviews" },
+  ], [dashboard, preferences.hideFinancials]);
+  if (loading) return <Loading fullScreen text="Loading freelancer workspace..." />;
+  if (error && !dashboard) return <main className="flex min-h-[70dvh] items-center justify-center bg-[#010102] px-4 text-[#f7f8f8]"><div className="max-w-md rounded-xl border border-red-900 bg-red-950/20 p-6 text-center"><h1 className="text-xl font-semibold">Unable to load workspace</h1><p className="mt-2 text-sm text-[#8a8f98]">{error}</p><button onClick={() => loadOverview()} className="team-button-primary mt-5">Try again</button></div></main>;
+
+  const currentWork = dashboard?.currentWork || [];
+  return <div className="min-h-screen bg-[#010102] text-[#f7f8f8]"><main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+    <WorkspaceHeader eyebrow="Freelancer workspace" title="Deliver great work, one next step at a time." description="Manage assignments, deadlines, submissions, and earnings from one focused workspace." actions={<><button onClick={() => setView("available")} className="team-button-primary"><Compass className="h-4 w-4" /> Explore work</button><label><span className="sr-only">Availability</span><select value={user?.freelancer_profile?.availability || "available"} onChange={(event) => updateAvailability(event.target.value)} disabled={busyAction === "availability"} className="team-input min-h-10 w-auto py-2">{availabilityOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button onClick={refresh} disabled={refreshing} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh</button><button onClick={() => setShowSettings(true)} className="team-icon-button" aria-label="Open workspace settings"><Settings2 className="h-4 w-4" /></button></>} />
+    <nav className="flex gap-1 overflow-x-auto pb-1" aria-label="Freelancer workspace views">{VIEWS.map(([id, label]) => <button key={id} onClick={() => setView(id)} aria-pressed={view === id} className={`team-choice whitespace-nowrap ${view === id ? "is-active" : ""}`}>{label}</button>)}</nav>
+    {view === "overview" ? <><MetricStrip items={metrics} />{!dashboard?.totalTasks && !availableTasks.length ? <SectionCard title="No active work" description="Complete your profile and browse available tasks when you're ready."><EmptyState icon={Compass} title="Find your next task" description="Available, administrator-approved marketplace work will appear here." action={<button onClick={() => setView("available")} className="team-button-primary">Find work</button>} /></SectionCard> : <><SectionCard title="Current work" description="Assignments ordered by recent activity" action={<button onClick={() => setView("work")} className="text-sm text-[#b7bdf8]">View all</button>}><WorkTable tasks={currentWork} onOpen={setSelectedTask} hideFinancials={preferences.hideFinancials} /></SectionCard><SectionCard title="Available for you" description="Open marketplace tasks—no opaque match score" action={<button onClick={() => setView("available")} className="text-sm text-[#b7bdf8]">Browse all</button>}><AvailableGrid tasks={availableTasks.slice(0, 4)} onOpen={setSelectedTask} onAccept={accept} busyAction={busyAction} hideFinancials={preferences.hideFinancials} /></SectionCard></>}</> : null}
+    {view === "work" ? <SectionCard title="My work" description="Server-paginated assignments and delivery history"><TaskFilters search={search} setSearch={setSearch} status={status} setStatus={(value) => { setStatus(value); setMyPage(1); }} showStatus />{sectionLoading ? <Spinner /> : <WorkTable tasks={myTasks} onOpen={setSelectedTask} hideFinancials={preferences.hideFinancials} />}<Pagination pagination={myPagination} onPage={setMyPage} disabled={sectionLoading} /></SectionCard> : null}
+    {view === "available" ? <SectionCard title="Available work" description="Administrator-approved tasks that are still unassigned"><TaskFilters search={search} setSearch={setSearch} />{sectionLoading ? <Spinner /> : <AvailableGrid tasks={availableTasks} onOpen={setSelectedTask} onAccept={accept} busyAction={busyAction} hideFinancials={preferences.hideFinancials} />}<Pagination pagination={availablePagination} onPage={setAvailablePage} disabled={sectionLoading} /></SectionCard> : null}
+    {view === "earnings" ? <SectionCard title="Earnings" description="Released and pending payout records">{sectionLoading ? <Spinner /> : earnings.length ? <div className="overflow-x-auto"><table className="min-w-[650px] w-full text-left text-sm"><thead className="text-xs text-[#62666d]"><tr><th className="pb-3 pr-5 font-medium">Payment</th><th className="pb-3 pr-5 font-medium">Status</th><th className="pb-3 pr-5 font-medium">Payout</th><th className="pb-3 font-medium">Date</th></tr></thead><tbody className="divide-y divide-[#23252a]">{earnings.map((payment) => <tr key={payment.id}><td className="py-4 pr-5">{payment.payment_id || payment.id}</td><td className="py-4 pr-5 capitalize text-[#8a8f98]">{payment.status}</td><td className="py-4 pr-5">{preferences.hideFinancials ? "Hidden" : formatCurrency(payment.amounts?.freelancerPayout)}</td><td className="py-4 text-[#8a8f98]">{formatDate(payment.created_at)}</td></tr>)}</tbody></table></div> : <EmptyState icon={DollarSign} title="No earnings yet" description="Approved work and payout records will appear here." />}</SectionCard> : null}
+    {view === "reviews" ? <SectionCard title="Reviews" description="Feedback from completed marketplace work">{sectionLoading ? <Spinner /> : reviews.length ? <div className="grid gap-3 md:grid-cols-2">{reviews.map((review) => <article key={review.id} className="rounded-xl border border-[#23252a] bg-[#141516] p-4"><div className="flex gap-1" aria-label={`${review.rating} out of 5 stars`}>{[1,2,3,4,5].map((value) => <Star key={value} className={`h-4 w-4 ${value <= review.rating ? "fill-amber-300 text-amber-300" : "text-[#62666d]"}`} />)}</div><p className="mt-3 text-sm text-[#d0d6e0]">{review.feedback || "No written feedback."}</p><p className="mt-3 text-xs text-[#62666d]">{formatDate(review.created_at)}</p></article>)}</div> : <EmptyState icon={Star} title="No reviews yet" description="Reviews appear after completed work is rated." />}</SectionCard> : null}
+  </main><TaskDetailsModal isOpen={Boolean(selectedTask)} onClose={() => !busyAction && setSelectedTask(null)} task={selectedTask} busyAction={busyAction} onAccept={accept} onStart={start} onCancel={cancel} onProgress={progress} onSubmit={submit} onRevise={revise} /><WorkspaceSettingsDialog open={showSettings} onClose={() => setShowSettings(false)} role="freelancer" settings={preferenceState} /></div>;
 };
 
-const FreelancerTaskCard = ({
-  task,
-  onView,
-  isPinned,
-  onTogglePin,
-  canPin,
-  hideFinancials,
-  preferences,
-  isAvailable = false,
-  onAccept,
-}) => {
-  const compact = preferences?.compactCards;
-  const progress = task?.metrics?.progress ?? null;
-  const dueBadge = getDueBadge(task);
-
-  return (
-    <div className={`border border-slate-200 rounded-xl ${compact ? 'p-4' : 'p-5'} hover:shadow-lg transition bg-white`}>
-      <div className="flex justify-between items-start gap-3 mb-3">
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-slate-900 line-clamp-1">{getTaskTitle(task)}</p>
-          <p className="text-sm text-slate-600 line-clamp-2 mt-1">{getTaskDescription(task)}</p>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          {!isAvailable && <StatusBadge status={task.status} />}
-          {canPin && (
-            <button onClick={onTogglePin} className="text-slate-400 hover:text-amber-500 transition" type="button">
-              <Star className={`w-4 h-4 ${isPinned ? 'fill-amber-400 text-amber-500' : ''}`} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-4">
-        <span className="inline-flex items-center"><DollarSign className="w-4 h-4 mr-1 text-emerald-600" />{hideFinancials ? 'Hidden' : formatCurrency(getTaskBudget(task))}</span>
-        <span className="inline-flex items-center"><Calendar className="w-4 h-4 mr-1 text-blue-600" />{formatDate(getTaskDeadline(task))}</span>
-        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${badgeTone(dueBadge.tone)}`}>{dueBadge.label}</span>
-        {progress !== null && <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-1 rounded-full">{progress}% complete</span>}
-      </div>
-
-      {progress !== null && preferences?.showProgressBars && (
-        <div className="mb-4">
-          <div className="w-full bg-slate-100 rounded-full h-2">
-            <div className="h-2 rounded-full bg-[#5e6ad2]" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-between items-center gap-2">
-        <button onClick={onView} className="btn-sm btn-secondary flex items-center" type="button">
-          <Eye className="w-4 h-4 mr-1" />
-          View
-        </button>
-        {isAvailable && onAccept && (
-          <button onClick={onAccept} className="btn-sm btn-primary" type="button">
-            Accept Task
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const BoardTaskCard = ({
-  task,
-  columnId,
-  onDragStart,
-  onDropAt,
-  onClick,
-  isPinned,
-  onTogglePin,
-  canPin,
-}) => {
-  const dueBadge = getDueBadge(task);
-
-  return (
-    <div
-      className="rounded-lg border border-slate-200 bg-white p-3 cursor-grab"
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move';
-        onDragStart?.(getTaskId(task), columnId);
-      }}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        event.preventDefault();
-        onDropAt?.(columnId);
-      }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <button type="button" onClick={onClick} className="text-left min-w-0">
-          <p className="text-sm font-semibold text-slate-900 line-clamp-1">{getTaskTitle(task)}</p>
-          <p className="text-xs text-slate-500 mt-1">{formatDate(getTaskDeadline(task))}</p>
-        </button>
-        {canPin && (
-          <button onClick={onTogglePin} type="button" className="text-slate-400 hover:text-amber-500">
-            <Star className={`w-4 h-4 ${isPinned ? 'fill-amber-400 text-amber-500' : ''}`} />
-          </button>
-        )}
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <StatusBadge status={task.status} />
-        <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${badgeTone(dueBadge.tone)}`}>{dueBadge.label}</span>
-      </div>
-    </div>
-  );
-};
-
-const InsightCard = ({ title, value, subtitle }) => (
-  <div className="rounded-xl border border-slate-100 bg-white/90 p-4 shadow-sm">
-    <p className="text-xs uppercase tracking-wide font-semibold text-slate-500">{title}</p>
-    <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
-    <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
-  </div>
-);
-
-const HeroBadge = ({ children }) => (
-  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30">
-    {children}
-  </span>
-);
+const TaskFilters = ({ search, setSearch, status, setStatus, showStatus = false }) => <div className={`mb-5 grid gap-3 ${showStatus ? "sm:grid-cols-[minmax(0,1fr)_220px]" : ""}`}><label><span className="team-label">Search</span><span className="relative block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#62666d]" /><input className="team-input pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by task title" /></span></label>{showStatus ? <label><span className="team-label">Status</span><select className="team-input" value={status} onChange={(event) => setStatus(event.target.value)}>{workStatuses.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label> : null}</div>;
+const WorkTable = ({ tasks, onOpen, hideFinancials }) => tasks.length ? <div className="overflow-x-auto"><table className="min-w-[820px] w-full text-left text-sm"><thead className="text-xs text-[#62666d]"><tr><th className="pb-3 pr-5 font-medium">Task</th><th className="pb-3 pr-5 font-medium">Client</th><th className="pb-3 pr-5 font-medium">Status</th><th className="pb-3 pr-5 font-medium">Deadline</th><th className="pb-3 pr-5 font-medium">Progress</th><th className="pb-3 pr-5 font-medium">Payout</th><th className="pb-3 text-right font-medium">Next action</th></tr></thead><tbody className="divide-y divide-[#23252a]">{tasks.map((task) => { const due = dueLabel(task); return <tr key={task.id}><td className="max-w-64 py-4 pr-5"><p className="truncate font-medium">{taskTitle(task)}</p><p className="mt-1 text-xs text-[#62666d]">{task.task_id}</p></td><td className="py-4 pr-5 text-[#8a8f98]">{personName(task.client, "Client")}</td><td className="py-4 pr-5"><StatusBadge status={task.status} /></td><td className={`py-4 pr-5 ${due.urgent ? "text-amber-200" : "text-[#8a8f98]"}`}>{formatDate(taskDeadline(task))}<span className="mt-1 block text-xs">{due.label}</span></td><td className="py-4 pr-5">{Number(task.metrics?.progress || 0)}%</td><td className="py-4 pr-5">{hideFinancials ? "Hidden" : formatCurrency(taskBudget(task))}</td><td className="py-4 text-right"><button onClick={() => onOpen(task)} className={[TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS, TASK_STATUS.CLIENT_REVISION].includes(task.status) ? "team-button-primary" : "team-button-secondary"}>{task.status === TASK_STATUS.ASSIGNED ? "Start" : task.status === TASK_STATUS.IN_PROGRESS ? "Continue" : task.status === TASK_STATUS.CLIENT_REVISION ? "Open revision" : task.status === TASK_STATUS.DELIVERED ? "Waiting for review" : "View"}</button></td></tr>; })}</tbody></table></div> : <EmptyState icon={Briefcase} title="No active work" description="Browse available tasks when you're ready." />;
+const AvailableGrid = ({ tasks, onOpen, onAccept, busyAction, hideFinancials }) => tasks.length ? <div className="grid gap-3 md:grid-cols-2">{tasks.map((task) => <article key={task.id} className="rounded-xl border border-[#23252a] bg-[#141516] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate font-medium">{taskTitle(task)}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-[#8a8f98]">{task.task_details?.description}</p></div><span className="team-chip shrink-0">{hideFinancials ? "Hidden" : formatCurrency(taskBudget(task))}</span></div><div className="mt-4 flex flex-col items-start justify-between gap-3 text-xs text-[#62666d] sm:flex-row sm:items-center"><span>{formatDate(taskDeadline(task))}</span><div className="flex gap-2"><button onClick={() => onOpen(task)} className="team-button-secondary">View</button><button disabled={Boolean(busyAction)} onClick={() => onAccept(task)} className="team-button-primary">{busyAction === `accept-${task.id}` ? <RefreshCw className="h-4 w-4 animate-spin" /> : null} Accept</button></div></div></article>)}</div> : <EmptyState icon={Compass} title="No available tasks" description="Check back later for newly approved marketplace work." />;
+const Spinner = () => <div className="flex min-h-40 items-center justify-center"><RefreshCw className="h-5 w-5 animate-spin text-[#828fff]" aria-label="Loading" /></div>;
 
 export default FreelancerDashboard;

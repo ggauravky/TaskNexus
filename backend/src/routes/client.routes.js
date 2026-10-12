@@ -87,6 +87,12 @@ router.post(
       .withMessage("Invalid action"),
     body("feedback").optional().trim(),
     body("revisionRequested").optional().trim(),
+    body().custom((value) => {
+      if (value.action === "request_revision" && !String(value.revisionRequested || value.feedback || "").trim()) {
+        throw new Error("Revision feedback is required");
+      }
+      return true;
+    }),
   ],
   validate,
   clientController.reviewSubmission,

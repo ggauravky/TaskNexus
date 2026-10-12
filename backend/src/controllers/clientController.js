@@ -11,7 +11,17 @@ const { TASK_STATUS, PAYMENT_STATUS } = require("../config/constants");
 const realtimeHub = require("../services/realtimeHub");
 const { parseListQuery } = require("../utils/queryOptions");
 const { paginationMeta } = require("../utils/apiResponse");
-const { serializeTask } = require("../serializers");
+const { serializeSubmission, serializeTask } = require("../serializers");
+
+const decorateTasks = async (tasks) => {
+  const freelancerIds = [...new Set(tasks.map((task) => task.freelancer_id).filter(Boolean))];
+  const freelancers = await Promise.all(freelancerIds.map((id) => userData.findUserById(id)));
+  const byId = new Map(freelancers.filter(Boolean).map((user) => [user.id, user]));
+  return tasks.map((task) => serializeTask({
+    ...task,
+    freelancer: byId.get(task.freelancer_id) || null,
+  }));
+};
 
 /**
  * @desc    Get client dashboard overview with comprehensive statistics
@@ -22,8 +32,10 @@ exports.getDashboard = async (req, res, next) => {
   try {
     const clientId = req.user.id;
 
-    const allTasks = await taskData.findTasks({ client_id: clientId });
-    const payments = await paymentData.findPayments({ client_id: clientId });
+    const [allTasks, payments] = await Promise.all([
+      taskData.findTasks({ client_id: clientId }),
+      paymentData.findPayments({ client_id: clientId }),
+    ]);
 
     const totalTasks = allTasks.length;
     const completedTasks = allTasks.filter(
@@ -42,16 +54,7 @@ exports.getDashboard = async (req, res, next) => {
         TASK_STATUS.CLIENT_REVISION,
       ].includes(task.status)
     ).length;
-    const pendingReview = allTasks.filter((task) =>
-      [
-        TASK_STATUS.SUBMITTED,
-        TASK_STATUS.UNDER_REVIEW,
-        TASK_STATUS.SUBMITTED_WORK,
-        TASK_STATUS.QA_REVIEW,
-        TASK_STATUS.REVISION_REQUESTED,
-        TASK_STATUS.CLIENT_REVISION,
-      ].includes(task.status)
-    ).length;
+    const pendingReview = allTasks.filter((task) => task.status === TASK_STATUS.DELIVERED).length;
 
     const totalSpent = payments
       .filter((payment) => payment.status === PAYMENT_STATUS.RELEASED)
@@ -80,7 +83,17 @@ exports.getDashboard = async (req, res, next) => {
             }, 0) / completedWithWorkflow.length
           );
 
-    const recentTasks = allTasks.slice(0, 5);
+    const byUpdatedAt = (left, right) => new Date(right.updated_at || 0) - new Date(left.updated_at || 0);
+    const recentTasks = await decorateTasks([...allTasks].sort(byUpdatedAt).slice(0, 5));
+    const attentionTasks = await decorateTasks(allTasks
+      .filter((task) => {
+        if (task.status === TASK_STATUS.DELIVERED) return true;
+        if (![TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS, TASK_STATUS.CLIENT_REVISION].includes(task.status)) return false;
+        const deadline = new Date(task.task_details?.deadline || 0).getTime();
+        return Number.isFinite(deadline) && deadline < Date.now();
+      })
+      .sort(byUpdatedAt)
+      .slice(0, 5));
 
     res.status(200).json({
       success: true,
@@ -92,6 +105,7 @@ exports.getDashboard = async (req, res, next) => {
         totalSpent,
         avgCompletionTime,
         recentTasks,
+        attentionTasks,
         // Preserve nested fields for compatibility with older clients.
         taskStats: {
           total: totalTasks,
@@ -164,11 +178,13 @@ exports.getTaskDetails = async (req, res, next) => {
     const reviews = await reviewData.findReviews({ task_id: task.id });
     const payment = await paymentData.findPayments({ task_id: task.id });
 
+    const [decoratedTask] = await decorateTasks([task]);
+
     res.status(200).json({
       success: true,
       data: {
-        task,
-        submissions,
+        task: decoratedTask,
+        submissions: submissions.map(serializeSubmission),
         reviews,
         payment,
       },
@@ -202,10 +218,14 @@ exports.getSubmissions = async (req, res, next) => {
     }
 
     const submissions = await submissionData.findSubmissions(filters);
+    const tasksById = new Map(clientTasks.map((task) => [task.id, task]));
 
     res.status(200).json({
       success: true,
-      data: submissions,
+      data: submissions.map((submission) => serializeSubmission({
+        ...submission,
+        task: tasksById.get(submission.task_id) || null,
+      })),
     });
   } catch (error) {
     logger.error("Error fetching submissions:", error);
@@ -239,7 +259,7 @@ exports.getSubmissionDetails = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: submission,
+      data: serializeSubmission(submission),
     });
   } catch (error) {
     logger.error("Error fetching submission details:", error);
@@ -260,6 +280,13 @@ exports.reviewSubmission = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "Invalid action. Must be approve or request_revision",
+      });
+    }
+
+    if (action === "request_revision" && !String(revisionRequested || feedback || "").trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Revision feedback is required",
       });
     }
 
@@ -368,7 +395,6 @@ exports.reviewSubmission = async (req, res, next) => {
           reviewedAt: new Date(),
           feedback: revisionRequested || feedback || "",
         },
-        is_active: false,
       });
 
       await taskService.transitionTo(task.id, TASK_STATUS.CLIENT_REVISION);

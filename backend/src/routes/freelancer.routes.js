@@ -4,7 +4,16 @@ const freelancerController = require("../controllers/freelancerController");
 const { authenticate } = require("../middleware/auth");
 const { requireFreelancer } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
-const { body, param } = require("express-validator");
+const { body, param, query } = require("express-validator");
+const { raw: domain } = require("../contracts/domain");
+
+const taskListValidation = [
+  query("page").optional().isInt({ min: 1 }),
+  query("limit").optional().isInt({ min: 1, max: 100 }),
+  query("search").optional().trim().isLength({ max: 200 }),
+  query("sortBy").optional().trim(),
+  query("sortOrder").optional().isIn(["asc", "desc"]),
+];
 
 // All routes require authentication and freelancer role
 router.use(authenticate);
@@ -14,10 +23,10 @@ router.use(requireFreelancer);
 router.get("/dashboard", freelancerController.getDashboard);
 
 // Available tasks
-router.get("/available-tasks", freelancerController.getAvailableTasks);
+router.get("/available-tasks", taskListValidation, validate, freelancerController.getAvailableTasks);
 
 // My tasks
-router.get("/my-tasks", freelancerController.getMyTasks);
+router.get("/my-tasks", taskListValidation, validate, freelancerController.getMyTasks);
 
 // Accept a task
 router.post(
@@ -90,7 +99,7 @@ router.put(
     body("bio").optional().isString(),
     body("skills").optional(),
     body("hourlyRate").optional().isNumeric(),
-    body("availability").optional().isString(),
+    body("availability").optional().isIn(domain.freelancerAvailability),
     body("location").optional().isString(),
     body("experienceLevel").optional().isString(),
     body("website").optional().isString(),

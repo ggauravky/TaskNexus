@@ -1,256 +1,29 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-    ArrowLeft, TrendingUp, Users, Briefcase, DollarSign,
-    Activity, RefreshCw, BarChart3
-} from 'lucide-react';
-import api from '../services/api';
-import toast from 'react-hot-toast';
-import Loading from '../components/common/Loading';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
+import { MetricStrip, SectionCard, WorkspaceHeader } from "../components/dashboard/WorkspacePrimitives";
+import api from "../services/api";
+import { apiError, formatCurrency } from "../utils/marketplace";
 
 const AdminAnalytics = () => {
-    const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
-    const [analytics, setAnalytics] = useState(null);
-
-    useEffect(() => {
-        fetchAnalytics();
-    }, []);
-
-    const fetchAnalytics = async () => {
-        try {
-            setLoading(true);
-            const response = await api.get('/admin/statistics');
-            if (response.data.success) {
-                setAnalytics(response.data.data);
-            }
-        } catch (error) {
-            console.error('Error fetching analytics:', error);
-            toast.error('Failed to load analytics');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (loading) {
-        return <Loading fullScreen={true} text="Loading analytics..." />;
-    }
-
-    const stats = analytics || {};
-
-    return (
-        <div className="min-h-screen bg-[#010102] text-[#f7f8f8]">
-            {/* Header */}
-            <header className="border-b border-[#23252a] bg-[#010102]">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <button
-                                onClick={() => navigate('/admin/dashboard')}
-                                className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                                <ArrowLeft className="w-5 h-5" />
-                            </button>
-                            <div>
-                                <h1 className="text-2xl font-bold text-gray-900">Platform Analytics</h1>
-                                <p className="text-sm text-gray-600">Monitor platform performance and insights</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={fetchAnalytics}
-                            className="btn-sm btn-secondary flex items-center"
-                        >
-                            <RefreshCw className="w-4 h-4 mr-1" />
-                            Refresh
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-6 rounded-xl border border-[#23252a] bg-[#0f1011] p-6 text-white">
-                    <h2 className="text-2xl font-bold">Platform Intelligence</h2>
-                    <p className="text-primary-100 text-sm mt-1">Track growth, performance, and marketplace health.</p>
-                </div>
-
-                {/* Key Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <MetricCard
-                        title="Total Revenue"
-                        value={`$${(stats.totalRevenue || 0).toLocaleString()}`}
-                        icon={<DollarSign className="w-8 h-8 text-green-600" />}
-                        color="bg-green-50"
-                    />
-                    <MetricCard
-                        title="Active Users"
-                        value={stats.activeUsers || 0}
-                        icon={<Users className="w-8 h-8 text-blue-600" />}
-                        color="bg-blue-50"
-                    />
-                    <MetricCard
-                        title="Total Tasks"
-                        value={stats.totalTasks || 0}
-                        icon={<Briefcase className="w-8 h-8 text-purple-600" />}
-                        color="bg-purple-50"
-                    />
-                    <MetricCard
-                        title="Completion Rate"
-                        value={`${(stats.completionRate || 0).toFixed(1)}%`}
-                        icon={<Activity className="w-8 h-8 text-orange-600" />}
-                        color="bg-orange-50"
-                    />
-                </div>
-
-                {/* Task Statistics */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                            <BarChart3 className="w-5 h-5 mr-2" />
-                            Task Distribution by Status
-                        </h3>
-                        <div className="space-y-4">
-                            <StatusBar label="Submitted" count={stats.tasksByStatus?.submitted || 0} total={stats.totalTasks || 1} color="bg-gray-400" />
-                            <StatusBar label="Under Review" count={stats.tasksByStatus?.under_review || 0} total={stats.totalTasks || 1} color="bg-orange-400" />
-                            <StatusBar label="Assigned" count={stats.tasksByStatus?.assigned || 0} total={stats.totalTasks || 1} color="bg-blue-400" />
-                            <StatusBar label="In Progress" count={stats.tasksByStatus?.in_progress || 0} total={stats.totalTasks || 1} color="bg-yellow-400" />
-                            <StatusBar label="Completed" count={stats.tasksByStatus?.completed || 0} total={stats.totalTasks || 1} color="bg-green-400" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                            <Users className="w-5 h-5 mr-2" />
-                            User Distribution
-                        </h3>
-                        <div className="space-y-4">
-                            <UserBar label="Clients" count={stats.usersByRole?.clients || 0} total={stats.totalUsers || 1} color="bg-green-400" />
-                            <UserBar label="Freelancers" count={stats.usersByRole?.freelancers || 0} total={stats.totalUsers || 1} color="bg-purple-400" />
-                            <UserBar label="Admins" count={stats.usersByRole?.admins || 0} total={stats.totalUsers || 1} color="bg-red-400" />
-                        </div>
-                        <div className="mt-6 pt-6 border-t border-gray-200">
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-600">Total Users</span>
-                                <span className="text-2xl font-bold text-gray-900">{stats.totalUsers || 0}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Payment Statistics */}
-                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6 mb-8">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                        <DollarSign className="w-5 h-5 mr-2" />
-                        Payment Overview
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="text-center p-4 bg-green-50 rounded-lg">
-                            <p className="text-sm text-gray-600 mb-1">Completed Payments</p>
-                            <p className="text-3xl font-bold text-green-600">
-                                ${(stats.paymentStats?.completed || 0).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                                {stats.paymentStats?.completedCount || 0} transactions
-                            </p>
-                        </div>
-                        <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                            <p className="text-sm text-gray-600 mb-1">Pending Payments</p>
-                            <p className="text-3xl font-bold text-yellow-600">
-                                ${(stats.paymentStats?.pending || 0).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                                {stats.paymentStats?.pendingCount || 0} transactions
-                            </p>
-                        </div>
-                        <div className="text-center p-4 bg-purple-50 rounded-lg">
-                            <p className="text-sm text-gray-600 mb-1">Platform Revenue</p>
-                            <p className="text-3xl font-bold text-purple-600">
-                                ${(stats.platformRevenue || 0).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">Recorded platform fees</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Recent Growth */}
-                <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                        <TrendingUp className="w-5 h-5 mr-2" />
-                        Growth Metrics
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <GrowthMetric
-                            label="New Users (This Month)"
-                            value={stats.growth?.newUsers || 0}
-                        />
-                        <GrowthMetric
-                            label="New Tasks (This Month)"
-                            value={stats.growth?.newTasks || 0}
-                        />
-                        <GrowthMetric
-                            label="Task Completion Time (Avg)"
-                            value={`${stats.averageCompletionTime || 0} days`}
-                        />
-                        <GrowthMetric
-                            label="User Satisfaction Rate"
-                            value={`${(stats.satisfactionRate || 0).toFixed(1)}%`}
-                        />
-                    </div>
-                </div>
-            </main>
-        </div>
-    );
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => { setLoading(true); try { const response = await api.get("/admin/statistics"); setData(response.data.data); } catch (error) { toast.error(apiError(error, "Analytics could not be loaded")); } finally { setLoading(false); } }, []);
+  useEffect(() => { load(); }, [load]);
+  const metrics = useMemo(() => [
+    { label: "Active users", value: data?.activeUsers || 0 },
+    { label: "Total tasks", value: data?.totalTasks || 0 },
+    { label: "Completion rate", value: `${Number(data?.completionRate || 0).toFixed(1)}%` },
+    { label: "Platform fees", value: formatCurrency(data?.platformRevenue || 0) },
+  ], [data]);
+  const taskRows = Object.entries(data?.tasksByStatus || {});
+  const userRows = Object.entries(data?.usersByRole || {});
+  return <div className="min-h-screen bg-[#010102] text-[#f7f8f8]"><main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+    <WorkspaceHeader eyebrow="Admin workspace" title="Operational analytics" description="Authoritative platform aggregates from the backend—not partial browser data." actions={<><Link to="/admin/dashboard" className="team-button-secondary"><ArrowLeft className="h-4 w-4" /> Overview</Link><button onClick={load} disabled={loading} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button></>} />
+    {loading ? <div className="flex min-h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#828fff]" /></div> : <><MetricStrip items={metrics} /><div className="grid gap-6 lg:grid-cols-2"><SectionCard title="Tasks by status" description="Current marketplace lifecycle distribution"><Distribution rows={taskRows} total={data?.totalTasks || 0} /></SectionCard><SectionCard title="Users by global role" description="Client, freelancer, and administrator accounts"><Distribution rows={userRows} total={data?.totalUsers || 0} /></SectionCard></div><SectionCard title="Payment operations" description="Recorded payment totals and transaction counts"><div className="grid gap-px overflow-hidden rounded-xl border border-[#23252a] bg-[#23252a] sm:grid-cols-3"><Value label="Released payments" value={formatCurrency(data?.paymentStats?.completed)} detail={`${data?.paymentStats?.completedCount || 0} transactions`} /><Value label="Pending / escrowed" value={formatCurrency(data?.paymentStats?.pending)} detail={`${data?.paymentStats?.pendingCount || 0} transactions`} /><Value label="Platform fees" value={formatCurrency(data?.platformRevenue)} detail="Released fees" /></div></SectionCard><SectionCard title="Recent growth" description="Current calendar-month activity"><div className="grid gap-px overflow-hidden rounded-xl border border-[#23252a] bg-[#23252a] sm:grid-cols-4"><Value label="New users" value={data?.growth?.newUsers || 0} /><Value label="New tasks" value={data?.growth?.newTasks || 0} /><Value label="Average completion" value={`${Number(data?.averageCompletionTime || 0).toFixed(1)}d`} /><Value label="Satisfaction" value={`${Number(data?.satisfactionRate || 0).toFixed(1)}%`} /></div></SectionCard></>}
+  </main></div>;
 };
-
-const MetricCard = ({ title, value, icon, color }) => (
-    <div className="bg-white/90 rounded-2xl border border-slate-100 shadow-sm p-6">
-        <div className={`p-3 rounded-lg ${color} w-fit mb-3`}>
-            {icon}
-        </div>
-        <p className="text-sm text-gray-600 mb-1">{title}</p>
-        <div>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
-        </div>
-    </div>
-);
-
-const StatusBar = ({ label, count, total, color }) => {
-    const percentage = (count / total) * 100;
-    return (
-        <div>
-            <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600">{label}</span>
-                <span className="font-medium text-gray-900">{count}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
-            </div>
-        </div>
-    );
-};
-
-const UserBar = ({ label, count, total, color }) => {
-    const percentage = (count / total) * 100;
-    return (
-        <div>
-            <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600">{label}</span>
-                <span className="font-medium text-gray-900">{count}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
-            </div>
-        </div>
-    );
-};
-
-const GrowthMetric = ({ label, value }) => (
-    <div className="p-4 border border-gray-200 rounded-lg">
-        <p className="text-sm text-gray-600 mb-2">{label}</p>
-        <div>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
-        </div>
-    </div>
-);
-
+const Distribution = ({ rows, total }) => rows.length ? <div className="space-y-4">{rows.map(([label, count]) => <div key={label}><div className="mb-2 flex items-center justify-between text-sm"><span className="capitalize text-[#8a8f98]">{label.replaceAll("_", " ")}</span><span className="font-medium">{count}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-[#23252a]"><div className="h-full rounded-full bg-[#5e6ad2]" style={{ width: `${total ? Math.min(100, (count / total) * 100) : 0}%` }} /></div></div>)}</div> : <p className="py-8 text-center text-sm text-[#62666d]">No aggregate data yet.</p>;
+const Value = ({ label, value, detail }) => <div className="bg-[#141516] p-4"><p className="text-xs text-[#62666d]">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p>{detail ? <p className="mt-1 text-xs text-[#8a8f98]">{detail}</p> : null}</div>;
 export default AdminAnalytics;

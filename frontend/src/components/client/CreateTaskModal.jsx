@@ -1,344 +1,58 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import { X, DollarSign, Calendar, FileText, Tag, Clock } from 'lucide-react';
-import api from '../../services/api';
-import toast from 'react-hot-toast';
-import Dialog from '../common/Dialog';
-import { TASK_TYPES, TASK_TYPE_LABELS } from '../../utils/constants';
+import { useMemo, useState } from "react";
+import { Loader2, X } from "lucide-react";
+import toast from "react-hot-toast";
+import api from "../../services/api";
+import { TASK_TYPES, TASK_TYPE_LABELS } from "../../utils/constants";
+import { apiError, formatCurrency } from "../../utils/marketplace";
+import Dialog from "../common/Dialog";
 
-const defaultFormData = {
-  title: '',
-  description: '',
-  category: '',
-  budget: '',
-  deadline: '',
-  skillsRequired: '',
-  experienceLevel: 'intermediate',
-};
+const emptyForm = { title: "", description: "", category: "", budget: "", deadline: "", skillsRequired: "", experienceLevel: "intermediate" };
+const templates = [
+  { name: "Landing page refresh", title: "Landing page refresh", description: "Redesign an existing landing page with responsive layouts, accessible interactions, and documented handoff requirements.", category: "design", budget: 900, skillsRequired: "UI Design, Figma, Responsive Design" },
+  { name: "API integration", title: "API integration and QA", description: "Integrate a third-party API into an existing application and deliver tested flows with documented edge-case coverage.", category: "web-development", budget: 1400, skillsRequired: "React, Node.js, API Integration, Testing" },
+  { name: "Content campaign", title: "Content campaign package", description: "Create a multi-channel content package with long-form copy, social posts, and clear campaign messaging.", category: "writing", budget: 700, skillsRequired: "Copywriting, Content Strategy, SEO" },
+];
 
-const normalizeInitialData = (incoming) => {
-  if (!incoming) {
-    return { ...defaultFormData };
-  }
-
-  const normalizedSkills = Array.isArray(incoming.skillsRequired)
-    ? incoming.skillsRequired.join(', ')
-    : incoming.skillsRequired || '';
-
-  return {
-    ...defaultFormData,
-    ...incoming,
-    skillsRequired: normalizedSkills,
-    budget: incoming.budget ?? '',
-  };
-};
-
-/**
- * Create Task Modal Component
- * Allows clients to create new tasks
- */
-const CreateTaskModal = ({ isOpen, onClose, onTaskCreated, initialData = null }) => {
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ ...defaultFormData });
-
-  const categories = useMemo(
-    () => Object.values(TASK_TYPES).map((value) => ({
-      value,
-      label: TASK_TYPE_LABELS[value],
-    })),
-    [],
-  );
-
-  const experienceLevels = useMemo(
-    () => [
-      { value: 'beginner', label: 'Beginner' },
-      { value: 'intermediate', label: 'Intermediate' },
-      { value: 'expert', label: 'Expert' },
-    ],
-    [],
-  );
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    setFormData(normalizeInitialData(initialData));
-  }, [isOpen, initialData]);
-
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (event) => {
+const CreateTaskModal = ({ isOpen, onClose, onTaskCreated }) => {
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const categories = useMemo(() => Object.values(TASK_TYPES).map((value) => [value, TASK_TYPE_LABELS[value]]), []);
+  if (!isOpen) return null;
+  const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const close = () => { if (!saving) { setForm(emptyForm); onClose(); } };
+  const submit = async (event) => {
     event.preventDefault();
-
-    if (!formData.title.trim() || formData.title.trim().length < 5) {
-      toast.error('Title must be at least 5 characters long');
-      return;
-    }
-
-    const cleanDescription = formData.description.trim();
-    if (!cleanDescription) {
-      toast.error('Description is required');
-      return;
-    }
-    if (cleanDescription.length < 20) {
-      toast.error('Description must be at least 20 characters long');
-      return;
-    }
-    if (cleanDescription.length > 5000) {
-      toast.error('Description must not exceed 5000 characters');
-      return;
-    }
-    if (!formData.category) {
-      toast.error('Please select a category');
-      return;
-    }
-    if (!formData.budget || Number(formData.budget) < 10) {
-      toast.error('Budget must be at least $10');
-      return;
-    }
-    if (!formData.deadline) {
-      toast.error('Please select a deadline');
-      return;
-    }
-
+    if (saving) return;
+    setSaving(true);
     try {
-      setLoading(true);
-
-      const taskData = {
-        title: formData.title.trim(),
-        description: cleanDescription.replace(/\s+/g, ' '),
-        category: formData.category,
-        budget: Number(formData.budget),
-        deadline: formData.deadline,
-        skillsRequired: formData.skillsRequired
-          .split(',')
-          .map((skill) => skill.trim())
-          .filter(Boolean),
-        experienceLevel: formData.experienceLevel,
-      };
-
-      const response = await api.post('/tasks', taskData);
-
-      if (response.data.success) {
-        toast.success('Task created successfully!');
-        onTaskCreated();
-        handleClose();
-      }
+      const response = await api.post("/tasks", {
+        ...form,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        budget: Number(form.budget),
+        skillsRequired: form.skillsRequired.split(",").map((skill) => skill.trim()).filter(Boolean),
+      });
+      toast.success("Task created and sent for marketplace review");
+      setForm(emptyForm);
+      await onTaskCreated?.(response.data.data);
     } catch (error) {
-      let errorMsg = 'Failed to create task';
-
-      if (error.response?.data) {
-        const responseData = error.response.data;
-
-        if (responseData.error?.details && Array.isArray(responseData.error.details)) {
-          errorMsg =
-            responseData.error.details
-              .map((issue) => `${issue.field}: ${issue.message}`)
-              .join('\n') || responseData.error.message || 'Validation failed';
-        } else if (responseData.error?.message) {
-          errorMsg = responseData.error.message;
-        } else if (typeof responseData.error === 'string') {
-          errorMsg = responseData.error;
-        } else if (responseData.message) {
-          errorMsg = responseData.message;
-        }
-      } else if (error.request) {
-        errorMsg = 'No response from server. Please check your connection.';
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
-
-      toast.error(errorMsg);
+      toast.error(apiError(error, "Task could not be created"));
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
-
-  const handleClose = () => {
-    setFormData({ ...defaultFormData });
-    onClose();
-  };
-
-  if (!isOpen) {
-    return null;
-  }
-
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
-
-  return (
-    <Dialog onClose={handleClose} titleId="create-task-title" panelClassName="max-w-2xl">
-        <div className="sticky top-0 bg-white/95 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 id="create-task-title" className="text-2xl font-bold text-gray-900">Create New Task</h2>
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label="Close create task dialog"
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div>
-            <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-2">Task Title *</label>
-            <div className="relative">
-              <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                id="task-title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="e.g., Build a responsive website"
-                className="input pl-10"
-                required
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Minimum 5 characters</p>
-          </div>
-
-          <div>
-            <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-            <textarea
-              name="description"
-              id="task-description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Describe your task in detail..."
-              rows="5"
-              className="input"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Minimum 20 characters. Be specific about requirements and expectations.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="task-category" className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
-              <div className="relative">
-                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <select
-                  name="category"
-                  id="task-category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  className="input pl-10"
-                  required
-                >
-                  <option value="">Select category</option>
-                  {categories.map((category) => (
-                    <option key={category.value} value={category.value}>
-                      {category.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="task-experience" className="block text-sm font-medium text-gray-700 mb-2">Experience Level *</label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <select
-                  name="experienceLevel"
-                  id="task-experience"
-                  value={formData.experienceLevel}
-                  onChange={handleChange}
-                  className="input pl-10"
-                  required
-                >
-                  {experienceLevels.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="task-budget" className="block text-sm font-medium text-gray-700 mb-2">Budget (USD) *</label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="number"
-                  id="task-budget"
-                  name="budget"
-                  value={formData.budget}
-                  onChange={handleChange}
-                  placeholder="100"
-                  min="10"
-                  max="100000"
-                  step="0.01"
-                  className="input pl-10"
-                  required
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-1">Minimum $10</p>
-            </div>
-
-            <div>
-              <label htmlFor="task-deadline" className="block text-sm font-medium text-gray-700 mb-2">Deadline *</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="date"
-                  id="task-deadline"
-                  name="deadline"
-                  value={formData.deadline}
-                  onChange={handleChange}
-                  min={minDate}
-                  className="input pl-10"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="task-skills" className="block text-sm font-medium text-gray-700 mb-2">Skills Required (Optional)</label>
-            <input
-              type="text"
-              id="task-skills"
-              name="skillsRequired"
-              value={formData.skillsRequired}
-              onChange={handleChange}
-              placeholder="e.g., React, Node.js, PostgreSQL"
-              className="input"
-            />
-            <p className="text-xs text-gray-500 mt-1">Separate multiple skills with commas</p>
-          </div>
-
-          <div className="flex space-x-4 pt-2">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="btn btn-secondary flex-1"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary flex-1"
-              disabled={loading}
-            >
-              {loading ? 'Creating...' : 'Create Task'}
-            </button>
-          </div>
-        </form>
-    </Dialog>
-  );
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  return <Dialog onClose={close} titleId="create-task-title" panelClassName="max-w-3xl">
+    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#23252a] bg-[#0f1011]/95 px-5 py-4 backdrop-blur sm:px-6"><div><p className="team-eyebrow">Client workflow</p><h2 id="create-task-title" className="mt-1 text-xl font-semibold">Create task</h2></div><button type="button" onClick={close} disabled={saving} className="team-icon-button" aria-label="Close create task"><X className="h-4 w-4" /></button></div>
+    <div className="border-b border-[#23252a] p-5 sm:px-6"><p className="text-sm font-medium">Start blank or use a template</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{templates.map(({ name, ...template }) => <button key={name} type="button" onClick={() => setForm((current) => ({ ...current, ...template }))} className="rounded-lg border border-[#34343a] bg-[#141516] p-3 text-left hover:border-[#5e6ad2]"><span className="block text-sm text-[#d0d6e0]">{name}</span><span className="mt-1 block text-xs text-[#62666d]">{formatCurrency(template.budget)}</span></button>)}</div></div>
+    <form onSubmit={submit} className="space-y-5 p-5 sm:p-6">
+      <label><span className="team-label">Title</span><input required minLength={5} maxLength={200} className="team-input" value={form.title} onChange={(event) => set("title", event.target.value)} placeholder="Clear delivery outcome" /></label>
+      <label><span className="team-label">Description</span><textarea required minLength={20} maxLength={5000} className="team-input min-h-32 resize-y" value={form.description} onChange={(event) => set("description", event.target.value)} placeholder="Requirements, constraints, and acceptance criteria" /></label>
+      <div className="grid gap-4 sm:grid-cols-2"><label><span className="team-label">Category</span><select required className="team-input" value={form.category} onChange={(event) => set("category", event.target.value)}><option value="">Choose category</option>{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label><span className="team-label">Experience level</span><select className="team-input" value={form.experienceLevel} onChange={(event) => set("experienceLevel", event.target.value)}><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="expert">Expert</option></select></label><label><span className="team-label">Budget (USD)</span><input required type="number" min="10" max="100000" step="0.01" className="team-input" value={form.budget} onChange={(event) => set("budget", event.target.value)} /></label><label><span className="team-label">Deadline</span><input required type="date" min={tomorrow} className="team-input" value={form.deadline} onChange={(event) => set("deadline", event.target.value)} /></label></div>
+      <label><span className="team-label">Skills (comma separated)</span><input className="team-input" value={form.skillsRequired} onChange={(event) => set("skillsRequired", event.target.value)} placeholder="React, accessibility, testing" /></label>
+      <div className="flex flex-col-reverse gap-2 border-t border-[#23252a] pt-5 sm:flex-row sm:justify-end"><button type="button" onClick={close} disabled={saving} className="team-button-secondary">Cancel</button><button disabled={saving} className="team-button-primary">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create task</button></div>
+    </form>
+  </Dialog>;
 };
 
 export default CreateTaskModal;

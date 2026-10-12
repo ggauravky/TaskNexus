@@ -13,7 +13,26 @@ const taskService = require("../services/taskService");
 const { errors } = require("../utils/appError");
 const { parseListQuery } = require("../utils/queryOptions");
 const { paginationMeta } = require("../utils/apiResponse");
-const { serializeTask } = require("../serializers");
+const { serializeSubmission, serializeTask } = require("../serializers");
+const { raw: domain } = require("../contracts/domain");
+
+const decorateTasks = async (tasks, { includeSubmissions = false } = {}) => {
+  const clientIds = [...new Set(tasks.map((task) => task.client_id).filter(Boolean))];
+  const clients = await Promise.all(clientIds.map((id) => userData.findUserById(id)));
+  const clientsById = new Map(clients.filter(Boolean).map((user) => [user.id, user]));
+  let submissionsByTask = new Map();
+  if (includeSubmissions && tasks.length) {
+    const submissions = await submissionData.findSubmissions({
+      task_id: tasks.map((task) => task.id),
+      is_active: true,
+    });
+    submissionsByTask = new Map(submissions.map((submission) => [submission.task_id, serializeSubmission(submission)]));
+  }
+  return tasks.map((task) => ({
+    ...serializeTask({ ...task, client: clientsById.get(task.client_id) || null }),
+    ...(submissionsByTask.has(task.id) ? { active_submission: submissionsByTask.get(task.id) } : {}),
+  }));
+};
 
 /**
  * @desc    Get freelancer dashboard overview
@@ -29,11 +48,11 @@ exports.getDashboard = async (req, res, next) => {
     const reviews = await reviewData.findReviews({ reviewee_id: freelancerId });
 
     const activeTasks = allTasks.filter((t) =>
-      ["assigned", "in_progress"].includes(t.status),
+      [TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS, TASK_STATUS.CLIENT_REVISION, TASK_STATUS.REVISION_REQUESTED].includes(t.status),
     ).length;
     
     const pendingTasks = allTasks.filter((t) =>
-      ["submitted_work", "qa_review", "client_revision"].includes(t.status),
+      [TASK_STATUS.SUBMITTED_WORK, TASK_STATUS.QA_REVIEW, TASK_STATUS.DELIVERED].includes(t.status),
     ).length;
 
     const completedTasks = allTasks.filter(
@@ -50,8 +69,16 @@ exports.getDashboard = async (req, res, next) => {
       
     const avgRating =
         reviews.length > 0
-            ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+            ? Number((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1))
             : 0;
+
+    const currentWork = await decorateTasks(
+      [...allTasks]
+        .filter((task) => ![TASK_STATUS.COMPLETED, TASK_STATUS.CANCELLED].includes(task.status))
+        .sort((left, right) => new Date(right.updated_at || 0) - new Date(left.updated_at || 0))
+        .slice(0, 5),
+      { includeSubmissions: true },
+    );
 
     const perfStats = await performanceService.calculatePerformanceMetrics(freelancerId);
     const performanceScore = perfStats.performanceScore;
@@ -70,6 +97,7 @@ exports.getDashboard = async (req, res, next) => {
         totalTasks: allTasks.length,
         performanceScore,
         onTimeDeliveryRate,
+        currentWork,
       },
     });
   } catch (error) {
@@ -105,7 +133,7 @@ exports.getAvailableTasks = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: { tasks: result.items.map(serializeTask) },
+      data: { tasks: await decorateTasks(result.items) },
       meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {
@@ -511,6 +539,13 @@ exports.updateProfile = async (req, res, next) => {
       });
     }
 
+    if (availability !== undefined && !domain.freelancerAvailability.includes(availability)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid freelancer availability",
+      });
+    }
+
     const profile = { ...(user.profile || {}) };
     if (firstName !== undefined) profile.firstName = firstName;
     if (lastName !== undefined) profile.lastName = lastName;
@@ -585,7 +620,7 @@ exports.getMyTasks = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: { tasks: result.items.map(serializeTask) },
+      data: { tasks: await decorateTasks(result.items, { includeSubmissions: true }) },
       meta: { pagination: paginationMeta(result) },
     });
   } catch (error) {

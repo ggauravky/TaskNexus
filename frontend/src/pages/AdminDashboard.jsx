@@ -1,263 +1,41 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  Users, Briefcase, DollarSign, Clock, RefreshCw,
-  FileText
-} from 'lucide-react';
-import api from '../services/api';
-import toast from 'react-hot-toast';
-import Loading from '../components/common/Loading';
-import StatusBadge from '../components/common/StatusBadge';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart3, ListChecks, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import EmptyState from "../components/common/EmptyState";
+import Loading from "../components/common/Loading";
+import StatusBadge from "../components/common/StatusBadge";
+import { MetricStrip, SectionCard, WorkspaceHeader } from "../components/dashboard/WorkspacePrimitives";
+import api from "../services/api";
+import { apiError, formatDate, taskTitle } from "../utils/marketplace";
 
-/**
- * Admin Dashboard with Real Data
- */
 const AdminDashboard = () => {
   const navigate = useNavigate();
-
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dashboardData, setDashboardData] = useState(null);
-  const [recentActivity, setRecentActivity] = useState([]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/admin/dashboard');
-
-      if (response.data.success) {
-        setDashboardData(response.data.data);
-        setRecentActivity(response.data.data.recentTasks || []);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchDashboardData();
-    setRefreshing(false);
-    toast.success('Dashboard refreshed!');
-  };
-
-  if (loading) {
-    return <Loading fullScreen={true} text="Loading admin dashboard..." />;
-  }
-
-  // Calculate stats from dashboard data
-  const stats = dashboardData ? {
-    totalTasks: dashboardData.tasks?.total || 0,
-    pendingReview: dashboardData.tasks?.byStatus?.find(s => s.status === 'submitted')?.count || 0,
-    activeTasks: dashboardData.tasks?.byStatus
-      ?.filter(s => ['assigned', 'in_progress'].includes(s.status))
-      .reduce((sum, item) => sum + item.count, 0) || 0,
-    totalUsers: dashboardData.users?.total || 0,
-    totalRevenue: dashboardData.platformRevenue || 0,
-    totalClients: dashboardData.users?.clients || 0,
-    totalFreelancers: dashboardData.users?.freelancers || 0
-  } : {
-    totalTasks: 0,
-    pendingReview: 0,
-    activeTasks: 0,
-    totalUsers: 0,
-    totalRevenue: 0,
-    totalClients: 0,
-    totalFreelancers: 0
-  };
-
-  return (
-    <div className="min-h-screen bg-[#010102] text-[#f7f8f8]">
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 flex items-center justify-between gap-4 border-b border-[#23252a] pb-5">
-          <div><p className="team-eyebrow">Administration</p><p className="mt-1 text-sm text-[#8a8f98]">Platform operations and oversight</p></div>
-          <button onClick={handleRefresh} disabled={refreshing} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh</button>
-        </div>
-        {/* Welcome Section */}
-        <div className="mb-8 rounded-xl border border-[#23252a] bg-[#0f1011] p-6 text-white">
-          <h2 className="text-3xl font-bold mb-2">Admin Control Center</h2>
-          <p className="text-primary-100">
-            Manage tasks, users, and monitor platform performance in real time.
-          </p>
-        </div>
-
-        {/* Platform Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Total Tasks"
-            value={stats.totalTasks}
-            icon={<Briefcase className="w-8 h-8 text-primary-600" />}
-            color="bg-primary-50"
-            subtitle={`${stats.activeTasks} active`}
-          />
-          <StatCard
-            title="Pending Review"
-            value={stats.pendingReview}
-            icon={<Clock className="w-8 h-8 text-orange-600" />}
-            color="bg-orange-50"
-            subtitle="Needs attention"
-          />
-          <StatCard
-            title="Total Users"
-            value={stats.totalUsers}
-            icon={<Users className="w-8 h-8 text-green-600" />}
-            color="bg-green-50"
-            subtitle={`${stats.totalClients} clients, ${stats.totalFreelancers} freelancers`}
-          />
-          <StatCard
-            title="Platform Revenue"
-            value={`$${stats.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            icon={<DollarSign className="w-8 h-8 text-purple-600" />}
-            color="bg-purple-50"
-            subtitle="Commission earned"
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <ActionCard
-            title="Review Tasks"
-            description="Review and assign pending tasks"
-            buttonText="View Tasks"
-            onClick={() => navigate('/admin/tasks')}
-          />
-          <ActionCard
-            title="Manage Users"
-            description="View and manage platform users"
-            buttonText="View Users"
-            onClick={() => navigate('/admin/users')}
-          />
-          <ActionCard
-            title="Analytics"
-            description="View platform analytics and insights"
-            buttonText="View Analytics"
-            onClick={() => navigate('/admin/analytics')}
-          />
-        </div>
-
-        {/* Recent Activity */}
-        <div className="card">
-          <h3 className="text-xl font-bold mb-4">Recent Tasks</h3>
-          <div className="space-y-4">
-            {recentActivity.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                <p>No recent activity</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-100">
-                  <thead className="bg-slate-50/80">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Task
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Client
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Freelancer
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Budget
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white/90 divide-y divide-slate-100">
-                    {recentActivity.map((task) => (
-                      <tr key={task.id} className="hover:bg-slate-50/80">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {task.task_details?.title || task.title || 'Untitled Task'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {task.client?.profile?.firstName} {task.client?.profile?.lastName}
-                          </div>
-                          <div className="text-xs text-gray-500">{task.client?.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {task.freelancer ? (
-                            <>
-                              <div className="text-sm text-gray-900">
-                                {task.freelancer?.profile?.firstName} {task.freelancer?.profile?.lastName}
-                              </div>
-                              <div className="text-xs text-gray-500">{task.freelancer?.email}</div>
-                            </>
-                          ) : (
-                            <span className="text-sm text-gray-400">Unassigned</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ${(task.task_details?.budget || task.budget || 0).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge status={task.status} />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(task.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
+  const load = useCallback(async () => { try { const response = await api.get("/admin/dashboard"); setData(response.data.data); } catch (error) { toast.error(apiError(error, "Admin workspace could not be loaded")); } finally { setLoading(false); } }, []);
+  useEffect(() => { load(); }, [load]);
+  const counts = useMemo(() => Object.fromEntries((data?.tasks?.byStatus || []).map((item) => [item.status, item.count])), [data]);
+  const metrics = [
+    { label: "Awaiting approval", value: counts.submitted || 0 },
+    { label: "Active marketplace tasks", value: (counts.assigned || 0) + (counts.in_progress || 0) },
+    { label: "Open disputes", value: counts.disputed || 0 },
+    { label: "Platform users", value: data?.users?.total || 0 },
+  ];
+  const refresh = async () => { setRefreshing(true); await load(); setRefreshing(false); toast.success("Operations refreshed"); };
+  if (loading) return <Loading fullScreen text="Loading admin workspace..." />;
+  const recent = data?.recentTasks || [];
+  const pending = recent.filter((task) => task.status === "submitted");
+  return <div className="min-h-screen bg-[#010102] text-[#f7f8f8]"><main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+    <WorkspaceHeader eyebrow="Administration" title="Marketplace operations" description="Review work, manage accounts, and monitor operational state." actions={<button onClick={refresh} disabled={refreshing} className="team-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh</button>} />
+    <MetricStrip items={metrics} />
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(260px,0.8fr)]">
+      <SectionCard title="Pending task reviews" description="New client tasks waiting for an administrator decision">{pending.length ? <div className="space-y-2">{pending.map((task) => <div key={task.id} className="team-row-card"><div className="min-w-0"><StatusBadge status={task.status} /><p className="mt-2 truncate text-sm font-medium">{taskTitle(task)}</p><p className="mt-1 text-xs text-[#62666d]">Updated {formatDate(task.updated_at)}</p></div><button onClick={() => navigate(`/admin/tasks?status=submitted&task=${task.id}`)} className="team-button-primary">Review</button></div>)}</div> : <EmptyState icon={ListChecks} title="Review queue is clear" description="Newly submitted marketplace tasks will appear here." className="py-7" />}</SectionCard>
+      <SectionCard title="Quick actions" description="Operational tools"><div className="grid gap-2"><button onClick={() => navigate("/admin/tasks?status=submitted")} className="team-button-primary w-full"><ListChecks className="h-4 w-4" /> Review tasks</button><button onClick={() => navigate("/admin/users")} className="team-button-secondary w-full"><Users className="h-4 w-4" /> Manage users</button><button onClick={() => navigate("/admin/tasks?status=disputed")} className="team-button-secondary w-full"><ShieldAlert className="h-4 w-4" /> Open disputes</button><button onClick={() => navigate("/admin/analytics")} className="team-button-secondary w-full"><BarChart3 className="h-4 w-4" /> View analytics</button></div></SectionCard>
     </div>
-  );
-};
-
-/**
- * Stat Card Component
- */
-const StatCard = ({ title, value, icon, color, subtitle }) => {
-  return (
-    <div className="card">
-      <div className="flex flex-col">
-        <div className={`p-3 rounded-lg ${color} w-fit mb-3`}>
-          {icon}
-        </div>
-        <p className="text-sm text-gray-600 mb-1">{title}</p>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        {subtitle && (
-          <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/**
- * Action Card Component
- */
-const ActionCard = ({ title, description, buttonText, onClick }) => {
-  return (
-    <div className="card">
-      <h4 className="text-lg font-semibold mb-2">{title}</h4>
-      <p className="text-gray-600 mb-4 text-sm">{description}</p>
-      <button onClick={onClick} className="btn btn-primary w-full">
-        {buttonText}
-      </button>
-    </div>
-  );
+    <SectionCard title="Recent marketplace activity" description="Latest task records from the operational feed">{recent.length ? <div className="overflow-x-auto"><table className="min-w-[620px] w-full text-left text-sm"><thead className="text-xs text-[#62666d]"><tr><th className="pb-3 pr-5 font-medium">Task</th><th className="pb-3 pr-5 font-medium">Status</th><th className="pb-3 pr-5 font-medium">Updated</th><th className="pb-3 text-right font-medium">Action</th></tr></thead><tbody className="divide-y divide-[#23252a]">{recent.map((task) => <tr key={task.id}><td className="py-4 pr-5 font-medium">{taskTitle(task)}</td><td className="py-4 pr-5"><StatusBadge status={task.status} /></td><td className="py-4 pr-5 text-[#8a8f98]">{formatDate(task.updated_at)}</td><td className="py-4 text-right"><button onClick={() => navigate(`/admin/tasks?task=${task.id}`)} className="team-button-secondary">Open</button></td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-[#62666d]">No task activity yet.</p>}</SectionCard>
+  </main></div>;
 };
 
 export default AdminDashboard;

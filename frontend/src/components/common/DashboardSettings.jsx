@@ -1,369 +1,62 @@
-import { useMemo, useState } from "react";
-import { Bell, Layers, Clock, Target, CheckCircle } from "lucide-react";
+import { Bell, Eye, ListFilter, RotateCcw } from "lucide-react";
 
 const Toggle = ({ id, label, description, checked, onChange }) => (
-  <label
-    htmlFor={id}
-    className="flex items-start justify-between min-w-[240px] p-3 rounded-xl border border-slate-200 hover:border-primary-200 bg-white/90 transition-colors cursor-pointer"
-  >
-    <div className="pr-3">
-      <p className="text-[13px] font-semibold text-slate-900 leading-snug">{label}</p>
-      {description && (
-        <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
-          {description}
-        </p>
-      )}
-    </div>
-    <div className="relative inline-flex items-center">
-      <input
-        id={id}
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="sr-only peer"
-      />
-      <div className="w-11 h-6 rounded-full bg-slate-200 peer-checked:bg-primary-500 transition-colors duration-200 shadow-inner relative">
-        <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 peer-checked:translate-x-5" />
-      </div>
-    </div>
+  <label htmlFor={id} className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-[#34343a] bg-[#141516] p-4">
+    <span>
+      <span className="block text-sm font-medium text-[#d0d6e0]">{label}</span>
+      {description ? <span className="mt-1 block text-xs leading-5 text-[#62666d]">{description}</span> : null}
+    </span>
+    <span className="relative mt-0.5 inline-flex shrink-0 items-center">
+      <input id={id} type="checkbox" checked={Boolean(checked)} onChange={onChange} className="peer sr-only" />
+      <span className="h-6 w-11 rounded-full border border-[#34343a] bg-[#18191a] transition-colors peer-checked:border-[#5e6ad2] peer-checked:bg-[#5e6ad2] peer-focus-visible:ring-2 peer-focus-visible:ring-[#828fff]" />
+      <span className="absolute left-1 h-4 w-4 rounded-full bg-[#f7f8f8] transition-transform peer-checked:translate-x-5" />
+    </span>
   </label>
 );
 
-const SelectField = ({ id, label, value, options, onChange }) => (
-  <label htmlFor={id} className="block min-w-[220px]">
-    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-      {label}
-    </p>
-    <select id={id} className="input py-2" value={value} onChange={onChange}>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  </label>
-);
-
-const NumberField = ({ id, label, value, min, max, onChange, disabled = false }) => (
-  <label htmlFor={id} className="block min-w-[180px]">
-    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-      {label}
-    </p>
-    <input
-      id={id}
-      type="number"
-      className="input py-2"
-      value={value}
-      min={min}
-      max={max}
-      disabled={disabled}
-      onChange={onChange}
-    />
-  </label>
-);
-
-const SectionTitle = ({ icon: Icon, title }) => (
-  <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.08em]">
-    <Icon className="w-4 h-4 text-primary-600" />
-    <span>{title}</span>
-  </div>
-);
-
-const DashboardSettings = ({
-  preferences,
-  togglePreference,
-  setPreference,
-  resetPreferences,
-  presets = [],
-  activePresetId = "balanced",
-  applyPreset,
-  savePreset,
-  savingPreferences = false,
-  syncError = null,
-  title = "Workspace Preferences",
-  className = "",
-}) => {
-  const [presetName, setPresetName] = useState("");
-  const onToggle = togglePreference || (() => {});
-  const onSet = setPreference || (() => {});
-  const onApplyPreset = applyPreset || (() => {});
-  const onSavePreset = savePreset || (() => Promise.resolve({ success: false }));
-
-  const presetOptions = useMemo(() => {
-    if (!Array.isArray(presets) || presets.length === 0) {
-      return [{ id: "balanced", name: "Balanced" }];
-    }
-    return presets.map((preset) => ({
-      id: preset.id,
-      name: preset.name || preset.id,
-    }));
-  }, [presets]);
-
+const DashboardSettings = ({ preferences, togglePreference, setPreference, resetPreferences, savingPreferences = false, syncError = null, role = "client" }) => {
+  const prefix = `pref-${role}`;
   return (
-    <div
-      className={`w-full bg-white/95 backdrop-blur-sm border border-slate-100 rounded-2xl shadow-md ${className}`}
-    >
-      <div className="px-4 py-3 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-        <div className="flex items-center space-x-2">
-          <Layers className="w-4 h-4 text-primary-600" />
-          <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+    <div className="space-y-7 p-5 sm:p-6">
+      {syncError ? <p role="status" className="rounded-lg border border-amber-900 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">{syncError}</p> : null}
+      <section>
+        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-[#8a8f98]"><Eye className="h-4 w-4 text-[#828fff]" /> Appearance</div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Toggle id={`${prefix}-compact`} label="Compact task rows" description="Reduce spacing in work lists." checked={preferences.compactCards} onChange={() => togglePreference("compactCards")} />
+          <Toggle id={`${prefix}-financials`} label="Hide financial amounts" description="Mask budgets, spending, and earnings on this device." checked={preferences.hideFinancials} onChange={() => togglePreference("hideFinancials")} />
+          <Toggle id={`${prefix}-progress`} label="Show progress bars" description="Display server-reported progress for active work." checked={preferences.showProgressBars} onChange={() => togglePreference("showProgressBars")} />
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[11px] text-slate-500 leading-snug">
-            Cloud synced per profile.
-          </p>
-
-          <select
-            className="input py-1.5 text-xs min-w-[140px]"
-            value={activePresetId}
-            onChange={(event) => onApplyPreset(event.target.value)}
-            disabled={savingPreferences}
-          >
-            {presetOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.name}
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="text"
-            value={presetName}
-            onChange={(event) => setPresetName(event.target.value)}
-            placeholder="Preset name"
-            className="input py-1.5 text-xs min-w-[140px]"
-          />
-
-          <button
-            type="button"
-            className="btn-sm btn-secondary"
-            disabled={savingPreferences}
-            onClick={async () => {
-              const result = await onSavePreset(presetName.trim());
-              if (result?.success) {
-                setPresetName("");
-              }
-            }}
-          >
-            Save Preset
-          </button>
-
-          {resetPreferences && (
-            <button
-              type="button"
-              className="btn-sm btn-secondary"
-              onClick={resetPreferences}
-              disabled={savingPreferences}
-            >
-              Reset To Default
-            </button>
-          )}
+      </section>
+      <section>
+        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-[#8a8f98]"><ListFilter className="h-4 w-4 text-[#828fff]" /> Task view</div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label><span className="team-label">Default sort</span><select className="team-input" value={["newest", "oldest"].includes(preferences.defaultTaskSort) ? preferences.defaultTaskSort : "newest"} onChange={(event) => setPreference("defaultTaskSort", event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+          <label><span className="team-label">Default filter</span><select className="team-input" value={preferences.defaultTaskFilter} onChange={(event) => setPreference("defaultTaskFilter", event.target.value)}><option value="all">All tasks</option><option value="active">Active</option><option value="pending_review">Awaiting review</option><option value="completed">Completed</option></select></label>
+          <Toggle id={`${prefix}-autorefresh`} label="Auto refresh" description="Refresh overview data periodically." checked={preferences.autoRefresh} onChange={() => togglePreference("autoRefresh")} />
+          <label><span className="team-label">Refresh interval (seconds)</span><input type="number" min="30" max="900" disabled={!preferences.autoRefresh} className="team-input" value={preferences.autoRefreshSeconds} onChange={(event) => setPreference("autoRefreshSeconds", Math.max(30, Math.min(900, Number(event.target.value) || 30)))} /></label>
         </div>
-      </div>
-
-      {syncError && (
-        <div className="px-4 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
-          {syncError}
+      </section>
+      <section>
+        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-[#8a8f98]"><Bell className="h-4 w-4 text-[#828fff]" /> Notifications</div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Toggle id={`${prefix}-inapp`} label="In-app alerts" description="Show workspace status notifications." checked={preferences.notifications.inApp} onChange={() => togglePreference("notifications.inApp")} />
+          <Toggle id={`${prefix}-due`} label="Due reminders" description="Receive deadline reminders." checked={preferences.notifications.dueReminders} onChange={() => togglePreference("notifications.dueReminders")} />
+          <Toggle id={`${prefix}-status`} label="Status updates" description="Receive assignment and review updates." checked={preferences.notifications.statusUpdates} onChange={() => togglePreference("notifications.statusUpdates")} />
+          <Toggle id={`${prefix}-email`} label="Email alerts" description="Use your saved notification preference." checked={preferences.notifications.email} onChange={() => togglePreference("notifications.email")} />
         </div>
-      )}
-
-      <div className="p-3 space-y-4">
-        <SectionTitle icon={CheckCircle} title="Workspace" />
-        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-          <Toggle
-            id="pref-compact"
-            label="Compact cards"
-            description="Reduce card spacing"
-            checked={preferences.compactCards}
-            onChange={() => onToggle("compactCards")}
-          />
-          <Toggle
-            id="pref-progress"
-            label="Progress bars"
-            description="Show completion bars"
-            checked={preferences.showProgressBars}
-            onChange={() => onToggle("showProgressBars")}
-          />
-          <Toggle
-            id="pref-advanced-stats"
-            label="Advanced insights"
-            description="Enable additional analytics"
-            checked={preferences.showAdvancedStats}
-            onChange={() => onToggle("showAdvancedStats")}
-          />
-          <Toggle
-            id="pref-deadline-rail"
-            label="Deadline rail"
-            description="Show due-soon tracker"
-            checked={preferences.showDeadlineRail}
-            onChange={() => onToggle("showDeadlineRail")}
-          />
-          <Toggle
-            id="pref-focus"
-            label="Focus mode"
-            description="Reduce non-essential UI"
-            checked={preferences.focusMode}
-            onChange={() => onToggle("focusMode")}
-          />
-          <Toggle
-            id="pref-financial"
-            label="Hide financials"
-            description="Mask revenue and budgets"
-            checked={preferences.hideFinancials}
-            onChange={() => onToggle("hideFinancials")}
-          />
-        </div>
-
-        <SectionTitle icon={Clock} title="Layout And Automation" />
-        <div className="flex flex-wrap gap-3">
-          <SelectField
-            id="pref-layout"
-            label="Task layout"
-            value={preferences.taskLayout}
-            options={[
-              { value: "list", label: "List" },
-              { value: "grid", label: "Grid" },
-              { value: "board", label: "Board" },
-            ]}
-            onChange={(event) => onSet("taskLayout", event.target.value)}
-          />
-          <SelectField
-            id="pref-sort"
-            label="Default sort"
-            value={preferences.defaultTaskSort}
-            options={[
-              { value: "newest", label: "Newest first" },
-              { value: "oldest", label: "Oldest first" },
-              { value: "budget_high", label: "Highest budget" },
-              { value: "budget_low", label: "Lowest budget" },
-              { value: "deadline_soon", label: "Nearest deadline" },
-            ]}
-            onChange={(event) => onSet("defaultTaskSort", event.target.value)}
-          />
-          <SelectField
-            id="pref-filter"
-            label="Default filter"
-            value={preferences.defaultTaskFilter}
-            options={[
-              { value: "all", label: "All tasks" },
-              { value: "active", label: "Active" },
-              { value: "pending_review", label: "Pending review" },
-              { value: "completed", label: "Completed" },
-            ]}
-            onChange={(event) => onSet("defaultTaskFilter", event.target.value)}
-          />
-          <Toggle
-            id="pref-autorefresh"
-            label="Auto refresh"
-            description="Refresh dashboard periodically"
-            checked={preferences.autoRefresh}
-            onChange={() => onToggle("autoRefresh")}
-          />
-          <NumberField
-            id="pref-autorefresh-seconds"
-            label="Refresh interval (sec)"
-            value={preferences.autoRefreshSeconds}
-            min={30}
-            max={900}
-            disabled={!preferences.autoRefresh}
-            onChange={(event) => {
-              const raw = Number(event.target.value);
-              if (Number.isNaN(raw)) {
-                return;
-              }
-              const clamped = Math.max(30, Math.min(900, raw));
-              onSet("autoRefreshSeconds", clamped);
-            }}
-          />
-        </div>
-
-        <SectionTitle icon={Target} title="Goals" />
-        <div className="flex flex-wrap gap-3">
-          <NumberField
-            id="pref-goal-earnings"
-            label="Weekly earnings goal"
-            value={preferences.goals.weeklyEarnings}
-            min={100}
-            max={50000}
-            onChange={(event) => {
-              const raw = Number(event.target.value);
-              if (!Number.isNaN(raw)) {
-                onSet("goals.weeklyEarnings", Math.max(100, raw));
-              }
-            }}
-          />
-          <NumberField
-            id="pref-goal-completed"
-            label="Weekly completed goal"
-            value={preferences.goals.weeklyCompletedTasks}
-            min={1}
-            max={100}
-            onChange={(event) => {
-              const raw = Number(event.target.value);
-              if (!Number.isNaN(raw)) {
-                onSet("goals.weeklyCompletedTasks", Math.max(1, raw));
-              }
-            }}
-          />
-        </div>
-
-        <SectionTitle icon={Layers} title="Quick Actions" />
-        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-          <Toggle
-            id="pref-templates"
-            label="Task templates"
-            description="Show quick template launcher"
-            checked={preferences.quickActions.templates}
-            onChange={() => onToggle("quickActions.templates")}
-          />
-          <Toggle
-            id="pref-export"
-            label="CSV export"
-            description="Enable one-click exports"
-            checked={preferences.quickActions.export}
-            onChange={() => onToggle("quickActions.export")}
-          />
-          <Toggle
-            id="pref-pinning"
-            label="Pin important tasks"
-            description="Keep starred tasks at top"
-            checked={preferences.quickActions.pinning}
-            onChange={() => onToggle("quickActions.pinning")}
-          />
-        </div>
-
-        <SectionTitle icon={Bell} title="Notifications" />
-        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-          <Toggle
-            id="pref-email"
-            label="Email alerts"
-            description="Status changes and approvals"
-            checked={preferences.notifications.email}
-            onChange={() => onToggle("notifications.email")}
-          />
-          <Toggle
-            id="pref-inapp"
-            label="In-app alerts"
-            description="Toast and badge updates"
-            checked={preferences.notifications.inApp}
-            onChange={() => onToggle("notifications.inApp")}
-          />
-          <Toggle
-            id="pref-due"
-            label="Due reminders"
-            description="Deadlines approaching"
-            checked={preferences.notifications.dueReminders}
-            onChange={() => onToggle("notifications.dueReminders")}
-          />
-          <Toggle
-            id="pref-status"
-            label="Status updates"
-            description="Assignee and review updates"
-            checked={preferences.notifications.statusUpdates}
-            onChange={() => onToggle("notifications.statusUpdates")}
-          />
-        </div>
+      </section>
+      {role === "freelancer" ? (
+        <section>
+          <div className="mb-3 text-xs font-medium uppercase tracking-[0.08em] text-[#8a8f98]">Freelancer goals</div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label><span className="team-label">Weekly earnings goal (USD)</span><input type="number" min="100" max="50000" className="team-input" value={preferences.goals.weeklyEarnings} onChange={(event) => setPreference("goals.weeklyEarnings", Math.max(100, Number(event.target.value) || 100))} /></label>
+            <label><span className="team-label">Weekly completed-task goal</span><input type="number" min="1" max="100" className="team-input" value={preferences.goals.weeklyCompletedTasks} onChange={(event) => setPreference("goals.weeklyCompletedTasks", Math.max(1, Number(event.target.value) || 1))} /></label>
+          </div>
+        </section>
+      ) : null}
+      <div className="flex items-center justify-between gap-3 border-t border-[#23252a] pt-5">
+        <p className="text-xs text-[#62666d]">Preferences are cloud-synced to your account.</p>
+        <button type="button" disabled={savingPreferences} onClick={resetPreferences} className="team-button-secondary"><RotateCcw className="h-4 w-4" /> Reset</button>
       </div>
     </div>
   );

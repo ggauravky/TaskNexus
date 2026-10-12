@@ -27,7 +27,14 @@ const findUsers = (filters) => runMongo(async () => toApps(await User.find(build
 
 const listUsers = ({ filters = {}, page, limit, sortBy, sortOrder, search }) => runMongo(async () => {
   const query = buildFilter(filters);
-  if (search) query.email = trustedOperators({ $regex: escapeRegex(search), $options: "i" });
+  if (search) {
+    const pattern = escapeRegex(search);
+    query.$or = mongoose.trusted([
+      { email: trustedOperators({ $regex: pattern, $options: "i" }) },
+      { "profile.firstName": trustedOperators({ $regex: pattern, $options: "i" }) },
+      { "profile.lastName": trustedOperators({ $regex: pattern, $options: "i" }) },
+    ]);
+  }
   const safeSort = ["created_at", "updated_at", "email", "role", "status"].includes(sortBy) ? sortBy : "created_at";
   const [items, total] = await Promise.all([
     User.find(query).sort({ [safeSort]: sortOrder === "asc" ? 1 : -1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),

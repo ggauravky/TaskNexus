@@ -20,6 +20,7 @@ const submitWorkAtomically = ({ taskId, freelancerId, content, submissionType, i
       const [submission] = await Submission.create([{
         task_id: taskId, freelancer_id: freelancerId, submission_type: submissionType,
         content, version: (latest?.version || 0) + 1, is_active: true, idempotency_key: idempotencyKey || null,
+        client_review: { status: "pending", reviewedAt: null, feedback: "" },
       }], { session });
       result = { task: toApp(task), submission: toApp(submission) };
     });
