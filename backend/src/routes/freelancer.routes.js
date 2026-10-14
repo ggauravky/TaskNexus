@@ -72,9 +72,18 @@ router.put(
     param("id").isUUID().withMessage("Invalid submission ID"),
     body("deliverables")
       .optional()
-      .isArray()
+      .isArray({ min: 1 })
       .withMessage("Deliverables must be an array"),
-    body("comments").optional().trim(),
+    body("deliverables.*.url")
+      .optional()
+      .trim()
+      .isURL({ protocols: ["https"], require_protocol: true })
+      .withMessage("Deliverable URL must use HTTPS"),
+    body("deliverables.*.type")
+      .optional()
+      .isIn(["file", "link", "document"])
+      .withMessage("Invalid deliverable type"),
+    body("comments").optional().trim().isLength({ max: 3000 }).withMessage("Comments must be under 3000 characters"),
   ],
   validate,
   freelancerController.updateSubmission

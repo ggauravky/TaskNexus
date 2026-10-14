@@ -67,4 +67,11 @@ describe("API boundary contracts", () => {
       { id: "other", role: "freelancer" },
     )).toThrow("Not authorized");
   });
+
+  test("task collaboration access rejects an unassigned marketplace viewer", () => {
+    expect(() => collaborationService.ensureTaskAccess(
+      { id: "task-1", client_id: "client", freelancer_id: null },
+      { id: "viewer", role: "freelancer" },
+    )).toThrow("Not authorized");
+  });
 });

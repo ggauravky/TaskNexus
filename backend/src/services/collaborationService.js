@@ -39,19 +39,14 @@ const ensureTaskAccess = (task, user, isWrite = false) => {
   }
 
   if (user.role === "freelancer") {
-    if (task.freelancer_id) {
-      if (!isAssignedFreelancer) {
-        const error = new Error("Not authorized to access this task");
-        error.statusCode = 403;
-        throw error;
-      }
-    } else {
-      // Unassigned task: read is allowed, write is forbidden
-      if (isWrite) {
-        const error = new Error("Not authorized to modify an unassigned task");
-        error.statusCode = 403;
-        throw error;
-      }
+    if (!isAssignedFreelancer) {
+      const error = new Error(
+        isWrite
+          ? "Not authorized to modify this task"
+          : "Not authorized to access this task",
+      );
+      error.statusCode = 403;
+      throw error;
     }
   }
 };

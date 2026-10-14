@@ -4,6 +4,7 @@ const auditLogData = require("../data/auditLogData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 const taskService = require("../services/taskService");
+const taskWorkspaceService = require("../services/taskWorkspaceService");
 const realtimeHub = require("../services/realtimeHub");
 const collaborationService = require("../services/collaborationService");
 const storageProvider = require("../services/storage/storageProvider");
@@ -183,6 +184,28 @@ exports.getTaskById = async (req, res, next) => {
     });
   } catch (error) {
     logger.error("Error fetching task:", error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get the participant-only marketplace task workspace
+ * @route   GET /api/tasks/:id/workspace
+ * @access  Private (task client, assigned freelancer, admin)
+ */
+exports.getTaskWorkspace = async (req, res, next) => {
+  try {
+    const workspace = await taskWorkspaceService.getWorkspace(
+      req.params.id,
+      req.user,
+      { section: req.query.section },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: workspace,
+    });
+  } catch (error) {
     next(error);
   }
 };
