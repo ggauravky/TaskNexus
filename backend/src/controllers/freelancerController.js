@@ -673,7 +673,10 @@ exports.updateSubmission = async (req, res, next) => {
         client_review: clientReview,
     });
 
-    await taskService.transitionTo(submission.task_id, TASK_STATUS.DELIVERED);
+    const updatedTask = await taskService.transitionTo(
+      submission.task_id,
+      TASK_STATUS.DELIVERED,
+    );
     
     const task = await taskData.findTaskById(submission.task_id);
 
@@ -691,6 +694,15 @@ exports.updateSubmission = async (req, res, next) => {
     } catch (notifError) {
       logger.error("Failed to send notification:", notifError);
     }
+
+    realtimeHub.publish({
+      users: [task.client_id, task.freelancer_id].filter(Boolean),
+      event: "task.status_changed",
+      payload: {
+        taskId: task.id,
+        status: updatedTask.status,
+      },
+    });
 
     logger.info(`Submission updated: ${submission.id}`);
 

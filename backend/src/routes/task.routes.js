@@ -8,7 +8,7 @@ const {
   requireFreelancer,
 } = require("../middleware/roleCheck");
 const validate = require("../middleware/validation");
-const { body, param } = require("express-validator");
+const { body, param, query } = require("express-validator");
 const {
   commentAttachmentUpload,
   validateUploadedFiles,
@@ -94,7 +94,10 @@ const submitTaskValidation = [
   body("deliverables.*.url")
     .trim()
     .notEmpty()
-    .withMessage("Deliverable URL is required"),
+    .withMessage("Deliverable URL is required")
+    .bail()
+    .isURL({ protocols: ["https"], require_protocol: true })
+    .withMessage("Deliverable URL must use HTTPS"),
   body("deliverables.*.type")
     .isIn(["file", "link", "document"])
     .withMessage("Invalid deliverable type"),
@@ -117,6 +120,17 @@ router.post(
   createTaskValidation,
   validate,
   taskController.createTask,
+);
+
+// Get specific task
+router.get(
+  "/:id/workspace",
+  [
+    param("id").isUUID().withMessage("Invalid task ID"),
+    query("section").optional().isIn(["delivery"]).withMessage("Invalid workspace section"),
+  ],
+  validate,
+  taskController.getTaskWorkspace,
 );
 
 // Get specific task

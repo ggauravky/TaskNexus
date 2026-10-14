@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CreditCard, FileCheck2, ListChecks, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import CreateTaskModal from "../components/client/CreateTaskModal";
 import TaskDetailsModal from "../components/client/TaskDetailsModal";
 import EmptyState from "../components/common/EmptyState";
@@ -33,6 +34,7 @@ const statusOptions = [
 ];
 
 const ClientDashboard = () => {
+  const navigate = useNavigate();
   const [view, setView] = useState("overview");
   const [dashboard, setDashboard] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -160,6 +162,12 @@ const ClientDashboard = () => {
     }
   };
 
+  const openTaskWorkspace = (task, tab) => {
+    if (!task?.id) return;
+    const targetTab = tab || (task.status === TASK_STATUS.DELIVERED ? "delivery" : "");
+    navigate(`/tasks/${task.id}${targetTab ? `?tab=${targetTab}` : ""}`);
+  };
+
   const reviewSubmission = async (submissionId, action, feedback) => {
     const key = `review-${submissionId}`;
     if (busyAction) return;
@@ -216,21 +224,21 @@ const ClientDashboard = () => {
           <MetricStrip items={metrics} />
           {!dashboard?.totalTasks ? <SectionCard title="No tasks yet" description="Create your first task to start a delivery."><EmptyState icon={ListChecks} title="Your client workspace is ready" description="Post a clear brief and TaskNexus will move it through review, assignment, delivery, and approval." action={<button onClick={() => setShowCreate(true)} className="team-button-primary"><Plus className="h-4 w-4" /> Create your first task</button>} /></SectionCard> : <>
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,0.8fr)]">
-              <SectionCard title="Needs attention" description="Only work that requires a client decision or is overdue.">{dashboard?.attentionTasks?.length ? <div className="space-y-2">{dashboard.attentionTasks.map((task) => <AttentionRow key={task.id} task={task} onOpen={() => openTask(task)} />)}</div> : <EmptyState icon={FileCheck2} title="You're all caught up" description="There are no deliveries or overdue tasks requiring action." className="py-7" />}</SectionCard>
+              <SectionCard title="Needs attention" description="Only work that requires a client decision or is overdue.">{dashboard?.attentionTasks?.length ? <div className="space-y-2">{dashboard.attentionTasks.map((task) => <AttentionRow key={task.id} task={task} onOpen={() => openTaskWorkspace(task)} />)}</div> : <EmptyState icon={FileCheck2} title="You're all caught up" description="There are no deliveries or overdue tasks requiring action." className="py-7" />}</SectionCard>
               <SectionCard title="Quick actions" description="The shortest path to your next step"><div className="grid gap-2"><button onClick={() => setShowCreate(true)} className="team-button-primary w-full"><Plus className="h-4 w-4" /> Create task</button><button onClick={() => setView("deliveries")} className="team-button-secondary w-full"><FileCheck2 className="h-4 w-4" /> Review deliveries</button><button onClick={() => setView("tasks")} className="team-button-secondary w-full"><ListChecks className="h-4 w-4" /> View tasks</button></div></SectionCard>
             </div>
-            <SectionCard title="Active work" description="Recently updated marketplace tasks" action={<button onClick={() => setView("tasks")} className="text-sm text-[#b7bdf8] hover:text-white">View all</button>}><TaskTable tasks={activeRecent.slice(0, 5)} onOpen={openTask} hideFinancials={preferences.hideFinancials} empty="No active work right now." /></SectionCard>
-            {completedRecent.length ? <SectionCard title="Recent completed work"><TaskTable tasks={completedRecent} onOpen={openTask} hideFinancials={preferences.hideFinancials} /></SectionCard> : null}
+            <SectionCard title="Active work" description="Recently updated marketplace tasks" action={<button onClick={() => setView("tasks")} className="text-sm text-[#b7bdf8] hover:text-white">View all</button>}><TaskTable tasks={activeRecent.slice(0, 5)} onOpen={openTaskWorkspace} hideFinancials={preferences.hideFinancials} empty="No active work right now." /></SectionCard>
+            {completedRecent.length ? <SectionCard title="Recent completed work"><TaskTable tasks={completedRecent} onOpen={openTaskWorkspace} hideFinancials={preferences.hideFinancials} /></SectionCard> : null}
           </>}
         </> : null}
 
         {view === "tasks" ? <SectionCard title="My tasks" description="Server-paginated task history and active work">
           <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]"><label><span className="team-label">Search tasks</span><span className="relative block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#62666d]" /><input className="team-input pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title" /></span></label><label><span className="team-label">Status</span><select className="team-input" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>{statusOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label></div>
-          {sectionLoading ? <SectionSpinner /> : <TaskTable tasks={tasks} onOpen={openTask} hideFinancials={preferences.hideFinancials} empty="No tasks match these filters." />}
+          {sectionLoading ? <SectionSpinner /> : <TaskTable tasks={tasks} onOpen={openTaskWorkspace} hideFinancials={preferences.hideFinancials} empty="No tasks match these filters." />}
           <Pagination pagination={taskPagination} onPage={setPage} disabled={sectionLoading} />
         </SectionCard> : null}
 
-        {view === "deliveries" ? <SectionCard title="Deliveries" description="Submitted work awaiting your decision">{sectionLoading ? <SectionSpinner /> : submissions.length ? <div className="space-y-3">{submissions.map((submission) => <article key={submission.id} className="team-row-card"><div className="min-w-0"><StatusBadge status={submission.task?.status} /><h3 className="mt-2 truncate text-sm font-medium">{taskTitle(submission.task)}</h3><p className="mt-1 text-xs text-[#62666d]">Submitted {formatDate(submission.created_at)} · {submission.content?.deliverables?.length || 0} deliverable(s)</p></div><button onClick={() => openTask(submission.task)} className="team-button-primary">Review delivery</button></article>)}</div> : <EmptyState icon={FileCheck2} title="No deliveries awaiting review" description="New submissions will appear here when client action is required." />}</SectionCard> : null}
+        {view === "deliveries" ? <SectionCard title="Deliveries" description="Submitted work awaiting your decision">{sectionLoading ? <SectionSpinner /> : submissions.length ? <div className="space-y-3">{submissions.map((submission) => <article key={submission.id} className="team-row-card"><div className="min-w-0"><StatusBadge status={submission.task?.status} /><h3 className="mt-2 truncate text-sm font-medium">{taskTitle(submission.task)}</h3><p className="mt-1 text-xs text-[#62666d]">Submitted {formatDate(submission.created_at)} · {submission.content?.deliverables?.length || 0} deliverable(s)</p></div><button onClick={() => openTaskWorkspace(submission.task, "delivery")} className="team-button-primary">Review delivery</button></article>)}</div> : <EmptyState icon={FileCheck2} title="No deliveries awaiting review" description="New submissions will appear here when client action is required." />}</SectionCard> : null}
 
         {view === "payments" ? <SectionCard title="Payments" description="Authoritative payment records for completed work">{sectionLoading ? <SectionSpinner /> : payments.length ? <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="text-xs text-[#62666d]"><tr><th className="pb-3 pr-5 font-medium">Payment</th><th className="pb-3 pr-5 font-medium">Status</th><th className="pb-3 pr-5 font-medium">Amount</th><th className="pb-3 font-medium">Date</th></tr></thead><tbody className="divide-y divide-[#23252a]">{payments.map((payment) => <tr key={payment.id}><td className="py-4 pr-5 text-[#d0d6e0]">{payment.payment_id || payment.id}</td><td className="py-4 pr-5 capitalize text-[#8a8f98]">{payment.status}</td><td className="py-4 pr-5">{preferences.hideFinancials ? "Hidden" : formatCurrency(payment.amounts?.taskBudget)}</td><td className="py-4 text-[#8a8f98]">{formatDate(payment.created_at)}</td></tr>)}</tbody></table></div> : <EmptyState icon={CreditCard} title="No payment records" description="Payment records are created after an approved delivery." />}</SectionCard> : null}
       </main>

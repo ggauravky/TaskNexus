@@ -1,0 +1,89 @@
+- generic [ref=f2e9]:
+  - banner [ref=f2e10]:
+    - generic [ref=f2e11]:
+      - link "TaskNexus" [ref=f2e12] [cursor=pointer]:
+        - /url: /client/dashboard
+        - generic [aria-hidden] [ref=f2e13]: TN
+      - navigation "Workspace navigation" [ref=f2e15]:
+        - link "Workspace" [ref=f2e16] [cursor=pointer]:
+          - /url: /client/dashboard
+        - link "Teams" [ref=f2e22] [cursor=pointer]:
+          - /url: /teams
+        - link "Projects" [ref=f2e27] [cursor=pointer]:
+          - /url: /projects
+        - link "People" [ref=f2e30] [cursor=pointer]:
+          - /url: /people
+        - link "Hackathons" [ref=f2e34] [cursor=pointer]:
+          - /url: /hackathons
+        - link "Opportunities" [ref=f2e37] [cursor=pointer]:
+          - /url: /opportunities
+      - generic [ref=f2e41]:
+        - link "Open profile" [ref=f2e42] [cursor=pointer]:
+          - /url: /profile
+          - generic [aria-hidden] [ref=f2e43]: C
+          - generic [ref=f2e44]: Cora
+        - button "Sign out" [ref=f2e45] [cursor=pointer]
+    - navigation "Workspace secondary navigation" [ref=f2e49]:
+      - link "Contributions" [ref=f2e50] [cursor=pointer]:
+        - /url: /contributions
+      - link "Requests" [ref=f2e55] [cursor=pointer]:
+        - /url: /collaboration
+      - link "Applications" [ref=f2e59] [cursor=pointer]:
+        - /url: /applications
+  - main [ref=f2e64]:
+    - link "Back to workspace" [ref=f2e65] [cursor=pointer]:
+      - /url: /client/dashboard
+    - generic [ref=f2e69]:
+      - generic [ref=f2e70]:
+        - generic [ref=f2e71]:
+          - generic [ref=f2e72]: Delivered
+          - generic [ref=f2e74]: TSK-101
+        - heading "Build the TaskNexus workspace" [level=1] [ref=f2e75]
+        - generic [ref=f2e76]:
+          - generic [ref=f2e77]: "Client: Cora Client"
+          - generic [ref=f2e78]: "Freelancer: Finn Freelancer"
+          - generic [ref=f2e79]: Jan 1, 2030
+      - button "Review delivery" [ref=f2e84] [cursor=pointer]
+    - generic [ref=f2e85]:
+      - generic "Task workspace sections" [ref=f2e86]:
+        - tablist [ref=f2e87]:
+          - tab "Overview" [ref=f2e88] [cursor=pointer]
+          - tab "Work" [ref=f2e89] [cursor=pointer]
+          - tab "Delivery" [active] [selected] [ref=f2e90] [cursor=pointer]
+          - tab "Discussion" [ref=f2e91] [cursor=pointer]
+          - tab "Activity" [ref=f2e92] [cursor=pointer]
+      - tabpanel "Delivery" [ref=f2e215]:
+        - generic [ref=f2e216]:
+          - generic [ref=f2e217]:
+            - heading "Delivery awaiting review" [level=2] [ref=f2e223]
+            - generic [ref=f2e224]:
+              - paragraph [ref=f2e225]: Submitted Oct 10, 2026
+              - paragraph [ref=f2e226]: Ready for review.
+              - link "https://example.com/work link" [ref=f2e228] [cursor=pointer]:
+                - /url: https://example.com/work
+                - generic [ref=f2e229]: https://example.com/work
+                - generic [ref=f2e230]: link
+            - generic [ref=f2e235]:
+              - generic [ref=f2e236]: Revision feedback
+              - textbox "Revision feedback" [ref=f2e237]:
+                - /placeholder: Required when requesting a revision
+            - generic [ref=f2e238]:
+              - button "Request revision" [disabled] [ref=f2e239]
+              - button "Approve delivery" [ref=f2e240] [cursor=pointer]
+          - generic [ref=f2e241]:
+            - generic [ref=f2e242]:
+              - generic [ref=f2e243]:
+                - heading "Submission history" [level=2] [ref=f2e244]
+                - paragraph [ref=f2e245]: Recorded versions and client review outcomes.
+              - generic [ref=f2e246]: "1"
+            - article [ref=f2e248]:
+              - generic [ref=f2e249]:
+                - paragraph [ref=f2e250]: Version 1
+                - generic [ref=f2e251]: pending
+              - generic [ref=f2e252]:
+                - paragraph [ref=f2e253]: Submitted Oct 10, 2026
+                - paragraph [ref=f2e254]: Ready for review.
+                - link "https://example.com/work link" [ref=f2e256] [cursor=pointer]:
+                  - /url: https://example.com/work
+                  - generic [ref=f2e257]: https://example.com/work
+                  - generic [ref=f2e258]: link
