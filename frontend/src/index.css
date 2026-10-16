@@ -5,6 +5,142 @@
 .evidence-badge {
   @apply inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em];
 }
+
+.command-palette-trigger {
+  display: inline-flex;
+  min-height: 44px;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid #2b2d32;
+  border-radius: 0.75rem;
+  background: #111214;
+  padding: 0.625rem;
+  color: #aeb4be;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.command-palette-trigger:hover,
+.command-palette-trigger:focus-visible {
+  border-color: #5963b7;
+  background: #17191c;
+  color: #f7f8f8;
+  outline: none;
+}
+
+.command-palette-trigger-label,
+.command-palette-shortcut {
+  display: none;
+}
+
+.command-palette-panel {
+  display: flex;
+  max-height: min(42rem, calc(100dvh - 1.5rem));
+  max-width: 42rem;
+  flex-direction: column;
+}
+
+.command-palette-header {
+  flex: none;
+  border-bottom: 1px solid #23252a;
+  padding: 1rem;
+}
+
+.command-palette-input {
+  min-height: 44px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #f7f8f8;
+  font-size: 1rem;
+  outline: none;
+}
+
+.command-palette-input::placeholder {
+  color: #62666d;
+}
+
+.command-palette-escape,
+.command-palette-shortcut {
+  border: 1px solid #34363c;
+  border-radius: 0.375rem;
+  background: #18191c;
+  padding: 0.2rem 0.4rem;
+  color: #8a8f98;
+  font-size: 0.6875rem;
+}
+
+.command-palette-results {
+  min-height: 10rem;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.5rem;
+}
+
+.command-palette-group {
+  padding: 0.375rem 0;
+}
+
+.command-palette-group-label {
+  padding: 0.4rem 0.65rem;
+  color: #62666d;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.command-palette-option {
+  display: flex;
+  min-height: 44px;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.625rem;
+  padding: 0.65rem;
+}
+
+.command-palette-option.is-active {
+  background: #20232a;
+  box-shadow: inset 2px 0 #828fff;
+}
+
+.command-palette-state {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: #8a8f98;
+}
+
+.command-palette-footer {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border-top: 1px solid #23252a;
+  padding: 0.65rem 1rem;
+  color: #62666d;
+  font-size: 0.6875rem;
+}
+
+@media (min-width: 640px) {
+  .command-palette-trigger {
+    min-width: 8rem;
+    justify-content: flex-start;
+    padding-inline: 0.75rem;
+  }
+
+  .command-palette-trigger-label,
+  .command-palette-shortcut {
+    display: inline;
+  }
+
+  .command-palette-shortcut {
+    margin-left: auto;
+  }
+}
 .evidence-badge.is-internal_verified {
   @apply border-emerald-900/80 bg-emerald-950/50 text-emerald-300;
 }

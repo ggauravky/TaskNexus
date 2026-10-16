@@ -5,6 +5,43 @@ const {
 const { toApp, toApps } = require("../models/helpers");
 const { escapeRegex } = require("./mongoDataUtils");
 
+const searchProjects = async (search) => {
+  const pattern = new RegExp(escapeRegex(search), "i");
+  return Project.aggregate([
+    {
+      $match: {
+        visibility: "public",
+        status: { $ne: "archived" },
+        $or: [{ name: pattern }, { tagline: pattern }, { slug: pattern }],
+      },
+    },
+    {
+      $lookup: {
+        from: "teams",
+        let: { teamId: "$team_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$_id", "$$teamId"] }, visibility: "public", status: "active" } },
+          { $project: { _id: 0, slug: 1 } },
+        ],
+        as: "team",
+      },
+    },
+    { $unwind: "$team" },
+    { $sort: { updated_at: -1, _id: 1 } },
+    { $limit: 5 },
+    {
+      $project: {
+        _id: 1,
+        name: 1,
+        slug: 1,
+        tagline: 1,
+        status: 1,
+        team_slug: "$team.slug",
+      },
+    },
+  ]);
+};
+
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 
 const findById = async (id, session = null) => toApp(await Project.findById(id).session(session).lean());
@@ -134,6 +171,7 @@ const listActivity = async (projectId, filters) => {
 };
 
 module.exports = {
+  searchProjects,
   findById, findBySlugs, listActivity, listForTeam, listMilestones, listMine, listParticipants,
   listTasks, projectCounts, skillsByIds,
 };

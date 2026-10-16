@@ -12,6 +12,46 @@ const { evaluateOpportunity, loadCandidateContext } = require("./opportunityElig
 const { candidateStateDto, organizationPublicDto, opportunityCandidateDto } = require("../serializers/opportunitySerializers");
 const organizationAuthz = require("./organizationAuthorization");
 const { organizationPermissions } = require("../serializers/organizationSerializers");
+const { buildSearchTarget } = require("../serializers");
+
+const searchOrganizations = async (search) => {
+  const pattern = new RegExp(escapeRegex(search), "i");
+  const rows = await Organization.find({
+    status: "active",
+    $or: mongoose.trusted([{ name: pattern }, { tagline: pattern }, { industry: pattern }]),
+  })
+    .select("_id name slug tagline industry status")
+    .sort({ name: 1, _id: 1 })
+    .limit(5)
+    .lean();
+  return toApps(rows).map((row) => ({
+    id: row.id,
+    type: "organization",
+    title: row.name,
+    subtitle: row.tagline || row.industry,
+    status: row.status,
+    targetPath: buildSearchTarget("organization", { slug: row.slug }),
+  })).filter((row) => row.targetPath);
+};
+
+const searchOpportunities = async (search) => {
+  const pattern = new RegExp(escapeRegex(search), "i");
+  const filter = openFilter();
+  filter.$and.push(mongoose.trusted({ $or: [{ title: pattern }, { summary: pattern }, { description: pattern }] }));
+  const rows = await Opportunity.find(filter)
+    .select("_id title slug summary status published_at")
+    .sort({ published_at: -1, _id: 1 })
+    .limit(5)
+    .lean();
+  return toApps(rows).map((row) => ({
+    id: row.id,
+    type: "opportunity",
+    title: row.title,
+    subtitle: row.summary,
+    status: row.status,
+    targetPath: buildSearchTarget("opportunity", { slug: row.slug }),
+  })).filter((row) => row.targetPath);
+};
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -312,6 +352,8 @@ const deleteApplication = async (id, actorId, input = {}) => withTransaction(asy
 const listCandidateStates = async (actorId, query = {}, savedOnly = false) => { const options = parseListQuery(query, { allowedSorts: ["updated_at"], defaultSort: "updated_at", defaultLimit: 20, maxLimit: 50 }); const filter = { user_id: actorId, ...(savedOnly ? { saved: true } : { application_status: mongoose.trusted({ $ne: null }) }) }; if (!savedOnly && query.status) filter.application_status = enumValue(query.status, domain.applicationStatuses, "application status", true); const [states, total] = await Promise.all([OpportunityCandidateState.find(filter).sort({ updated_at: -1, _id: 1 }).skip((options.page - 1) * options.limit).limit(options.limit).lean(), OpportunityCandidateState.countDocuments(filter)]); const appStates = toApps(states); const opportunities = toApps(await Opportunity.find({ _id: trustedIn(appStates.map((row) => row.opportunity_id)), status: mongoose.trusted({ $ne: "archived" }) }).lean()); const decorated = await loadDecoration(opportunities, actorId); const opportunityMap = new Map(decorated.map((row) => [row.id, row])); return { items: appStates.map((state) => ({ ...candidateStateDto(state), opportunity: opportunityMap.get(state.opportunity_id) || null })).filter((row) => row.opportunity), meta: paginationMeta({ ...options, total }) }; };
 
 module.exports = {
+  searchOpportunities,
+  searchOrganizations,
   createOpportunity, createOrganization, deleteApplication, getOpportunity, getOrganization, listApplications: (userId, query) => listCandidateStates(userId, query),
   listOpportunities, listOrganizations, listSaved: (userId, query) => listCandidateStates(userId, query, true), publishOpportunity: (id, actorId, input) => transitionOpportunity(id, actorId, input, "published"),
   closeOpportunity: (id, actorId, input) => transitionOpportunity(id, actorId, input, "closed"), archiveOpportunity: (id, actorId, input) => transitionOpportunity(id, actorId, input, "archived"),

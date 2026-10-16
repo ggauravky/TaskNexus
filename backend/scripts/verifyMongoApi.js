@@ -14,6 +14,13 @@ const password = `Tn-${randomBytes(18).toString("base64url")}9aA`;
 const ids = { admin: randomUUID() };
 const teamIds = [];
 const projectIds = [];
+const searchTerm = `phasec${runId.slice(0, 8)}`;
+const phaseC = {
+  publicTeam: randomUUID(), privateTeam: randomUUID(), publicProject: randomUUID(), privateProject: randomUUID(),
+  publicHackathon: randomUUID(), privateHackathon: randomUUID(), activeOrganization: randomUUID(), inactiveOrganization: randomUUID(),
+  openOpportunity: randomUUID(), closedOpportunity: randomUUID(), projectTask: randomUUID(), block: randomUUID(),
+  tasks: Array.from({ length: 8 }, () => randomUUID()),
+};
 const emails = {
   admin: `mongo-api-${runId}-admin@example.invalid`,
   client: `mongo-api-${runId}-client@example.invalid`,
@@ -79,7 +86,15 @@ const cleanup = async () => {
     models.ProjectTask.deleteMany({ project_id: projects() }),
     models.ProjectMilestone.deleteMany({ project_id: projects() }),
     models.ProjectParticipant.deleteMany({ project_id: projects() }),
+    models.UserBlock.deleteMany({ _id: phaseC.block }),
+    models.ProjectTask.deleteMany({ _id: phaseC.projectTask }),
+    models.Hackathon.deleteMany({ _id: mongoose.trusted({ $in: [phaseC.publicHackathon, phaseC.privateHackathon] }) }),
+    models.Opportunity.deleteMany({ _id: mongoose.trusted({ $in: [phaseC.openOpportunity, phaseC.closedOpportunity] }) }),
+    models.Organization.deleteMany({ _id: mongoose.trusted({ $in: [phaseC.activeOrganization, phaseC.inactiveOrganization] }) }),
+    models.Task.deleteMany({ _id: mongoose.trusted({ $in: phaseC.tasks }) }),
   ]);
+  await models.Project.deleteMany({ _id: mongoose.trusted({ $in: [phaseC.publicProject, phaseC.privateProject] }) });
+  await models.Team.deleteMany({ _id: mongoose.trusted({ $in: [phaseC.publicTeam, phaseC.privateTeam] }) });
   await models.Project.deleteMany({ _id: projects() });
   await models.Team.deleteMany({ _id: teams() });
   await Promise.all([
@@ -125,6 +140,93 @@ const run = async () => {
     await expectOk("/admin/users", adminToken);
     await expectOk("/admin/tasks", adminToken);
     await expectOk("/admin/audit-logs", adminToken);
+
+    await Promise.all([
+      models.UserProfile.updateOne({ _id: ids.freelancer }, { $set: { headline: searchTerm, visibility: "public", discoverable: true } }),
+      models.UserProfile.updateOne({ _id: ids.contributor }, { $set: { headline: searchTerm, visibility: "public", discoverable: true } }),
+      models.UserProfile.updateOne({ _id: ids.lead }, { $set: { headline: searchTerm, visibility: "private", discoverable: true } }),
+    ]);
+    await models.UserBlock.create({ _id: phaseC.block, blocker_id: ids.freelancer, blocked_user_id: ids.contributor });
+    await models.Team.insertMany([
+      { _id: phaseC.publicTeam, name: `${searchTerm} public`, slug: `${searchTerm}-public`, created_by: ids.client, owner_id: ids.client, visibility: "public", status: "active" },
+      { _id: phaseC.privateTeam, name: `${searchTerm} private`, slug: `${searchTerm}-private`, created_by: ids.client, owner_id: ids.client, visibility: "private", status: "active" },
+    ]);
+    await models.Project.insertMany([
+      { _id: phaseC.publicProject, team_id: phaseC.publicTeam, name: `${searchTerm} public`, slug: `${searchTerm}-public`, created_by: ids.client, visibility: "public", status: "active" },
+      { _id: phaseC.privateProject, team_id: phaseC.privateTeam, name: `${searchTerm} private`, slug: `${searchTerm}-private`, created_by: ids.client, visibility: "public", status: "active" },
+    ]);
+    await models.ProjectTask.create({ _id: phaseC.projectTask, team_id: phaseC.publicTeam, project_id: phaseC.publicProject, title: `${searchTerm} project task`, status: "todo", priority: "medium", created_by: ids.client });
+    const phaseCNow = Date.now();
+    await models.Hackathon.insertMany([
+      { _id: phaseC.publicHackathon, name: `${searchTerm} public`, slug: `${searchTerm}-public`, organizer_name: "QA", mode: "online", event_start: new Date(phaseCNow + 86400000), event_end: new Date(phaseCNow + 172800000), status: "upcoming", visibility: "public", created_by: ids.client },
+      { _id: phaseC.privateHackathon, name: `${searchTerm} private`, slug: `${searchTerm}-private`, organizer_name: "QA", mode: "online", event_start: new Date(phaseCNow + 86400000), event_end: new Date(phaseCNow + 172800000), status: "upcoming", visibility: "private", created_by: ids.client },
+    ]);
+    await models.Organization.insertMany([
+      { _id: phaseC.activeOrganization, name: `${searchTerm} active`, slug: `${searchTerm}-active`, organization_type: "startup", status: "active", created_by: ids.client },
+      { _id: phaseC.inactiveOrganization, name: `${searchTerm} inactive`, slug: `${searchTerm}-inactive`, organization_type: "startup", status: "archived", created_by: ids.client },
+    ]);
+    await models.Opportunity.insertMany([
+      { _id: phaseC.openOpportunity, organization_id: phaseC.activeOrganization, type: "internship", title: `${searchTerm} open`, slug: `${searchTerm}-open`, work_mode: "remote", application_mode: "external", application_url: "https://example.com/open", status: "published", source_type: "official", published_at: new Date(), created_by: ids.admin },
+      { _id: phaseC.closedOpportunity, organization_id: phaseC.activeOrganization, type: "internship", title: `${searchTerm} closed`, slug: `${searchTerm}-closed`, work_mode: "remote", application_mode: "external", application_url: "https://example.com/closed", status: "closed", source_type: "official", published_at: new Date(), created_by: ids.admin },
+    ]);
+    await models.Task.insertMany([
+      ...phaseC.tasks.slice(0, 6).map((id, index) => ({
+        _id: id, task_id: `TSK-${runId}-PHASEC-${index}`, client_id: ids.client,
+        freelancer_id: index === 0 ? ids.freelancer : null,
+        task_details: { title: `${searchTerm} task ${index}`, description: "Owned search fixture" },
+        status: index === 0 ? "in_progress" : "submitted",
+      })),
+      { _id: phaseC.tasks[6], task_id: `TSK-${runId}-PHASEC-UNASSIGNED`, client_id: ids.lead, task_details: { title: `${searchTerm} unassigned` }, status: "submitted" },
+      { _id: phaseC.tasks[7], task_id: `TSK-${runId}-PHASEC-UNRELATED`, client_id: ids.lead, freelancer_id: ids.contributor, task_details: { title: `${searchTerm} unrelated` }, status: "in_progress" },
+    ]);
+
+    const anonymousSearch = await call(`/search?q=${searchTerm}`);
+    assert.equal(anonymousSearch.status, 401, "global search must require authentication");
+    const searchFor = async (token, query = searchTerm) => {
+      const response = await call(`/search?q=${encodeURIComponent(query)}&limit=100`, { token });
+      assert.equal(response.status, 200, `global search returned ${response.status}`);
+      assert.deepEqual(Object.keys(response.payload.data.groups), ["teams", "projects", "people", "hackathons", "opportunities", "organizations", "tasks"]);
+      for (const rows of Object.values(response.payload.data.groups)) {
+        assert.ok(rows.length <= 5, "global search group exceeded five rows");
+        for (const row of rows) {
+          assert.ok(Object.keys(row).every((key) => ["id", "type", "title", "subtitle", "status", "target_path"].includes(key)), "global search leaked a non-DTO field");
+          assert.match(row.target_path, /^\/(?:teams|u|hackathons|opportunities|organizations|tasks)\//, "global search returned an unsafe target");
+        }
+      }
+      return response.payload.data.groups;
+    };
+    const [clientSearch, freelancerSearch, adminSearch] = await Promise.all([
+      searchFor(clientToken), searchFor(freelancerToken), searchFor(adminToken),
+    ]);
+    assert.deepEqual(clientSearch.teams.map((row) => row.id), [phaseC.publicTeam]);
+    assert.deepEqual(adminSearch.teams.map((row) => row.id), [phaseC.publicTeam], "administrator received a private team");
+    assert.deepEqual(clientSearch.projects.map((row) => row.id), [phaseC.publicProject]);
+    assert.deepEqual(adminSearch.projects.map((row) => row.id), [phaseC.publicProject], "administrator received a private-team project");
+    assert.equal(freelancerSearch.people.some((row) => row.id === ids.contributor), false, "blocked profile leaked into search");
+    assert.equal(freelancerSearch.people.some((row) => row.id === ids.lead), false, "private profile leaked into search");
+    assert.deepEqual(clientSearch.hackathons.map((row) => row.id), [phaseC.publicHackathon]);
+    assert.equal(adminSearch.hackathons.some((row) => row.id === phaseC.privateHackathon), true, "administrator private Hackathon catalog scope was lost");
+    assert.deepEqual(clientSearch.opportunities.map((row) => row.id), [phaseC.openOpportunity]);
+    assert.deepEqual(clientSearch.organizations.map((row) => row.id), [phaseC.activeOrganization]);
+    assert.equal(clientSearch.tasks.length, 5, "client task group was not capped at five");
+    assert.deepEqual(freelancerSearch.tasks.map((row) => row.id), [phaseC.tasks[0]], "freelancer task results crossed assignment ownership");
+    assert.equal(freelancerSearch.tasks.some((row) => row.id === phaseC.tasks[6]), false, "unassigned task leaked into freelancer search");
+    assert.equal(Object.values(clientSearch).flat().some((row) => row.id === phaseC.projectTask), false, "ProjectTask entered marketplace search");
+    const escapedSearch = await searchFor(clientToken, ".*");
+    assert.ok(Object.values(escapedSearch).every((rows) => rows.length === 0), "special-character query was not treated literally");
+
+    await searchFor(clientToken);
+    const latencies = [];
+    for (let index = 0; index < 20; index += 1) {
+      const startedAt = performance.now();
+      await searchFor(index % 2 === 0 ? clientToken : freelancerToken);
+      latencies.push(performance.now() - startedAt);
+    }
+    latencies.sort((a, b) => a - b);
+    const median = latencies[Math.floor(latencies.length / 2)];
+    const p95 = latencies[Math.ceil(latencies.length * 0.95) - 1];
+    assert.ok(p95 <= 2000, `global search p95 ${p95.toFixed(1)}ms exceeded 2000ms`);
+    process.stdout.write(`Phase C search latency (20 warmed requests): median ${median.toFixed(1)}ms, p95 ${p95.toFixed(1)}ms.\n`);
 
     const teamSlug = `mongo-api-team-${runId.slice(0, 8)}`;
     const createdTeam = await call("/teams", {
@@ -411,7 +513,7 @@ const run = async () => {
       const logout = await call("/auth/logout", { method: "POST", token });
       assert.equal(logout.status, 200);
     }
-    process.stdout.write("MongoDB API verification passed: account roles, marketplace reads, Teams, Projects, participant RBAC, tasks, milestones, Phase 5 evidence/repositories/showcase/profile opt-in, notification pagination/targets/ownership, privacy/IDOR, revocation, completion, transfer, and archive.\n");
+    process.stdout.write("MongoDB API verification passed: account roles, marketplace reads, Teams, Projects, participant RBAC, tasks, milestones, Phase 5 evidence/repositories/showcase/profile opt-in, Phase C seven-domain search privacy/bounds/targets, notification pagination/targets/ownership, privacy/IDOR, revocation, completion, transfer, and archive.\n");
   } finally {
     await cleanup();
   }

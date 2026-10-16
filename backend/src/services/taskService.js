@@ -2,6 +2,19 @@
 const { TASK_STATUS, TASK_STATE_TRANSITIONS, BUSINESS_RULES } = require('../config/constants');
 const taskData = require('../data/taskData');
 const { errors } = require('../utils/appError');
+const { buildSearchTarget } = require('../serializers');
+
+const searchMarketplaceTasks = async (query, viewer) => {
+  const rows = await taskData.searchMarketplaceTasks({ search: query, viewer });
+  return rows.map((row) => ({
+    id: row.id,
+    type: "marketplace_task",
+    title: row.task_details?.title,
+    subtitle: row.task_details?.description,
+    status: row.status,
+    targetPath: buildSearchTarget("marketplace_task", { taskId: row.id }),
+  })).filter((row) => row.targetPath);
+};
 
 const canTransitionTo = (currentStatus, newStatus) => {
     const allowedTransitions = TASK_STATE_TRANSITIONS[currentStatus] || [];
@@ -76,6 +89,7 @@ const incrementRevisions = async (taskId) => {
 };
 
 module.exports = {
+  searchMarketplaceTasks,
     canTransitionTo,
     transitionTo,
     canRequestRevision,

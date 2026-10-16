@@ -27,6 +27,7 @@ const discoveryRoutes = require("./routes/discovery.routes");
 const hackathonRoutes = require("./routes/hackathon.routes");
 const opportunityRoutes = require("./routes/opportunity.routes");
 const organizationRoutes = require("./routes/organization.routes");
+const searchRoutes = require("./routes/search.routes");
 
 // Create Express app
 const app = express();
@@ -101,6 +102,7 @@ app.use("/api", hackathonRoutes);
 app.use("/api", opportunityRoutes);
 app.use("/api", organizationRoutes);
 app.use("/api", discoveryRoutes);
+app.use("/api", searchRoutes);
 
 // 404 handler
 app.use(notFound);

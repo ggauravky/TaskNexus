@@ -1,5 +1,27 @@
 const { Task } = require("../models");
 const { buildFilter, escapeRegex, runMongo, toApp, toApps, trustedOperators } = require("./mongoDataUtils");
+const { raw: domain } = require("../contracts/domain");
+
+const searchMarketplaceTasks = ({ search, viewer }) => runMongo(async () => {
+  const participantFilter = viewer.role === "client"
+    ? { client_id: viewer.id }
+    : viewer.role === "freelancer"
+      ? { freelancer_id: viewer.id }
+      : viewer.role === "admin"
+        ? { status: trustedOperators({ $in: domain.taskStatuses }) }
+        : null;
+  if (!participantFilter) return [];
+  const query = {
+    ...participantFilter,
+    "task_details.title": trustedOperators({ $regex: escapeRegex(search), $options: "i" }),
+  };
+  const rows = await Task.find(query)
+    .select("_id task_details.title task_details.description status updated_at")
+    .sort({ updated_at: -1, _id: 1 })
+    .limit(5)
+    .lean();
+  return toApps(rows);
+}, "Unable to search tasks");
 
 const createTask = (taskData) => runMongo(async () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -28,4 +50,4 @@ const acceptTaskAtomically = (id, freelancerId) => runMongo(async () => toApp(aw
   { returnDocument: "after", runValidators: true },
 ).lean()), "Unable to accept task");
 
-module.exports = { createTask, findTaskById, findTasks, listTasks, updateTask, updateTaskIfStatus, acceptTaskAtomically };
+module.exports = { createTask, findTaskById, findTasks, listTasks, searchMarketplaceTasks, updateTask, updateTaskIfStatus, acceptTaskAtomically };

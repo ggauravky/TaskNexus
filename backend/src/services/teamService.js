@@ -11,6 +11,19 @@ const { isDuplicateKey, withTransaction } = require("../utils/transactions");
 const { parseListQuery } = require("../utils/queryOptions");
 const { paginationMeta } = require("../utils/apiResponse");
 const { toApp } = require("../models/helpers");
+const { buildSearchTarget } = require("../serializers");
+
+const searchTeams = async (query) => {
+  const rows = await teamData.searchTeams(query);
+  return rows.map((row) => ({
+    id: row.id,
+    type: "team",
+    title: row.name,
+    subtitle: row.tagline,
+    status: row.status,
+    targetPath: buildSearchTarget("team", { slug: row.slug }),
+  })).filter((row) => row.targetPath);
+};
 
 const text = (value, max, field, { required = false } = {}) => {
   const normalized = String(value ?? "").trim();
@@ -138,4 +151,4 @@ const listActivity = async (teamId, userId, query) => {
   };
 };
 
-module.exports = { archiveTeam, createTeam, getTeamBySlug, listActivity, listTeams, updateTeam };
+module.exports = { archiveTeam, createTeam, getTeamBySlug, listActivity, listTeams, searchTeams, updateTeam };

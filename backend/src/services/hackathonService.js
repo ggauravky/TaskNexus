@@ -15,6 +15,34 @@ const { errors } = require("../utils/appError");
 const { paginationMeta } = require("../utils/apiResponse");
 const { parseListQuery } = require("../utils/queryOptions");
 const { isDuplicateKey, withTransaction } = require("../utils/transactions");
+const { buildSearchTarget } = require("../serializers");
+
+const searchHackathons = async (search, viewer) => {
+  const pattern = new RegExp(escapeRegex(search), "i");
+  const filter = {
+    visibility: viewer.role === "admin" ? mongoose.trusted({ $in: ["public", "private"] }) : "public",
+    status: mongoose.trusted({ $ne: "archived" }),
+    $or: mongoose.trusted([
+      { name: pattern },
+      { tagline: pattern },
+      { organizer_name: pattern },
+      { themes: pattern },
+    ]),
+  };
+  const rows = await Hackathon.find(filter)
+    .select("_id name slug tagline organizer_name status")
+    .sort({ event_start: 1, _id: 1 })
+    .limit(5)
+    .lean();
+  return toApps(rows).map((row) => ({
+    id: row.id,
+    type: "hackathon",
+    title: row.name,
+    subtitle: row.tagline || row.organizer_name,
+    status: row.status,
+    targetPath: buildSearchTarget("hackathon", { slug: row.slug }),
+  })).filter((row) => row.targetPath);
+};
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -463,6 +491,7 @@ const submitFinal = async (id, actorId, input) => {
 };
 
 module.exports = {
+  searchHackathons,
   archiveHackathon, createHackathon, discoverTeammates, findHackathon, getHackathon, getMyTeam, getSubmission,
   linkProject, listHackathons, registerTeam, saveParticipation, saveSubmission, submitFinal, unlinkProject,
   updateHackathon, withdrawParticipation, withdrawTeam,

@@ -15,6 +15,19 @@ const { isDuplicateKey, withTransaction } = require("../utils/transactions");
 const { paginationMeta } = require("../utils/apiResponse");
 const { parseListQuery } = require("../utils/queryOptions");
 const { dateValue, httpsUrl, idList, slugify, stringList, text } = require("./projectValidation");
+const { buildSearchTarget } = require("../serializers");
+
+const searchProjects = async (query) => {
+  const rows = await projectData.searchProjects(query);
+  return rows.map((row) => ({
+    id: row.id || row._id,
+    type: "project",
+    title: row.name,
+    subtitle: row.tagline,
+    status: row.status,
+    targetPath: buildSearchTarget("project", { teamSlug: row.team_slug, slug: row.slug }),
+  })).filter((row) => row.targetPath);
+};
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 
@@ -238,6 +251,7 @@ const listActivity = async (projectId, userId, query) => {
 };
 
 module.exports = {
+  searchProjects,
   createProject, decorateProjects, getProject, getProjectBySlugs, listActivity, listMyProjects, listTeamProjects,
   transitionProject, updateProject,
 };

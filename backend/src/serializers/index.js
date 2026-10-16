@@ -1,5 +1,91 @@
 const { resolveNotificationTarget } = require("../services/notificationTargetService");
 
+const SEARCH_GROUPS = Object.freeze([
+  "teams",
+  "projects",
+  "people",
+  "hackathons",
+  "opportunities",
+  "organizations",
+  "tasks",
+]);
+const SEARCH_RESULT_LIMIT = 5;
+const SEARCH_RESULT_TYPES = new Set([
+  "team",
+  "project",
+  "person",
+  "hackathon",
+  "opportunity",
+  "organization",
+  "marketplace_task",
+]);
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/i;
+const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const normalizeSearchQuery = (value) => {
+  if (typeof value !== "string") {
+    throw new TypeError("Search query must be between 2 and 80 characters");
+  }
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (normalized.length < 2 || normalized.length > 80) {
+    throw new TypeError("Search query must be between 2 and 80 characters");
+  }
+  return normalized;
+};
+
+const validIdentifier = (value, pattern) => (
+  typeof value === "string" && value === value.trim() && pattern.test(value)
+);
+
+const buildSearchTarget = (type, identifiers = {}) => {
+  const { slug, teamSlug, username, taskId } = identifiers;
+  if (type === "team" && validIdentifier(slug, SLUG_PATTERN)) return `/teams/${slug}`;
+  if (
+    type === "project"
+    && validIdentifier(teamSlug, SLUG_PATTERN)
+    && validIdentifier(slug, SLUG_PATTERN)
+  ) return `/teams/${teamSlug}/projects/${slug}`;
+  if (type === "person" && validIdentifier(username, USERNAME_PATTERN)) return `/u/${username}`;
+  if (type === "hackathon" && validIdentifier(slug, SLUG_PATTERN)) return `/hackathons/${slug}`;
+  if (type === "opportunity" && validIdentifier(slug, SLUG_PATTERN)) return `/opportunities/${slug}`;
+  if (type === "organization" && validIdentifier(slug, SLUG_PATTERN)) return `/organizations/${slug}`;
+  if (type === "marketplace_task" && validIdentifier(taskId, UUID_PATTERN)) return `/tasks/${taskId}`;
+  return null;
+};
+
+const SEARCH_TARGET_PATTERNS = Object.freeze({
+  team: /^\/teams\/[a-z0-9]+(?:-[a-z0-9]+)*$/i,
+  project: /^\/teams\/[a-z0-9]+(?:-[a-z0-9]+)*\/projects\/[a-z0-9]+(?:-[a-z0-9]+)*$/i,
+  person: /^\/u\/[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/i,
+  hackathon: /^\/hackathons\/[a-z0-9]+(?:-[a-z0-9]+)*$/i,
+  opportunity: /^\/opportunities\/[a-z0-9]+(?:-[a-z0-9]+)*$/i,
+  organization: /^\/organizations\/[a-z0-9]+(?:-[a-z0-9]+)*$/i,
+  marketplace_task: new RegExp(`^/tasks/${UUID_PATTERN.source.slice(1, -1)}$`, "i"),
+});
+
+const serializeSearchResult = ({ id, type, title, subtitle, status, targetPath } = {}) => {
+  if (
+    !SEARCH_RESULT_TYPES.has(type)
+    || typeof id !== "string"
+    || !id
+    || typeof title !== "string"
+    || !title.trim()
+    || typeof targetPath !== "string"
+    || !SEARCH_TARGET_PATTERNS[type].test(targetPath)
+  ) return null;
+
+  const dto = {
+    id,
+    type,
+    title: title.trim(),
+  };
+  if (typeof subtitle === "string" && subtitle.trim()) dto.subtitle = subtitle.trim();
+  if (typeof status === "string" && status.trim()) dto.status = status.trim();
+  dto.target_path = targetPath;
+  return dto;
+};
+
 const cloneJson = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
   return JSON.parse(JSON.stringify(value));
@@ -88,6 +174,11 @@ const serializeNotification = (notification) => {
 };
 
 module.exports = {
+  SEARCH_GROUPS,
+  SEARCH_RESULT_LIMIT,
+  normalizeSearchQuery,
+  buildSearchTarget,
+  serializeSearchResult,
   serializeUser,
   serializeTask,
   serializeSubmission,
