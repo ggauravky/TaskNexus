@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import TaskCollaborationPanel from "../common/TaskCollaborationPanel";
+import { isWorkspaceActionAvailable } from "../../utils/taskWorkspacePermissions";
 
 const WORK_SECTIONS = Object.freeze(["milestones"]);
 
@@ -10,6 +11,9 @@ const TaskWork = ({ workspace, pendingAction, onProgress, onReturnTask }) => {
   const [stage, setStage] = useState(progress.stage || "in_progress");
   const [note, setNote] = useState(progress.note || "");
   const [confirmReturn, setConfirmReturn] = useState(false);
+  const canUpdateProgress = isWorkspaceActionAvailable(workspace, "update_progress", "can_update_progress");
+  const canReturnTask = Boolean(permissions.can_return_task)
+    && workspace.available_actions?.includes("return_task");
 
   useEffect(() => {
     setPercentage(progress.percentage);
@@ -30,7 +34,7 @@ const TaskWork = ({ workspace, pendingAction, onProgress, onReturnTask }) => {
           <span className="text-2xl font-semibold text-[#b7bdf8]">{percentage}%</span>
         </div>
 
-        {permissions.can_update_progress ? (
+        {canUpdateProgress ? (
           <form className="mt-5 space-y-4" onSubmit={(event) => { event.preventDefault(); onProgress({ progress: percentage, stage, note: note.trim() }); }}>
             <label className="block">
               <span className="team-label">Progress percentage</span>
@@ -52,10 +56,15 @@ const TaskWork = ({ workspace, pendingAction, onProgress, onReturnTask }) => {
       </section>
 
       <section className="rounded-xl border border-[#23252a] bg-[#0f1011] p-4 sm:p-5">
-        <TaskCollaborationPanel task={task} sections={WORK_SECTIONS} title="Subtasks and milestones" />
+        <TaskCollaborationPanel
+          task={task}
+          sections={WORK_SECTIONS}
+          title="Subtasks and milestones"
+          authoritativePermissions={permissions}
+        />
       </section>
 
-      {permissions.can_return_task ? <section className="rounded-xl border border-rose-950 bg-rose-950/10 p-4 sm:p-5">
+      {canReturnTask ? <section className="rounded-xl border border-rose-950 bg-rose-950/10 p-4 sm:p-5">
         <h2 className="text-sm font-medium text-rose-100">Return task</h2>
         <p className="mt-2 text-xs leading-5 text-rose-200/70">This removes your assignment and returns the task to marketplace review. It does not delete the task.</p>
         {confirmReturn ? <div className="mt-4 flex flex-wrap gap-2"><button type="button" className="team-button-secondary" disabled={busy} onClick={() => setConfirmReturn(false)}>Keep task</button><button type="button" className="team-button-danger" disabled={busy} onClick={onReturnTask}>{pendingAction === "return_task" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Confirm return</button></div> : <button type="button" className="team-button-secondary mt-4 text-rose-200" disabled={busy} onClick={() => setConfirmReturn(true)}><RotateCcw className="h-4 w-4" />Return to marketplace</button>}

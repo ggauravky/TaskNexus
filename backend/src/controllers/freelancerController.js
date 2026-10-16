@@ -416,6 +416,13 @@ exports.updateProgress = async (req, res, next) => {
       });
     }
 
+    if (task.status !== TASK_STATUS.IN_PROGRESS) {
+      return res.status(400).json({
+        success: false,
+        message: `Task must be in '${TASK_STATUS.IN_PROGRESS}' status to update progress`,
+      });
+    }
+
     const pct = Number(progress);
     if (Number.isNaN(pct) || pct < 0 || pct > 100) {
       return res.status(400).json({

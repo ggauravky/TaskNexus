@@ -1,6 +1,6 @@
 const { paginationMeta } = require("../src/utils/apiResponse");
 const { parseListQuery } = require("../src/utils/queryOptions");
-const { serializeTask, serializeUser } = require("../src/serializers");
+const { serializeNotification, serializeTask, serializeUser } = require("../src/serializers");
 const collaborationService = require("../src/services/collaborationService");
 
 jest.mock("../src/data/collaborationData", () => ({}));
@@ -52,6 +52,24 @@ describe("API boundary contracts", () => {
     expect(result).toMatchObject({ id: "task-1", client_id: "client-1" });
     expect(result).not.toHaveProperty("_id");
     expect(result).not.toHaveProperty("clientId");
+  });
+
+  test("notification DTO exposes only the canonical safe navigation target", () => {
+    const result = serializeNotification({
+      id: "notification-1",
+      recipient_id: "user-1",
+      type: "task_progress",
+      related_task_id: "00000000-0000-4000-8000-000000000101",
+      content: {
+        title: "Progress updated",
+        actionUrl: "https://evil.example/steal",
+      },
+      status: "unread",
+      priority: "medium",
+    });
+
+    expect(result.target_path).toBe("/tasks/00000000-0000-4000-8000-000000000101?tab=work");
+    expect(result).not.toHaveProperty("targetPath");
   });
 
   test("task access rejects a client who does not own the task", () => {

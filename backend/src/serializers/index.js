@@ -1,3 +1,5 @@
+const { resolveNotificationTarget } = require("../services/notificationTargetService");
+
 const cloneJson = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
   return JSON.parse(JSON.stringify(value));
@@ -81,6 +83,7 @@ const serializeNotification = (notification) => {
     read_at: notification.read_at || null,
     metadata: cloneJson(notification.metadata, null),
     created_at: notification.created_at || null,
+    target_path: resolveNotificationTarget(notification),
   };
 };
 

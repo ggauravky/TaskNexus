@@ -7,7 +7,13 @@ const mapMilestone = (value) => { const row = toApp(value); return row && ({ id:
 
 const listComments = (taskId) => runMongo(async () => (await TaskComment.find({ task_id: taskId }).sort({ created_at: 1 }).lean()).map(mapComment), "Unable to list comments");
 const createComment = (item) => runMongo(async () => mapComment(await TaskComment.create({ _id: item.id, task_id: item.taskId, author_id: item.authorId, author_name: item.authorName, body: item.body, mentions: item.mentions, attachments: item.attachments, created_at: item.createdAt })), "Unable to create comment");
-const listActivity = (taskId) => runMongo(async () => (await TaskActivity.find({ task_id: taskId }).sort({ created_at: 1 }).lean()).map(mapActivity), "Unable to list activity");
+const listActivity = (taskId) => runMongo(async () => {
+  const latest = await TaskActivity.find({ task_id: taskId })
+    .sort({ created_at: -1, _id: -1 })
+    .limit(200)
+    .lean();
+  return latest.reverse().map(mapActivity);
+}, "Unable to list activity");
 const createActivity = (taskId, item) => runMongo(async () => mapActivity(await TaskActivity.create({ _id: item.id, task_id: taskId, activity_type: item.type, actor_id: item.actorId, actor_name: item.actorName, message: item.message, metadata: item.metadata, created_at: item.createdAt })), "Unable to create activity");
 const listMilestones = (taskId) => runMongo(async () => (await TaskMilestone.find({ task_id: taskId }).sort({ position: 1, created_at: 1 }).lean()).map(mapMilestone), "Unable to list milestones");
 const createMilestone = (taskId, item) => runMongo(async () => mapMilestone(await TaskMilestone.create({ _id: item.id, task_id: taskId, title: item.title, description: item.description, due_at: item.dueDate, weight: item.weight, completed: item.completed, position: item.order, created_at: item.createdAt, updated_at: item.updatedAt })), "Unable to create milestone");

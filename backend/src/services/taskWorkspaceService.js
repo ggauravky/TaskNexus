@@ -37,6 +37,35 @@ const serializeParticipant = (user, role) => {
   };
 };
 
+const pickFields = (value, fields) => Object.fromEntries(
+  fields
+    .filter((field) => Object.prototype.hasOwnProperty.call(value || {}, field))
+    .map((field) => [field, value[field]]),
+);
+
+const WORKFLOW_FIELDS = Object.freeze([
+  "submittedAt",
+  "underReviewAt",
+  "reviewedAt",
+  "approvedAt",
+  "assignedAt",
+  "startedAt",
+  "submittedWorkAt",
+  "deliveredAt",
+  "completedAt",
+  "cancelledAt",
+  "unassignedAt",
+]);
+
+const METRIC_FIELDS = Object.freeze([
+  "progress",
+  "stage",
+  "progressNote",
+  "progressUpdatedAt",
+  "revisionsUsed",
+  "milestoneProgress",
+]);
+
 const serializeWorkspaceTask = (task) => ({
   id: task.id,
   task_id: task.task_id,
@@ -44,8 +73,8 @@ const serializeWorkspaceTask = (task) => ({
   freelancer_id: task.freelancer_id || null,
   task_details: task.task_details || {},
   status: task.status,
-  workflow: task.workflow || {},
-  metrics: task.metrics || {},
+  workflow: pickFields(task.workflow, WORKFLOW_FIELDS),
+  metrics: pickFields(task.metrics, METRIC_FIELDS),
   priority: task.priority || "medium",
   tags: Array.isArray(task.tags) ? task.tags : [],
   cancellation_reason: task.cancellation_reason || null,
@@ -73,7 +102,13 @@ const currentSubmissionSummary = (submission) => {
   };
 };
 
-const deriveCapabilities = ({ task, relationship, currentSubmission, hasRated }) => {
+const deriveCapabilities = ({
+  task,
+  relationship,
+  currentSubmission,
+  hasRated,
+  revisionLimitReached = false,
+}) => {
   const permissions = {
     can_start: false,
     can_return_task: false,
@@ -113,8 +148,9 @@ const deriveCapabilities = ({ task, relationship, currentSubmission, hasRated })
     && currentSubmission?.client_review?.status === "pending"
   ) {
     permissions.can_review = true;
-    permissions.can_request_revision = true;
-    actions.push("approve_delivery", "request_revision");
+    permissions.can_request_revision = !revisionLimitReached;
+    actions.push("approve_delivery");
+    if (!revisionLimitReached) actions.push("request_revision");
   }
 
   if (
@@ -134,14 +170,12 @@ const getWorkspace = async (taskId, actor, { section } = {}) => {
   const task = await taskData.findTaskById(taskId);
   const relationship = ensureWorkspaceAccess(task, actor);
 
-  const [client, freelancer, submissions, reviews] = await Promise.all([
+  const [client, freelancer, submissions, reviews, revisionCount] = await Promise.all([
     userData.findUserById(task.client_id),
     task.freelancer_id ? userData.findUserById(task.freelancer_id) : Promise.resolve(null),
-    submissionData.findSubmissions(
-      section === "delivery"
-        ? { task_id: task.id }
-        : { task_id: task.id, is_active: true },
-    ),
+    section === "delivery"
+      ? submissionData.listRecentSubmissions(task.id, 25)
+      : submissionData.findSubmissions({ task_id: task.id, is_active: true }),
     task.status === TASK_STATUS.COMPLETED
       ? reviewData.findReviews({
         task_id: task.id,
@@ -149,13 +183,23 @@ const getWorkspace = async (taskId, actor, { section } = {}) => {
         review_type: "client_to_platform",
       })
       : Promise.resolve([]),
+    relationship === "client" && task.status === TASK_STATUS.DELIVERED
+      ? submissionData.getRevisionCount(task.id)
+      : Promise.resolve(0),
   ]);
 
   const currentSubmission = submissions
     .filter((submission) => submission.is_active)
     .sort(byNewestSubmission)[0] || null;
   const hasRated = reviews.length > 0;
-  const capabilities = deriveCapabilities({ task, relationship, currentSubmission, hasRated });
+  const revisionLimit = Number(task.task_details?.revisionLimit || 2);
+  const capabilities = deriveCapabilities({
+    task,
+    relationship,
+    currentSubmission,
+    hasRated,
+    revisionLimitReached: Number(revisionCount || 0) >= revisionLimit,
+  });
   const workspace = {
     task: serializeWorkspaceTask(task),
     viewer: { role: actor.role, relationship },

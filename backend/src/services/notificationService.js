@@ -5,6 +5,7 @@ const {
 } = require("../config/constants");
 const logger = require("../utils/logger");
 const realtimeHub = require("./realtimeHub");
+const { serializeNotification } = require("../serializers");
 
 /**
  * Notification Service
@@ -19,7 +20,7 @@ class NotificationService {
       const notification = await notificationData.createNotification(data);
       if (notification?.recipient_id) {
         realtimeHub.publishToUser(notification.recipient_id, "notification.created", {
-          notification,
+          notification: serializeNotification(notification),
           unreadIncrement: notification.status === "unread" ? 1 : 0,
         });
       }
@@ -190,23 +191,25 @@ class NotificationService {
    * Mark notification as read
    */
   static async markAsRead(notificationId, userId) {
-    const notifications = await notificationData.findNotifications({
-      id: notificationId,
-      recipient_id: userId,
-    });
-
-    if (notifications.length === 0) {
+    const notification = await notificationData.updateNotificationForRecipient(
+      notificationId,
+      userId,
+      { status: "read", read_at: new Date() },
+    );
+    if (!notification) {
       throw new Error("Notification not found");
     }
-    
-    return await notificationData.updateNotification(notificationId, { status: "read", read_at: new Date() });
+    return notification;
   }
 
   /**
    * Mark all as read
    */
   static async markAllAsRead(userId) {
-    return await notificationData.updateManyNotifications({ recipient_id: userId }, { status: "read", read_at: new Date() });
+    return await notificationData.updateManyNotifications(
+      { recipient_id: userId, status: "unread" },
+      { status: "read", read_at: new Date() },
+    );
   }
 
   /**
