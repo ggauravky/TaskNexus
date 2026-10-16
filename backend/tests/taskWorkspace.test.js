@@ -12,10 +12,21 @@ const taskWorkspaceService = require("../src/services/taskWorkspaceService");
 const { generateTokens } = require("../src/config/jwt");
 const app = require("../src/app");
 
-jest.mock("../src/data/taskData", () => ({ findTaskById: jest.fn() }));
+jest.mock("../src/data/taskData", () => ({
+  findTaskById: jest.fn(),
+  updateTask: jest.fn(),
+}));
 jest.mock("../src/data/userData", () => ({ findUserById: jest.fn() }));
-jest.mock("../src/data/submissionData", () => ({ findSubmissions: jest.fn() }));
+jest.mock("../src/data/submissionData", () => ({
+  findSubmissions: jest.fn(),
+  listRecentSubmissions: jest.fn(),
+  getRevisionCount: jest.fn(),
+}));
 jest.mock("../src/data/reviewData", () => ({ findReviews: jest.fn() }));
+jest.mock("../src/data/auditLogData", () => ({ log: jest.fn().mockResolvedValue(null) }));
+jest.mock("../src/services/notificationService", () => ({
+  create: jest.fn().mockResolvedValue(null),
+}));
 
 const task = (overrides = {}) => ({
   id: "00000000-0000-4000-8000-000000000101",
@@ -64,7 +75,10 @@ describe("marketplace task workspace", () => {
       [users.client, users.freelancer].find((user) => user.id === id) || null
     ));
     submissionData.findSubmissions.mockResolvedValue([]);
+    submissionData.listRecentSubmissions.mockResolvedValue([]);
+    submissionData.getRevisionCount.mockResolvedValue(0);
     reviewData.findReviews.mockResolvedValue([]);
+    taskData.updateTask.mockResolvedValue(task());
   });
 
   test.each([
@@ -75,6 +89,49 @@ describe("marketplace task workspace", () => {
     const workspace = await taskWorkspaceService.getWorkspace(task().id, actor);
     expect(workspace.task).toMatchObject({ id: task().id, status: "in_progress" });
     expect(workspace.viewer).toEqual({ role: actor.role, relationship: actor.role === "admin" ? "admin" : actor.role });
+  });
+
+  test("allowlists lifecycle and progress fields without embedded collaboration storage metadata", async () => {
+    taskData.findTaskById.mockResolvedValue(task({
+      workflow: {
+        assignedAt: "2026-10-02T00:00:00.000Z",
+        startedAt: "2026-10-03T00:00:00.000Z",
+        deliveredAt: null,
+        collaboration: {
+          comments: [{
+            body: "legacy comment",
+            attachments: [{ storageKey: "private/key", storageProvider: "disk" }],
+          }],
+          activity: [{ message: "legacy activity" }],
+        },
+      },
+      metrics: {
+        progress: 35,
+        stage: "in_progress",
+        progressNote: "API complete",
+        progressUpdatedAt: "2026-10-10T00:00:00.000Z",
+        subtasks: [{ id: "legacy-subtask", title: "Do not inline" }],
+        milestoneProgress: 35,
+      },
+    }));
+
+    const workspace = await taskWorkspaceService.getWorkspace(task().id, users.client);
+
+    expect(workspace.task.workflow).toEqual({
+      assignedAt: "2026-10-02T00:00:00.000Z",
+      startedAt: "2026-10-03T00:00:00.000Z",
+      deliveredAt: null,
+    });
+    expect(workspace.task.metrics).toEqual({
+      progress: 35,
+      stage: "in_progress",
+      progressNote: "API complete",
+      progressUpdatedAt: "2026-10-10T00:00:00.000Z",
+      milestoneProgress: 35,
+    });
+    expect(JSON.stringify(workspace)).not.toContain("storageKey");
+    expect(JSON.stringify(workspace)).not.toContain("legacy-subtask");
+    expect(JSON.stringify(workspace)).not.toContain("legacy comment");
   });
 
   test.each([
@@ -146,6 +203,29 @@ describe("marketplace task workspace", () => {
     expect(workspace.current_submission).not.toHaveProperty("content");
   });
 
+  test("withholds revision actions when the task revision limit is exhausted", async () => {
+    taskData.findTaskById.mockResolvedValue(task({
+      status: "delivered",
+      task_details: { ...task().task_details, revisionLimit: 1 },
+    }));
+    submissionData.findSubmissions.mockResolvedValue([{
+      id: "00000000-0000-4000-8000-000000000301",
+      task_id: task().id,
+      freelancer_id: users.freelancer.id,
+      is_active: true,
+      version: 1,
+      client_review: { status: "pending" },
+      content: { deliverables: [{ type: "link", url: "https://example.com/work" }] },
+    }]);
+    submissionData.getRevisionCount.mockResolvedValue(1);
+
+    const workspace = await taskWorkspaceService.getWorkspace(task().id, users.client);
+
+    expect(workspace.available_actions).toEqual(["approve_delivery"]);
+    expect(workspace.permissions.can_review).toBe(true);
+    expect(workspace.permissions.can_request_revision).toBe(false);
+  });
+
   test("allows the client to rate a completed task only before a review exists", async () => {
     taskData.findTaskById.mockResolvedValue(task({ status: "completed" }));
     const unrated = await taskWorkspaceService.getWorkspace(task().id, users.client);
@@ -180,11 +260,22 @@ describe("marketplace task workspace", () => {
       version: 1,
       is_active: true,
     }]);
+    submissionData.listRecentSubmissions.mockResolvedValue([{
+      id: "00000000-0000-4000-8000-000000000301",
+      task_id: task().id,
+      freelancer_id: users.freelancer.id,
+      submission_type: "initial",
+      content: { deliverables: [{ type: "link", url: "https://example.com/work" }] },
+      client_review: { status: "pending" },
+      version: 1,
+      is_active: true,
+    }]);
 
     const base = await taskWorkspaceService.getWorkspace(task().id, users.client);
     expect(base).not.toHaveProperty("delivery");
 
     const withDelivery = await taskWorkspaceService.getWorkspace(task().id, users.client, { section: "delivery" });
+    expect(submissionData.listRecentSubmissions).toHaveBeenCalledWith(task().id, 25);
     expect(withDelivery.delivery.submissions).toEqual([
       expect.objectContaining({ content: expect.objectContaining({ deliverables: expect.any(Array) }) }),
     ]);
@@ -199,7 +290,10 @@ describe("marketplace task workspace API", () => {
       Object.values(users).find((user) => user.id === id) || null
     ));
     submissionData.findSubmissions.mockResolvedValue([]);
+    submissionData.listRecentSubmissions.mockResolvedValue([]);
+    submissionData.getRevisionCount.mockResolvedValue(0);
     reviewData.findReviews.mockResolvedValue([]);
+    taskData.updateTask.mockResolvedValue(task());
   });
 
   const tokenFor = (actor) => generateTokens(actor.id, actor.role).accessToken;
@@ -231,14 +325,18 @@ describe("marketplace task workspace API", () => {
   });
 
   test.each([
-    ["comments", `/api/tasks/${task().id}/comments`],
-    ["activity", `/api/tasks/${task().id}/activity`],
-    ["subtasks", `/api/tasks/${task().id}/subtasks`],
-    ["attachments", `/api/tasks/${task().id}/attachments/private-file.txt`],
-  ])("denies unrelated freelancers access to workspace %s", async (_label, path) => {
+    ["unrelated client", users.unrelatedClient, "comments", `/api/tasks/${task().id}/comments`],
+    ["unrelated client", users.unrelatedClient, "activity", `/api/tasks/${task().id}/activity`],
+    ["unrelated client", users.unrelatedClient, "subtasks", `/api/tasks/${task().id}/subtasks`],
+    ["unrelated client", users.unrelatedClient, "attachments", `/api/tasks/${task().id}/attachments/private-file.txt`],
+    ["unrelated freelancer", users.unrelatedFreelancer, "comments", `/api/tasks/${task().id}/comments`],
+    ["unrelated freelancer", users.unrelatedFreelancer, "activity", `/api/tasks/${task().id}/activity`],
+    ["unrelated freelancer", users.unrelatedFreelancer, "subtasks", `/api/tasks/${task().id}/subtasks`],
+    ["unrelated freelancer", users.unrelatedFreelancer, "attachments", `/api/tasks/${task().id}/attachments/private-file.txt`],
+  ])("denies an %s access to workspace %s", async (_actorLabel, actor, _resource, path) => {
     const response = await request(app)
       .get(path)
-      .set("Authorization", `Bearer ${tokenFor(users.unrelatedFreelancer)}`);
+      .set("Authorization", `Bearer ${tokenFor(actor)}`);
 
     expect(response.status).toBe(403);
   });
@@ -274,5 +372,20 @@ describe("marketplace task workspace API", () => {
     expect(response.body.error.details).toEqual(expect.arrayContaining([
       expect.objectContaining({ message: "Invalid deliverable type" }),
     ]));
+  });
+
+  test("rejects progress updates when the task lifecycle does not permit them", async () => {
+    taskData.findTaskById.mockResolvedValue(task({ status: "delivered" }));
+
+    const response = await request(app)
+      .put(`/api/freelancer/tasks/${task().id}/progress`)
+      .set("Authorization", `Bearer ${tokenFor(users.freelancer)}`)
+      .send({ progress: "80", stage: "ready_for_submission", note: "Already delivered" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatchObject({
+      message: "Task must be in 'in_progress' status to update progress",
+    });
+    expect(taskData.updateTask).not.toHaveBeenCalled();
   });
 });

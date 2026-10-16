@@ -45,6 +45,7 @@ const OrganizationPage = lazy(() => import('./pages/OrganizationPage'));
 const OrganizationWorkspacePage = lazy(() => import('./pages/OrganizationWorkspacePage'));
 const OrganizationInvitationsPage = lazy(() => import('./pages/OrganizationInvitationsPage'));
 const TaskWorkspacePage = lazy(() => import('./pages/TaskWorkspacePage'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 
 const PUBLIC_METADATA = {
     '/': { title: 'TaskNexus', description: 'A focused workspace for organizing tasks, tracking progress, and collaborating around delivery.' },
@@ -61,7 +62,7 @@ const RouteMetadata = () => {
 
     useEffect(() => {
         const isShowcaseEditor = /^\/teams\/[a-z0-9-]+\/projects\/[a-z0-9-]+\/showcase$/i.test(pathname);
-        const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile|\/tasks)(\/|$)/.test(pathname)
+        const isPrivate = /^(\/client|\/freelancer|\/admin|\/profile|\/tasks|\/notifications)(\/|$)/.test(pathname)
             || pathname === '/teams' || pathname === '/projects' || pathname === '/contributions' || pathname === '/people' || pathname === '/collaboration' || pathname === '/applications' || pathname === '/organization-invitations'
             || /^\/organizations\/[a-z0-9-]+\/workspace$/i.test(pathname)
             || /\/settings$/.test(pathname) || isShowcaseEditor;
@@ -248,6 +249,11 @@ function AppRoutes() {
             <Route path="/tasks/:taskId" element={
                 <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
                     <TaskWorkspacePage />
+                </ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+                <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT, USER_ROLES.FREELANCER, USER_ROLES.ADMIN]}>
+                    <NotificationsPage />
                 </ProtectedRoute>
             } />
             <Route path="/teams" element={

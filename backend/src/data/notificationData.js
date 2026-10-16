@@ -13,6 +13,11 @@ const listNotifications = ({ filters = {}, page, limit }) => runMongo(async () =
   return { items: toApps(items), total, page, limit };
 }, "Unable to list notifications");
 const updateNotification = (id, updates) => runMongo(async () => toApp(await Notification.findByIdAndUpdate(id, { $set: updates }, { returnDocument: "after", runValidators: true }).lean()), "Unable to update notification");
+const updateNotificationForRecipient = (id, recipientId, updates) => runMongo(async () => toApp(await Notification.findOneAndUpdate(
+  { _id: id, recipient_id: recipientId },
+  { $set: updates },
+  { returnDocument: "after", runValidators: true },
+).lean()), "Unable to update notification");
 const updateManyNotifications = (filters, updates) => runMongo(async () => {
   const result = await Notification.updateMany(buildFilter(filters), { $set: updates }, { runValidators: true });
   return { matchedCount: result.matchedCount, modifiedCount: result.modifiedCount };
@@ -21,10 +26,25 @@ const deleteNotification = (id) => runMongo(async () => {
   const row = await Notification.findByIdAndDelete(id).lean();
   return row ? [toApp(row)] : [];
 }, "Unable to delete notification");
+const deleteNotificationForRecipient = (id, recipientId) => runMongo(async () => toApp(await Notification.findOneAndDelete({
+  _id: id,
+  recipient_id: recipientId,
+}).lean()), "Unable to delete notification");
 const deleteManyNotifications = (filters) => runMongo(async () => {
   const query = buildFilter(filters);
   const result = await Notification.deleteMany(query);
   return { deletedCount: result.deletedCount };
 }, "Unable to delete notifications");
 
-module.exports = { createNotification, findNotifications, countNotifications, listNotifications, updateNotification, updateManyNotifications, deleteNotification, deleteManyNotifications };
+module.exports = {
+  createNotification,
+  findNotifications,
+  countNotifications,
+  listNotifications,
+  updateNotification,
+  updateNotificationForRecipient,
+  updateManyNotifications,
+  deleteNotification,
+  deleteNotificationForRecipient,
+  deleteManyNotifications,
+};

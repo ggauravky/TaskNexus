@@ -398,6 +398,30 @@
     @apply min-h-8 py-1 text-xs;
   }
 
+  .notification-bell {
+    @apply relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#34343a] bg-[#0f1011] text-[#d0d6e0] outline-none transition-colors hover:bg-[#18191a] hover:text-white focus:ring-2 focus:ring-[#5e69d1];
+  }
+
+  .notification-badge {
+    @apply absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#010102] bg-[#5e6ad2] px-1 text-[10px] font-bold leading-none text-white;
+  }
+
+  .notification-panel {
+    @apply fixed inset-x-3 top-[4.5rem] z-[70] max-h-[calc(100dvh-5.5rem)] overflow-hidden rounded-xl border border-[#34343a] bg-[#0f1011] text-[#f7f8f8] shadow-2xl outline-none sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-[24rem] sm:max-w-[calc(100vw-2rem)];
+  }
+
+  .notification-list {
+    @apply max-h-[min(28rem,calc(100dvh-15rem))] overflow-y-auto;
+  }
+
+  .notification-row {
+    @apply flex w-full items-start gap-3 border-b border-[#23252a] px-4 py-3 text-left outline-none transition-colors last:border-b-0 hover:bg-[#18191a] focus:bg-[#18191a] focus:ring-2 focus:ring-inset focus:ring-[#5e69d1] disabled:cursor-wait disabled:opacity-70;
+  }
+
+  .notification-row.is-unread {
+    @apply border-l-2 border-l-[#5e6ad2] bg-[#5e6ad2]/[0.06];
+  }
+
   .app-nav-link {
     @apply inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-[#8a8f98] outline-none transition-colors hover:bg-[#141516] hover:text-[#f7f8f8] focus:ring-2 focus:ring-[#5e69d1];
   }

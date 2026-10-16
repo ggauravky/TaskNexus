@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   BarChart3,
+  Bell,
   Briefcase as BriefcaseBusiness,
   CalendarRange,
   Compass,
@@ -20,7 +21,9 @@ import {
 } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { NotificationProvider } from "../../context/NotificationContext";
 import { dashboardFor } from "../../utils/teams";
+import NotificationBell from "../notifications/NotificationBell";
 
 const EmbeddedShellContext = createContext(false);
 
@@ -37,6 +40,7 @@ const accountLinks = [
   { to: "/collaboration", label: "Requests", icon: Inbox },
   { to: "/applications", label: "Applications", icon: ListChecks },
   { to: "/profile", label: "Profile", icon: UserRound },
+  { to: "/notifications", label: "Notifications", icon: Bell },
 ];
 
 const adminLinks = [
@@ -77,7 +81,7 @@ const NavigationLink = ({ item, onNavigate, mobile = false }) => {
   );
 };
 
-export const AppShellFrame = ({ children }) => {
+const AppShellFrameContent = ({ children }) => {
   const { isAuthenticated, logout, user } = useAuth();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -136,33 +140,36 @@ export const AppShellFrame = ({ children }) => {
             ) : null}
             {desktopLinks.map((item) => <NavigationLink key={item.to} item={item} />)}
           </nav>
-          <div className="ml-auto hidden items-center gap-2 xl:flex">
-            {isAuthenticated ? (
-              <>
+          <div className="ml-auto flex items-center gap-2">
+            {isAuthenticated ? <NotificationBell /> : null}
+            <div className="hidden items-center gap-2 xl:flex">
+              {isAuthenticated ? (
+                <>
                 <NavLink to="/profile" className="app-account-link" aria-label="Open profile">
                   <span className="app-user-avatar" aria-hidden="true">{(user?.profile?.firstName?.[0] || user?.email?.[0] || "U").toUpperCase()}</span>
                   <span className="max-w-28 truncate">{user?.profile?.firstName || "Profile"}</span>
                 </NavLink>
                 <button type="button" onClick={() => logout()} className="team-button-secondary"><LogOut className="h-4 w-4" /> Sign out</button>
-              </>
-            ) : (
-              <>
+                </>
+              ) : (
+                <>
                 <Link to="/login" className="team-button-secondary"><LogIn className="h-4 w-4" /> Sign in</Link>
                 <Link to="/register" className="team-button-primary">Create account</Link>
-              </>
-            )}
+                </>
+              )}
+            </div>
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className="team-icon-button xl:hidden"
+              aria-expanded={menuOpen}
+              aria-controls="app-mobile-navigation"
+              aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+              onClick={() => setMenuOpen((value) => !value)}
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
-          <button
-            ref={menuButtonRef}
-            type="button"
-            className="team-icon-button ml-auto xl:hidden"
-            aria-expanded={menuOpen}
-            aria-controls="app-mobile-navigation"
-            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
-            onClick={() => setMenuOpen((value) => !value)}
-          >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
         </div>
         {isAuthenticated ? (
           <nav className="app-secondary-nav" aria-label="Workspace secondary navigation">
@@ -191,6 +198,15 @@ export const AppShellFrame = ({ children }) => {
       <div className="app-shell-content">{children}</div>
     </div>
   );
+};
+
+export const AppShellFrame = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  const frame = <AppShellFrameContent>{children}</AppShellFrameContent>;
+
+  return isAuthenticated ? (
+    <NotificationProvider>{frame}</NotificationProvider>
+  ) : frame;
 };
 
 export const AuthenticatedAppShell = ({ children }) => (

@@ -50,21 +50,23 @@ exports.getNotifications = async (req, res, next) => {
  */
 exports.markAsRead = async (req, res, next) => {
   try {
-    const notification = await notificationData.findNotifications({ id: req.params.id, recipient_id: req.user.id });
+    const updatedNotification = await notificationData.updateNotificationForRecipient(
+      req.params.id,
+      req.user.id,
+      { status: "read", read_at: new Date() },
+    );
 
-    if (notification.length === 0) {
+    if (!updatedNotification) {
       return res.status(404).json({
         success: false,
         message: "Notification not found",
       });
     }
 
-    const updatedNotification = await notificationData.updateNotification(req.params.id, { status: "read", read_at: new Date() });
-
     res.status(200).json({
       success: true,
       message: "Notification marked as read",
-      data: updatedNotification,
+      data: serializeNotification(updatedNotification),
     });
   } catch (error) {
     logger.error("Error marking notification as read:", error);
@@ -102,16 +104,17 @@ exports.markAllAsRead = async (req, res, next) => {
  */
 exports.deleteNotification = async (req, res, next) => {
   try {
-    const notification = await notificationData.findNotifications({ id: req.params.id, recipient_id: req.user.id });
+    const notification = await notificationData.deleteNotificationForRecipient(
+      req.params.id,
+      req.user.id,
+    );
 
-    if (notification.length === 0) {
-        return res.status(404).json({
-            success: false,
-            message: "Notification not found",
-        });
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: "Notification not found",
+      });
     }
-
-    await notificationData.deleteNotification(req.params.id);
 
     res.status(200).json({
       success: true,

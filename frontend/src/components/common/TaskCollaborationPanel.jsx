@@ -13,6 +13,7 @@ import api from "../../services/api";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { apiError } from "../../utils/marketplace";
+import { resolveCollaborationPermissions } from "../../utils/taskWorkspacePermissions";
 
 const TAB_IDS = {
   COMMENTS: "comments",
@@ -41,17 +42,15 @@ const TaskCollaborationPanel = ({
   task,
   sections = DEFAULT_SECTIONS,
   title = "Collaboration",
+  authoritativePermissions,
 }) => {
   const { user } = useAuth();
   const taskId = getTaskId(task);
 
-  const canCollaborate = useMemo(() => {
-    if (!user) return false;
-    if (user.role === "admin") return true;
-    if (user.role === "client") return task?.client_id === user.id;
-    if (user.role === "freelancer") return task?.freelancer_id === user.id;
-    return false;
-  }, [user, task]);
+  const { canCollaborate, canManageSubtasks } = useMemo(
+    () => resolveCollaborationPermissions({ task, user, authoritative: authoritativePermissions }),
+    [authoritativePermissions, task, user],
+  );
 
   const enabledSections = useMemo(
     () => DEFAULT_SECTIONS.filter((section) => sections.includes(section)),
@@ -424,7 +423,7 @@ const TaskCollaborationPanel = ({
                 </div>
               </div>
 
-              {canCollaborate && (
+              {canManageSubtasks && (
                 <div className="rounded-xl border border-[#34343a] bg-[#141516] p-3 sm:p-4">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                     <label htmlFor="milestone-title" className="sr-only">Milestone title</label>
@@ -502,7 +501,7 @@ const TaskCollaborationPanel = ({
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          {canCollaborate ? (
+                          {canManageSubtasks ? (
                             <button
                               type="button"
                               aria-label={`${subtask.completed ? "Reopen" : "Complete"} milestone ${subtask.title}`}
@@ -526,7 +525,7 @@ const TaskCollaborationPanel = ({
                               {subtask.completed ? "Completed" : "Pending"}
                             </span>
                           )}
-                          {canCollaborate && (
+                          {canManageSubtasks && (
                             <button
                               type="button"
                               onClick={() => deleteSubtask(subtask.id)}

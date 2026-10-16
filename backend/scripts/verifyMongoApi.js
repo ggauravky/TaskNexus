@@ -289,11 +289,129 @@ const run = async () => {
     const archived = await call(`/teams/${teamId}/archive`, { method: "POST", token: freelancerToken });
     assert.equal(archived.status, 200, "contextual owner archive failed");
 
+    const clientNotificationBaseline = await call("/notifications?page=1&limit=1", { token: clientToken });
+    const freelancerNotificationBaseline = await call("/notifications?page=1&limit=1", { token: freelancerToken });
+    assert.equal(clientNotificationBaseline.status, 200, "client notification baseline failed");
+    assert.equal(freelancerNotificationBaseline.status, 200, "freelancer notification baseline failed");
+    const clientBaselineTotal = clientNotificationBaseline.payload.meta.pagination.total;
+    const clientBaselineUnread = clientNotificationBaseline.payload.data.unreadCount;
+    const freelancerBaselineTotal = freelancerNotificationBaseline.payload.meta.pagination.total;
+    const freelancerBaselineUnread = freelancerNotificationBaseline.payload.data.unreadCount;
+
+    const notificationTaskId = randomUUID();
+    const notificationCreatedAt = Date.now();
+    const clientNotificationIds = Array.from({ length: 22 }, () => randomUUID());
+    const freelancerNotificationId = randomUUID();
+    await models.Notification.insertMany([
+      ...clientNotificationIds.map((id, index) => ({
+        _id: id,
+        recipient_id: ids.client,
+        actor_id: ids.freelancer,
+        type: "task_progress",
+        content: {
+          title: `Notification ${index + 1}`,
+          message: `Bounded notification history ${index + 1}`,
+          actionUrl: index === 21 ? "https://attacker.example/phish" : `/legacy/${id}`,
+        },
+        related_task_id: notificationTaskId,
+        status: "unread",
+        created_at: new Date(notificationCreatedAt + index),
+      })),
+      {
+        _id: freelancerNotificationId,
+        recipient_id: ids.freelancer,
+        actor_id: ids.client,
+        type: "task_assigned",
+        content: { title: "Private notification", message: "Visible only to the recipient" },
+        related_task_id: notificationTaskId,
+        status: "unread",
+        created_at: new Date(notificationCreatedAt + 100),
+      },
+    ]);
+
+    const anonymousNotifications = await call("/notifications?page=1&limit=8");
+    assert.equal(anonymousNotifications.status, 401, "notification history must require authentication");
+    const clientNotifications = await call("/notifications?page=1&limit=8", { token: clientToken });
+    assert.equal(clientNotifications.status, 200, "client notification history failed");
+    assert.equal(clientNotifications.payload.data.notifications.length, 8, "notification page exceeded its requested bound");
+    assert.equal(clientNotifications.payload.meta.pagination.total, clientBaselineTotal + 22, "notification total crossed recipient ownership");
+    assert.equal(
+      clientNotifications.payload.meta.pagination.totalPages,
+      Math.ceil((clientBaselineTotal + 22) / 8),
+      "notification pagination metadata is incorrect",
+    );
+    assert.equal(clientNotifications.payload.data.unreadCount, clientBaselineUnread + 22, "client unread count is incorrect");
+    assert.ok(
+      clientNotifications.payload.data.notifications.every((notification) => notification.recipient_id === ids.client),
+      "notification history leaked another recipient's row",
+    );
+    assert.ok(
+      clientNotifications.payload.data.notifications.every(
+        (notification) => notification.target_path === `/tasks/${notificationTaskId}?tab=work`,
+      ),
+      "notification history did not return canonical safe internal targets",
+    );
+    assert.equal(
+      clientNotifications.payload.data.notifications.some(
+        (notification) => String(notification.target_path).includes("attacker.example"),
+      ),
+      false,
+      "untrusted notification content controlled the navigation target",
+    );
+
+    const crossRecipientRead = await call(`/notifications/${freelancerNotificationId}/read`, {
+      method: "PATCH", token: clientToken,
+    });
+    assert.equal(crossRecipientRead.status, 404, "client marked another recipient's notification as read");
+    const crossRecipientDelete = await call(`/notifications/${freelancerNotificationId}`, {
+      method: "DELETE", token: clientToken,
+    });
+    assert.equal(crossRecipientDelete.status, 404, "client deleted another recipient's notification");
+
+    const newestClientNotificationId = clientNotificationIds.at(-1);
+    const markedNotification = await call(`/notifications/${newestClientNotificationId}/read`, {
+      method: "PATCH", token: clientToken,
+    });
+    assert.equal(markedNotification.status, 200, "recipient could not mark its notification as read");
+    assert.equal(markedNotification.payload.data.status, "read");
+    assert.equal(markedNotification.payload.data.target_path, `/tasks/${notificationTaskId}?tab=work`);
+    const unreadClientNotifications = await call("/notifications?unreadOnly=true&page=1&limit=20", { token: clientToken });
+    assert.equal(unreadClientNotifications.status, 200, "unread notification filter failed");
+    assert.equal(unreadClientNotifications.payload.meta.pagination.total, clientBaselineUnread + 21);
+    assert.equal(unreadClientNotifications.payload.data.unreadCount, clientBaselineUnread + 21);
+    assert.equal(
+      unreadClientNotifications.payload.data.notifications.some((notification) => notification.id === newestClientNotificationId),
+      false,
+      "read notification remained in the unread filter",
+    );
+
+    const readAllClientNotifications = await call("/notifications/read-all", { method: "PATCH", token: clientToken });
+    assert.equal(readAllClientNotifications.status, 200, "recipient mark-all-read failed");
+    assert.equal(readAllClientNotifications.payload.data.modifiedCount, clientBaselineUnread + 21);
+    const freelancerNotifications = await call("/notifications?page=1&limit=20", { token: freelancerToken });
+    assert.equal(freelancerNotifications.status, 200, "freelancer notification history failed");
+    assert.equal(freelancerNotifications.payload.meta.pagination.total, freelancerBaselineTotal + 1);
+    assert.equal(
+      freelancerNotifications.payload.data.unreadCount,
+      freelancerBaselineUnread + 1,
+      "client mark-all-read crossed ownership",
+    );
+    const privateFreelancerNotification = freelancerNotifications.payload.data.notifications.find(
+      (notification) => notification.id === freelancerNotificationId,
+    );
+    assert.ok(privateFreelancerNotification, "freelancer could not read its own notification");
+    assert.equal(privateFreelancerNotification.status, "unread");
+
+    const deleteOwnNotification = await call(`/notifications/${newestClientNotificationId}`, {
+      method: "DELETE", token: clientToken,
+    });
+    assert.equal(deleteOwnNotification.status, 200, "recipient could not delete its notification");
+
     for (const token of [clientToken, freelancerToken, leadToken, contributorToken, teamOnlyToken, adminToken]) {
       const logout = await call("/auth/logout", { method: "POST", token });
       assert.equal(logout.status, 200);
     }
-    process.stdout.write("MongoDB API verification passed: account roles, marketplace reads, Teams, Projects, participant RBAC, tasks, milestones, Phase 5 evidence/repositories/showcase/profile opt-in, privacy/IDOR, revocation, completion, transfer, and archive.\n");
+    process.stdout.write("MongoDB API verification passed: account roles, marketplace reads, Teams, Projects, participant RBAC, tasks, milestones, Phase 5 evidence/repositories/showcase/profile opt-in, notification pagination/targets/ownership, privacy/IDOR, revocation, completion, transfer, and archive.\n");
   } finally {
     await cleanup();
   }

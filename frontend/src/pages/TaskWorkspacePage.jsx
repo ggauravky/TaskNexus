@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarClock, Loader2, Play, RefreshCw } from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -15,6 +15,7 @@ import TaskDiscussion from "../components/tasks/TaskDiscussion";
 import TaskActivity from "../components/tasks/TaskActivity";
 import { apiError, formatDate, taskDeadline, taskTitle } from "../utils/marketplace";
 import { dashboardFor } from "../utils/teams";
+import { shouldClearWorkspaceForStatus } from "../utils/taskWorkspacePermissions";
 
 const TABS = Object.freeze([
   { id: "overview", label: "Overview" },
@@ -46,6 +47,7 @@ const PRIMARY_ACTIONS = Object.freeze({
 
 const TaskWorkspacePage = () => {
   const { taskId } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [workspace, setWorkspace] = useState(null);
@@ -67,7 +69,9 @@ const TaskWorkspacePage = () => {
       setWorkspace(response.data?.data || null);
     } catch (requestError) {
       if (requestError?.code !== "ERR_CANCELED") {
-        setStatusCode(requestError?.response?.status || null);
+        const nextStatusCode = requestError?.response?.status || null;
+        if (shouldClearWorkspaceForStatus(nextStatusCode)) setWorkspace(null);
+        setStatusCode(nextStatusCode);
         setError(apiError(requestError, "Task workspace could not be loaded"));
       }
     } finally {
@@ -92,13 +96,14 @@ const TaskWorkspacePage = () => {
 
   const changeTab = (tab) => setSearchParams(tab === "overview" ? {} : { tab }, { replace: true });
 
-  const mutate = async (key, request, success) => {
+  const mutate = async (key, request, success, { refresh = true, onSuccess } = {}) => {
     if (pendingAction) return;
     setPendingAction(key);
     try {
       await request();
       toast.success(success);
-      await loadWorkspace({ silent: true });
+      if (onSuccess) await onSuccess();
+      if (refresh) await loadWorkspace({ silent: true });
     } catch (requestError) {
       toast.error(apiError(requestError));
     } finally {
@@ -152,9 +157,9 @@ const TaskWorkspacePage = () => {
         <TaskWorkspaceTabs tabs={TABS} activeTab={activeTab} onChange={changeTab} />
         <section role="tabpanel" id={`task-workspace-panel-${activeTab}`} aria-labelledby={`task-workspace-tab-${activeTab}`} className="p-3 sm:p-5 lg:p-6">
           {activeTab === "overview" ? <TaskOverview workspace={workspace} /> : null}
-          {activeTab === "work" ? <TaskWork workspace={workspace} pendingAction={pendingAction} onProgress={(payload) => mutate("update_progress", () => api.put(`/freelancer/tasks/${taskId}/progress`, payload), "Progress updated")} onReturnTask={() => mutate("return_task", () => api.put(`/freelancer/tasks/${taskId}/cancel`), "Task returned to marketplace")} /> : null}
+          {activeTab === "work" ? <TaskWork workspace={workspace} pendingAction={pendingAction} onProgress={(payload) => mutate("update_progress", () => api.put(`/freelancer/tasks/${taskId}/progress`, payload), "Progress updated")} onReturnTask={() => mutate("return_task", () => api.put(`/freelancer/tasks/${taskId}/cancel`), "Task returned to marketplace", { refresh: false, onSuccess: () => { setWorkspace(null); navigate(dashboardFor(user?.role), { replace: true }); } })} /> : null}
           {activeTab === "delivery" ? <TaskDelivery workspace={workspace} onWorkspaceChanged={() => loadWorkspace({ silent: true })} /> : null}
-          {activeTab === "discussion" ? <TaskDiscussion task={task} /> : null}
+          {activeTab === "discussion" ? <TaskDiscussion workspace={workspace} /> : null}
           {activeTab === "activity" ? <TaskActivity task={task} /> : null}
         </section>
       </div>
