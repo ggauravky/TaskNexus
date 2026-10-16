@@ -24,6 +24,8 @@ import { useAuth } from "../../context/AuthContext";
 import { NotificationProvider } from "../../context/NotificationContext";
 import { dashboardFor } from "../../utils/teams";
 import NotificationBell from "../notifications/NotificationBell";
+import SearchTrigger from "../search/SearchTrigger";
+import CommandPalette from "../search/CommandPalette";
 
 const EmbeddedShellContext = createContext(false);
 
@@ -85,6 +87,7 @@ const AppShellFrameContent = ({ children }) => {
   const { isAuthenticated, logout, user } = useAuth();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const menuRef = useRef(null);
   const dashboard = isAuthenticated ? dashboardFor(user?.role) : "/";
@@ -98,7 +101,22 @@ const AppShellFrameContent = ({ children }) => {
       ]
     : publicLinks;
 
-  useEffect(() => setMenuOpen(false), [location.pathname]);
+  useEffect(() => {
+    setMenuOpen(false);
+    setPaletteOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const openPalette = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    document.addEventListener("keydown", openPalette);
+    return () => document.removeEventListener("keydown", openPalette);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -141,6 +159,7 @@ const AppShellFrameContent = ({ children }) => {
             {desktopLinks.map((item) => <NavigationLink key={item.to} item={item} />)}
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            {isAuthenticated ? <SearchTrigger onClick={() => setPaletteOpen(true)} /> : null}
             {isAuthenticated ? <NotificationBell /> : null}
             <div className="hidden items-center gap-2 xl:flex">
               {isAuthenticated ? (
@@ -196,6 +215,9 @@ const AppShellFrameContent = ({ children }) => {
         ) : null}
       </header>
       <div className="app-shell-content">{children}</div>
+      {isAuthenticated && paletteOpen ? (
+        <CommandPalette role={user?.role} onClose={() => setPaletteOpen(false)} />
+      ) : null}
     </div>
   );
 };

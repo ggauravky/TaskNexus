@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Briefcase, Compass, DollarSign, RefreshCw, Search, Settings2, Star } from "lucide-react";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import EmptyState from "../components/common/EmptyState";
 import Loading from "../components/common/Loading";
 import StatusBadge from "../components/common/StatusBadge";
@@ -14,6 +14,7 @@ import useRealtimeEvents from "../hooks/useRealtimeEvents";
 import api from "../services/api";
 import { TASK_STATUS } from "../utils/constants";
 import { apiError, dueLabel, formatCurrency, formatDate, personName, taskBudget, taskDeadline, taskTitle } from "../utils/marketplace";
+import { parseDashboardCommand } from "../utils/commandPalette";
 
 const VIEWS = [["overview", "Overview"], ["work", "My work"], ["available", "Find work"], ["earnings", "Earnings"], ["reviews", "Reviews"]];
 const availabilityOptions = [["available", "Available"], ["part_time", "Limited"], ["busy", "Busy"]];
@@ -21,6 +22,7 @@ const workStatuses = [["", "All statuses"], [TASK_STATUS.ASSIGNED, "Assigned"], 
 
 const FreelancerDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, updateUser } = useAuth();
   const preferenceState = usePreferences();
   const { preferences } = preferenceState;
@@ -44,6 +46,11 @@ const FreelancerDashboard = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [busyAction, setBusyAction] = useState("");
+
+  useEffect(() => {
+    const command = parseDashboardCommand(new URLSearchParams(location.search), "freelancer");
+    setView(command.view);
+  }, [location.search]);
 
   const loadOverview = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);

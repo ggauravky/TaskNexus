@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CreditCard, FileCheck2, ListChecks, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CreateTaskModal from "../components/client/CreateTaskModal";
 import TaskDetailsModal from "../components/client/TaskDetailsModal";
 import EmptyState from "../components/common/EmptyState";
@@ -14,6 +14,7 @@ import useRealtimeEvents from "../hooks/useRealtimeEvents";
 import api from "../services/api";
 import { TASK_STATUS } from "../utils/constants";
 import { apiError, dueLabel, formatCurrency, formatDate, personName, taskBudget, taskDeadline, taskTitle } from "../utils/marketplace";
+import { parseDashboardCommand } from "../utils/commandPalette";
 
 const VIEWS = [
   ["overview", "Overview"],
@@ -35,6 +36,7 @@ const statusOptions = [
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [view, setView] = useState("overview");
   const [dashboard, setDashboard] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -56,6 +58,17 @@ const ClientDashboard = () => {
   const [busyAction, setBusyAction] = useState("");
   const preferenceState = usePreferences();
   const { preferences } = preferenceState;
+
+  useEffect(() => {
+    const command = parseDashboardCommand(new URLSearchParams(location.search), "client");
+    setView(command.view);
+    if (command.action === "create-task") {
+      setShowCreate(true);
+      const params = new URLSearchParams(location.search);
+      params.delete("action");
+      navigate({ pathname: location.pathname, search: params.toString() ? `?${params}` : "" }, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
 
   const loadOverview = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);

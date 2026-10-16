@@ -6,6 +6,21 @@ const {
 const { escapeRegex } = require("./mongoDataUtils");
 const { toApp, toApps } = require("../models/helpers");
 
+const searchTeams = async (search) => {
+  const pattern = new RegExp(escapeRegex(search), "i");
+  const filter = {
+    visibility: "public",
+    status: "active",
+    $or: mongoose.trusted([{ name: pattern }, { tagline: pattern }, { slug: pattern }]),
+  };
+  const rows = await Team.find(filter)
+    .select("_id name slug tagline status")
+    .sort({ updated_at: -1, _id: 1 })
+    .limit(5)
+    .lean();
+  return toApps(rows);
+};
+
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 
 const findTeamById = async (id, options = {}) => toApp(await Team.findById(id).session(options.session || null).lean());
@@ -128,6 +143,7 @@ const listActivity = async (teamId, { page, limit }) => {
 };
 
 module.exports = {
+  searchTeams,
   countMembers, findMembership, findTeamById, findTeamBySlug, listActivity, listMembers,
   listTeams, profileSummaries, viewerRelationships,
 };

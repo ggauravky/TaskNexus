@@ -9,6 +9,80 @@ const { toApp, toApps } = require("../models/helpers");
 const { errors } = require("../utils/appError");
 const { paginationMeta } = require("../utils/apiResponse");
 const { parseListQuery } = require("../utils/queryOptions");
+const { buildSearchTarget } = require("../serializers");
+
+const searchPeople = async (search, viewer) => {
+  const pattern = new RegExp(escapeRegex(search), "i");
+  const rows = await UserProfile.aggregate([
+    {
+      $match: {
+        visibility: "public",
+        discoverable: true,
+        _id: { $ne: viewer.id },
+        $or: [{ username: pattern }, { headline: pattern }],
+      },
+    },
+    { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
+    { $unwind: "$user" },
+    { $match: { "user.status": "active" } },
+    {
+      $lookup: {
+        from: "user_blocks",
+        let: { profileId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $and: [{ $eq: ["$blocker_id", viewer.id] }, { $eq: ["$blocked_user_id", "$$profileId"] }] },
+                  { $and: [{ $eq: ["$blocker_id", "$$profileId"] }, { $eq: ["$blocked_user_id", viewer.id] }] },
+                ],
+              },
+            },
+          },
+          { $limit: 1 },
+          { $project: { _id: 1 } },
+        ],
+        as: "viewer_blocks",
+      },
+    },
+    { $match: { "viewer_blocks.0": { $exists: false } } },
+    { $sort: { updated_at: -1, _id: 1 } },
+    { $limit: 5 },
+    {
+      $project: {
+        _id: 1,
+        username: 1,
+        headline: 1,
+        display_name: {
+          $let: {
+            vars: {
+              fullName: {
+                $trim: {
+                  input: {
+                    $concat: [
+                      { $ifNull: ["$user.profile.firstName", { $ifNull: ["$user.profile.first_name", ""] }] },
+                      " ",
+                      { $ifNull: ["$user.profile.lastName", { $ifNull: ["$user.profile.last_name", ""] }] },
+                    ],
+                  },
+                },
+              },
+            },
+            in: { $cond: [{ $gt: [{ $strLenCP: "$$fullName" }, 0] }, "$$fullName", "$username"] },
+          },
+        },
+      },
+    },
+  ]);
+  return rows.map((row) => ({
+    id: row.id || row._id,
+    type: "person",
+    title: row.display_name || row.username,
+    subtitle: row.headline,
+    targetPath: buildSearchTarget("person", { username: row.username }),
+  })).filter((row) => row.targetPath);
+};
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 const MAX_CANDIDATES = 250;
@@ -204,4 +278,4 @@ const discoverPeople = async (viewerId, rawQuery = {}, options = {}) => {
   return { items: cards.slice(start, start + query.limit), meta: paginationMeta({ ...query, total }), filters: { skill_mode: query.skillMode } };
 };
 
-module.exports = { blockExclusions, discoverPeople, parsePeopleQuery, publicContext };
+module.exports = { blockExclusions, discoverPeople, parsePeopleQuery, publicContext, searchPeople };
