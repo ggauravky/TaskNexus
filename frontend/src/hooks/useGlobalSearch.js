@@ -25,7 +25,7 @@ export const useGlobalSearch = (query, enabled = true) => {
     else coordinator.reset();
   }, [enabled, query]);
 
-  useEffect(() => () => coordinatorRef.current?.dispose(), []);
+  useEffect(() => () => coordinatorRef.current?.cancel(), []);
 
   return {
     ...state,

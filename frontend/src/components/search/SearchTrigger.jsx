@@ -2,6 +2,9 @@ import { forwardRef } from "react";
 import { Search } from "lucide-react";
 
 const SearchTrigger = forwardRef(function SearchTrigger({ onClick }, ref) {
+  const isApplePlatform = typeof navigator !== "undefined"
+    && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
   return (
     <button
       ref={ref}
@@ -13,7 +16,9 @@ const SearchTrigger = forwardRef(function SearchTrigger({ onClick }, ref) {
     >
       <Search className="h-4 w-4" aria-hidden="true" />
       <span className="command-palette-trigger-label">Search</span>
-      <kbd className="command-palette-shortcut" aria-hidden="true">⌘K</kbd>
+      <kbd className="command-palette-shortcut" aria-hidden="true">
+        {isApplePlatform ? "⌘K" : "Ctrl K"}
+      </kbd>
     </button>
   );
 });

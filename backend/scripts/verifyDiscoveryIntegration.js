@@ -1,5 +1,6 @@
 require("../src/config/loadEnv");
 require("./lib/stagingSafety").assertStagingMutationAllowed();
+process.env.EMAIL_ENABLED = "false";
 const assert = require("node:assert/strict");
 const { randomBytes, randomUUID } = require("node:crypto");
 const mongoose = require("mongoose");
@@ -16,6 +17,17 @@ const tokens = {};
 const emails = Object.fromEntries(labels.map((label) => [label, `phase6-${marker}-${label}@example.invalid`]));
 const teamIds = [];
 const openingIds = [];
+const fixtureSkillIds = [];
+const requiredSkillSlugs = [
+  "project-management",
+  "automated-testing",
+  "react",
+  "node-js",
+  "mongodb",
+  "python",
+  "machine-learning",
+  "ui-ux-design",
+];
 let server;
 let apiBase;
 
@@ -34,6 +46,24 @@ const register = async (label) => {
   const response = await call("/auth/register", { method: "POST", body: { email: emails[label], password, role: label === "owner" ? "client" : "freelancer", profile: { firstName: `P6 ${label}`, lastName: marker } } });
   assert.equal(response.status, 201, `${label} registration failed`);
   ids[label] = response.payload.data.user.id; tokens[label] = response.payload.data.accessToken;
+};
+
+const ensureFixtureSkills = async () => {
+  const existingSkills = await models.Skill.find({ slug: trustedIn(requiredSkillSlugs) }).select("slug").lean();
+  const existingSlugs = new Set(existingSkills.map((skill) => skill.slug));
+  const missingDefinitions = require("../src/seeds/skills").filter((skill) => (
+    requiredSkillSlugs.includes(skill.slug) && !existingSlugs.has(skill.slug)
+  ));
+  const missingSlugs = requiredSkillSlugs.filter((slug) => !existingSlugs.has(slug));
+  assert.deepEqual(
+    missingDefinitions.map((skill) => skill.slug).sort(),
+    [...missingSlugs].sort(),
+    "fixture skill definitions must cover every missing required skill",
+  );
+  if (missingDefinitions.length === 0) return;
+  const fixtureSkills = missingDefinitions.map((skill) => ({ _id: randomUUID(), ...skill }));
+  fixtureSkillIds.push(...fixtureSkills.map((skill) => skill._id));
+  await models.Skill.insertMany(fixtureSkills);
 };
 
 const setProfile = async (label, profile, skillSlugs = []) => {
@@ -62,6 +92,7 @@ const cleanup = async () => {
   ]);
   await models.Project.deleteMany({ _id: projectIds }); await models.Team.deleteMany({ _id: teams });
   await models.UserProfile.deleteMany({ _id: users }); await models.User.deleteMany({ _id: users });
+  await models.Skill.deleteMany({ _id: trustedIn(fixtureSkillIds) });
 };
 
 const run = async () => {
@@ -71,6 +102,7 @@ const run = async () => {
   await new Promise((resolve) => server.once("listening", resolve));
   apiBase = `http://127.0.0.1:${server.address().port}/api`;
   try {
+    await ensureFixtureSkills();
     for (const label of labels) await register(label);
     await setProfile("owner", { headline: "Team owner", visibility: "public", availability: "open", discoverable: true, roles: ["project_lead"], interests: ["developer_tools"] }, ["project-management"]);
     await setProfile("member", { headline: "Regular member", visibility: "public", availability: "open", discoverable: true, roles: ["reviewer"], interests: ["developer_tools"] }, ["automated-testing"]);

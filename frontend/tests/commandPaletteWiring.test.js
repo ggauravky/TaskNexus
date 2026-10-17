@@ -14,6 +14,8 @@ test("authenticated AppShell owns one trigger, one palette, and a Ctrl/Cmd+K lif
   assert.match(appShell, /event\.key\.toLowerCase\(\) === "k"/);
   assert.match(appShell, /document\.addEventListener\("keydown", openPalette\)/);
   assert.match(appShell, /document\.removeEventListener\("keydown", openPalette\)/);
+  assert.match(appShell, /paletteTriggerRef\.current\?\.focus\(\)/);
+  assert.match(appShell, /<SearchTrigger ref=\{paletteTriggerRef\}/);
 });
 
 test("search trigger and palette expose the required keyboard and listbox semantics", async () => {
@@ -24,6 +26,7 @@ test("search trigger and palette expose the required keyboard and listbox semant
   ]);
   assert.match(trigger, /aria-keyshortcuts="Control\+K Meta\+K"/);
   assert.match(trigger, /aria-label="Search TaskNexus"/);
+  assert.match(trigger, /navigator\.platform/);
   assert.match(palette, /<Dialog/);
   assert.match(palette, /role="combobox"/);
   assert.match(palette, /aria-controls="command-palette-listbox"/);
@@ -31,6 +34,7 @@ test("search trigger and palette expose the required keyboard and listbox semant
   assert.match(palette, /aria-live="polite"/);
   assert.match(palette, /nextPaletteIndex/);
   assert.match(palette, /useGlobalSearch/);
+  assert.match(palette, /const actions = useMemo\(/);
   assert.match(palette, /autoFocus/);
   assert.match(group, /role="group"/);
   assert.match(group, /role="option"/);

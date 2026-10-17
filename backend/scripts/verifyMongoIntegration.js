@@ -217,8 +217,8 @@ const run = async () => {
     for (const plan of plans) {
       const encoded = JSON.stringify(plan);
       assert.match(encoded, /IXSCAN|DISTINCT_SCAN/, "search authorization predicate did not use an index");
-      assert.doesNotMatch(encoded, /\"stage\":\"COLLSCAN\"/, "search explain used a collection scan");
-      assert.match(encoded, /LIMIT|\"limitAmount\":5|\"limit\":5/, "search explain omitted the database limit");
+      assert.doesNotMatch(encoded, /"stage":"COLLSCAN"/, "search explain used a collection scan");
+      assert.match(encoded, /LIMIT|"limitAmount":5|"limit":5/, "search explain omitted the database limit");
     }
 
     process.stdout.write("MongoDB integration verification passed: indexes, uniqueness, race, transactions, rollback, idempotency, pagination, Phase C privacy, five-row bounds, and execution plans.\n");

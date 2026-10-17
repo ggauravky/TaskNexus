@@ -79,6 +79,7 @@ export const createGlobalSearchCoordinator = ({ request, delay = 250, onChange }
       cancelPending();
       publish(emptyGlobalSearchState());
     },
+    cancel: cancelPending,
     dispose: () => {
       disposed = true;
       cancelPending();
