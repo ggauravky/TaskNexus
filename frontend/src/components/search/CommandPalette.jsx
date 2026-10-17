@@ -29,7 +29,10 @@ const CommandPalette = ({ onClose, role }) => {
   const [activeIndex, setActiveIndex] = useState(-1);
   const normalizedQuery = query.trim().replace(/\s+/g, " ");
   const search = useGlobalSearch(query, true);
-  const actions = normalizedQuery.length < 2 ? quickActionsFor(role) : [];
+  const actions = useMemo(
+    () => (normalizedQuery.length < 2 ? quickActionsFor(role) : []),
+    [normalizedQuery.length, role],
+  );
   const options = useMemo(
     () => flattenPaletteOptions(actions, normalizedQuery.length >= 2 ? search.groups : {}),
     [actions, normalizedQuery.length, search.groups],

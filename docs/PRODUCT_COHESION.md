@@ -72,6 +72,26 @@ The protected `/notifications` page provides bounded history, persisted mark-one
 
 The new UI does not expose notification preference controls because existing creation paths do not consistently honor the currently persisted preference fields. Phase B does not promise an ineffective preference and does not add a notification rules engine.
 
+## Phase C: Global Search and Command Palette
+
+Phase C adds one authenticated `GET /api/search?q=...` read surface and a shared AppShell command palette. The endpoint returns seven stable groups—Teams, Projects, People, Hackathons, Opportunities, Organizations, and marketplace Tasks—with at most five explicit DTOs per group. It reuses domain services and existing MongoDB collections; there is no new index, search service, vector store, or AI dependency.
+
+### Search trust boundary
+
+The backend applies authorization before serialization. Teams must be public and active. Projects must be public, non-archived, and belong to a public active Team. People must be active, public, discoverable, not the viewer, and outside both directions of a block relationship; profile evidence and private profile fields are never joined. Hackathons follow the existing public catalog policy, with the existing administrator catalog visibility retained. Opportunities must be published, open, and unexpired. Organizations must be active. Marketplace Tasks are limited to client ownership, freelancer assignment, or the existing administrator scope. `project_tasks`, applications, applicants, and evidence never enter global search.
+
+Every result uses the common `{ id, type, title, subtitle, status, target_path }` contract. `target_path` is built on the backend and independently checked by the frontend against an explicit internal-route allow-list before navigation.
+
+### Query and performance contract
+
+Queries normalize whitespace, require 2–80 characters, escape regular-expression metacharacters, project only required fields, sort deterministically, and apply a database limit of five. The endpoint fans out concurrently to bounded domain adapters. Existing authorization/catalog indexes anchor the eligible set before case-insensitive matching; no collection is loaded into application memory. Because arbitrary substring matching is retained for product consistency, the matching portion is not a general text-index lookup and can examine records inside the already-authorized/indexed bucket.
+
+### AppShell command palette
+
+Authenticated AppShells expose one responsive, touch-safe trigger and support `Ctrl+K` and `Cmd+K`. The shared dialog provides autofocus, trapped/restored focus, Escape and outside-click close, Arrow/Home/End/Enter navigation, live announcements, loading/error/empty states, and role-specific quick actions. Search begins after a 250 ms debounce at two normalized characters. Query changes and close events abort the active request, while a generation guard prevents stale responses or stale errors from committing.
+
+Client and freelancer quick actions pass only allow-listed URL state into their existing dashboards. Phase C does not redesign any dashboard, task workspace, notification surface, or legacy task modal.
+
 ## Later phases
 
-Global Search/Command Palette, role-aware onboarding, and Profile-to-Proof-to-Opportunity integration remain intentionally unimplemented after Phase B.
+Role-aware onboarding and Profile-to-Proof-to-Opportunity integration remain intentionally unimplemented after Phase C.

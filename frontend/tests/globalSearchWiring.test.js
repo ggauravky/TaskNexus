@@ -75,3 +75,18 @@ test("only the current query owns errors, retry works, and reset clears state", 
   assert.deepEqual(coordinator.getState(), { query: "", groups: {}, loading: false, error: null });
   coordinator.dispose();
 });
+
+test("lifecycle cancellation aborts pending work without permanently disposing the coordinator", async () => {
+  const calls = [];
+  const coordinator = createGlobalSearchCoordinator({ delay: 0, request: async (query) => {
+    calls.push(query);
+    return { data: { data: { query, groups: {} } } };
+  } });
+  coordinator.setQuery("first");
+  coordinator.cancel();
+  await wait(5);
+  coordinator.setQuery("second");
+  await wait(5);
+  assert.deepEqual(calls, ["second"]);
+  coordinator.dispose();
+});

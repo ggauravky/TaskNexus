@@ -90,6 +90,7 @@ const AppShellFrameContent = ({ children }) => {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const menuRef = useRef(null);
+  const paletteTriggerRef = useRef(null);
   const dashboard = isAuthenticated ? dashboardFor(user?.role) : "/";
   const desktopLinks = isAuthenticated ? baseLinks : publicLinks;
   const mobileLinks = isAuthenticated
@@ -111,6 +112,7 @@ const AppShellFrameContent = ({ children }) => {
     const openPalette = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        paletteTriggerRef.current?.focus();
         setPaletteOpen(true);
       }
     };
@@ -159,7 +161,7 @@ const AppShellFrameContent = ({ children }) => {
             {desktopLinks.map((item) => <NavigationLink key={item.to} item={item} />)}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {isAuthenticated ? <SearchTrigger onClick={() => setPaletteOpen(true)} /> : null}
+            {isAuthenticated ? <SearchTrigger ref={paletteTriggerRef} onClick={() => setPaletteOpen(true)} /> : null}
             {isAuthenticated ? <NotificationBell /> : null}
             <div className="hidden items-center gap-2 xl:flex">
               {isAuthenticated ? (

@@ -1,5 +1,6 @@
 require("../src/config/loadEnv");
 require("./lib/stagingSafety").assertStagingMutationAllowed();
+process.env.EMAIL_ENABLED = "false";
 const assert = require("node:assert/strict");
 const { randomBytes, randomUUID } = require("node:crypto");
 const bcrypt = require("bcrypt");
