@@ -7,6 +7,7 @@ const userData = require("../data/userData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
 const taskService = require("../services/taskService");
+const onboardingService = require("../services/onboardingService");
 const { TASK_STATUS, PAYMENT_STATUS } = require("../config/constants");
 const realtimeHub = require("../services/realtimeHub");
 const { parseListQuery } = require("../utils/queryOptions");
@@ -36,6 +37,7 @@ exports.getDashboard = async (req, res, next) => {
       taskData.findTasks({ client_id: clientId }),
       paymentData.findPayments({ client_id: clientId }),
     ]);
+    const onboarding = await onboardingService.getClientOnboarding({ user: req.user, tasks: allTasks });
 
     const totalTasks = allTasks.length;
     const completedTasks = allTasks.filter(
@@ -106,6 +108,7 @@ exports.getDashboard = async (req, res, next) => {
         avgCompletionTime,
         recentTasks,
         attentionTasks,
+        onboarding,
         // Preserve nested fields for compatibility with older clients.
         taskStats: {
           total: totalTasks,

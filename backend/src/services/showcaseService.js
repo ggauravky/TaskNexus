@@ -188,6 +188,86 @@ const listPublicProfileProjects = async (userId) => {
   });
 };
 
+const hasPublicProfileProof = async (userId) => {
+  const publicProfile = await UserProfile.exists({ _id: userId, visibility: "public" });
+  if (!publicProfile) return false;
+  const rows = await ProjectParticipant.aggregate([
+    { $match: { user_id: userId, status: "active", show_on_profile: true } },
+    {
+      $lookup: {
+        from: "contribution_evidence",
+        let: { projectId: "$project_id" },
+        pipeline: [
+          { $match: { $expr: { $and: [
+            { $eq: ["$project_id", "$$projectId"] },
+            { $eq: ["$user_id", userId] },
+            { $eq: ["$status", "active"] },
+            { $eq: ["$public_safe", true] },
+          ] } } },
+          { $limit: 1 },
+          { $project: { _id: 1 } },
+        ],
+        as: "eligible_evidence",
+      },
+    },
+    { $match: { "eligible_evidence.0": { $exists: true } } },
+    {
+      $lookup: {
+        from: "projects",
+        let: { projectId: "$project_id" },
+        pipeline: [
+          { $match: { $expr: { $and: [
+            { $eq: ["$_id", "$$projectId"] },
+            { $eq: ["$status", "completed"] },
+            { $eq: ["$visibility", "public"] },
+          ] } } },
+          { $limit: 1 },
+          { $project: { _id: 1, team_id: 1 } },
+        ],
+        as: "eligible_project",
+      },
+    },
+    { $match: { "eligible_project.0": { $exists: true } } },
+    {
+      $lookup: {
+        from: "teams",
+        let: { teamId: { $arrayElemAt: ["$eligible_project.team_id", 0] } },
+        pipeline: [
+          { $match: { $expr: { $and: [
+            { $eq: ["$_id", "$$teamId"] },
+            { $eq: ["$status", "active"] },
+            { $eq: ["$visibility", "public"] },
+          ] } } },
+          { $limit: 1 },
+          { $project: { _id: 1 } },
+        ],
+        as: "eligible_team",
+      },
+    },
+    { $match: { "eligible_team.0": { $exists: true } } },
+    {
+      $lookup: {
+        from: "project_showcases",
+        let: { projectId: "$project_id" },
+        pipeline: [
+          { $match: { $expr: { $and: [
+            { $eq: ["$project_id", "$$projectId"] },
+            { $eq: ["$status", "published"] },
+          ] } } },
+          { $limit: 1 },
+          { $project: { _id: 1 } },
+        ],
+        as: "published_showcase",
+      },
+    },
+    { $match: { "published_showcase.0": { $exists: true } } },
+    { $limit: 1 },
+    { $project: { _id: 1 } },
+  ]);
+  return rows.length > 0;
+};
+
 module.exports = {
-  getPublicShowcase, getShowcase, listPublicProfileProjects, publishShowcase, showcaseDto, unpublishShowcase, updateShowcase,
+  getPublicShowcase, getShowcase, hasPublicProfileProof, listPublicProfileProjects,
+  publishShowcase, showcaseDto, unpublishShowcase, updateShowcase,
 };

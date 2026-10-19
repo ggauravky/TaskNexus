@@ -4,6 +4,7 @@ const {
   normalizeSkillAssignments,
   normalizeEducationInput,
   calculateCompleteness,
+  profileCompletionFacts,
 } = require("../src/domain/professionalProfile");
 
 describe("Phase 2 professional profile domain", () => {
@@ -76,5 +77,53 @@ describe("Phase 2 professional profile domain", () => {
     });
     expect(result).toEqual(expect.objectContaining({ percentage: 40, completed: 4, total: 10 }));
     expect(result.missing).toContain("skills");
+  });
+
+  test("named profile facts trim identity fields and preserve the existing availability rule", () => {
+    const facts = profileCompletionFacts({
+      user: { profile: { firstName: " Aria ", lastName: " Nair " } },
+      profile: {
+        username: "aria",
+        headline: "Engineer",
+        bio: "x".repeat(80),
+        location: " Bengaluru ",
+        timezone: " Asia/Kolkata ",
+        availability: "unavailable",
+      },
+      skills: [{ id: "skill" }],
+      education: [],
+    });
+
+    expect(facts).toMatchObject({
+      name: true,
+      username: true,
+      headline: true,
+      bio: true,
+      locationAndTimezone: true,
+      availability: false,
+      skills: true,
+      education: false,
+    });
+  });
+
+  test("named profile facts reject whitespace-only fundamentals and a 79-character bio", () => {
+    expect(profileCompletionFacts({
+      user: { profile: { firstName: "  ", lastName: "Nair" } },
+      profile: {
+        username: "  ",
+        headline: " ",
+        bio: "x".repeat(79),
+        location: "Bengaluru",
+        timezone: " ",
+        availability: "limited",
+      },
+    })).toMatchObject({
+      name: false,
+      username: false,
+      headline: false,
+      bio: false,
+      locationAndTimezone: false,
+      availability: true,
+    });
   });
 });

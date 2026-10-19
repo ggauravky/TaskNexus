@@ -14,6 +14,7 @@ const discoveryService = require("../src/services/discoveryService");
 const hackathonService = require("../src/services/hackathonService");
 const opportunityService = require("../src/services/opportunityService");
 const taskService = require("../src/services/taskService");
+const onboardingService = require("../src/services/onboardingService");
 const { escapeRegex } = require("../src/data/mongoDataUtils");
 
 const runId = randomUUID();
@@ -26,6 +27,7 @@ const ids = {
   publicTeam: randomUUID(), privateTeam: randomUUID(), publicProject: randomUUID(), privateProject: randomUUID(),
   publicHackathon: randomUUID(), privateHackathon: randomUUID(), activeOrganization: randomUUID(), inactiveOrganization: randomUUID(),
   openOpportunity: randomUUID(), closedOpportunity: randomUUID(), projectTask: randomUUID(), block: randomUUID(),
+  proofTeam: randomUUID(), proofProject: randomUUID(), proofParticipant: randomUUID(), proofEvidence: randomUUID(), proofShowcase: randomUUID(),
 };
 const searchTaskIds = Array.from({ length: 8 }, () => randomUUID());
 
@@ -44,6 +46,11 @@ const cleanup = async () => {
     models.Task.deleteMany({ _id: tasks() }),
     models.UserBlock.deleteMany({ _id: ids.block }),
     models.ProjectTask.deleteMany({ _id: ids.projectTask }),
+    models.ProjectShowcase.deleteMany({ project_id: ids.proofProject }),
+    models.ContributionEvidence.deleteMany({ project_id: ids.proofProject }),
+    models.ProjectParticipant.deleteMany({ project_id: ids.proofProject }),
+    models.Project.deleteMany({ _id: ids.proofProject }),
+    models.Team.deleteMany({ _id: ids.proofTeam }),
     models.Project.deleteMany({ _id: mongoose.trusted({ $in: [ids.publicProject, ids.privateProject] }) }),
     models.Team.deleteMany({ _id: mongoose.trusted({ $in: [ids.publicTeam, ids.privateTeam] }) }),
     models.Hackathon.deleteMany({ _id: mongoose.trusted({ $in: [ids.publicHackathon, ids.privateHackathon] }) }),
@@ -120,6 +127,85 @@ const run = async () => {
       { skillId: randomUUID(), proficiency: "intermediate", isPrimary: false },
     ]));
     assert.equal(await models.UserSkill.countDocuments({ user_id: ids.freelancerA }), 1);
+
+    await models.UserProfile.updateOne({ _id: ids.freelancerA }, {
+      $set: { availability: "unavailable" },
+    });
+    const asUser = async (id) => {
+      const record = await models.User.findById(id).lean();
+      return { ...record, id: String(record._id) };
+    };
+    const onboardingTasks = await taskData.findTasks({ client_id: ids.client });
+    const clientBeforeApproval = await onboardingService.getClientOnboarding({
+      user: await asUser(ids.client), tasks: onboardingTasks,
+    });
+    assert.equal(clientBeforeApproval.is_complete, false);
+    assert.equal(clientBeforeApproval.items.find((item) => item.id === "review_first_delivery").complete, false);
+
+    await models.Task.updateOne({ _id: ids.successTask }, {
+      $set: { status: "completed", "workflow.completedAt": new Date() },
+    });
+    await models.UserProfile.updateOne({ _id: ids.freelancerA }, {
+      $set: {
+        headline: "QA professional",
+        bio: "Professional onboarding integration biography with enough detail to satisfy the canonical profile contract.",
+        location: "QA City",
+        timezone: "UTC",
+        availability: "unavailable",
+      },
+    });
+    const clientAfterApproval = await onboardingService.getClientOnboarding({
+      user: await asUser(ids.client), tasks: await taskData.findTasks({ client_id: ids.client }),
+    });
+    assert.equal(clientAfterApproval.is_complete, true, "successful approval must complete client onboarding without a rating");
+    assert.equal(await models.Review.countDocuments({ task_id: ids.successTask }), 0, "rating must remain optional");
+
+    await models.Team.create({
+      _id: ids.proofTeam, name: "Phase D public proof", slug: `${usernameMarker}-proof-team`,
+      created_by: ids.client, owner_id: ids.client, visibility: "public", status: "active",
+    });
+    await models.Project.create({
+      _id: ids.proofProject, team_id: ids.proofTeam, name: "Phase D public proof", slug: `${usernameMarker}-proof-project`,
+      created_by: ids.client, visibility: "public", status: "completed", completed_at: new Date(),
+    });
+    await models.ProjectParticipant.create({
+      _id: ids.proofParticipant, team_id: ids.proofTeam, project_id: ids.proofProject,
+      user_id: ids.freelancerA, role: "contributor", status: "active", show_on_profile: true,
+    });
+    await models.ContributionEvidence.create({
+      _id: ids.proofEvidence, team_id: ids.proofTeam, project_id: ids.proofProject,
+      user_id: ids.freelancerA, created_by: ids.freelancerA, evidence_type: "project_participation",
+      verification_level: "internal_verified", status: "active", origin: "system",
+      title: "Phase D verified public proof", source_key: `phase-d:${runId}`,
+      occurred_at: new Date(), verified_at: new Date(), public_safe: true,
+    });
+    await models.ProjectShowcase.create({
+      _id: ids.proofShowcase, team_id: ids.proofTeam, project_id: ids.proofProject,
+      status: "published", headline: "Phase D public proof", created_by: ids.client,
+      updated_by: ids.client, published_at: new Date(),
+    });
+    const proofExplain = await models.ProjectParticipant.find({
+      user_id: ids.freelancerA, status: "active", show_on_profile: true,
+    }).select("_id").limit(1).explain("executionStats");
+    assert.match(JSON.stringify(proofExplain.queryPlanner?.winningPlan), /IXSCAN/, "public-proof eligibility must use an index");
+    assert.ok(proofExplain.executionStats?.totalDocsExamined <= 1, "public-proof eligibility must remain bounded");
+
+    const freelancerTasksForOnboarding = await taskData.findTasks({ freelancer_id: ids.freelancerA });
+    const freelancerComplete = await onboardingService.getFreelancerOnboarding({
+      user: await asUser(ids.freelancerA), tasks: freelancerTasksForOnboarding,
+    });
+    assert.equal(freelancerComplete.is_complete, true, "deliberately unavailable must not block freelancer onboarding");
+    await models.UserSkill.deleteMany({ user_id: ids.freelancerA });
+    const freelancerReappeared = await onboardingService.getFreelancerOnboarding({
+      user: await asUser(ids.freelancerA), tasks: freelancerTasksForOnboarding,
+    });
+    assert.equal(freelancerReappeared.is_complete, false, "reversible canonical skill removal must restore onboarding");
+    assert.equal(
+      freelancerReappeared.optional_items.find((item) => item.id === "publish_public_safe_proof")?.complete,
+      true,
+      "only a strict public-safe proof chain should complete the optional growth item",
+    );
+    await models.UserSkill.create({ _id: `${ids.freelancerA}:${ids.skill}`, user_id: ids.freelancerA, skill_id: ids.skill });
 
     const session = await mongoose.startSession();
     try {

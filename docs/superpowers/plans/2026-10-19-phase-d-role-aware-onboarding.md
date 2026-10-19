@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add compact, role-aware onboarding to the existing client and freelancer dashboards, with every step and completion state derived from authoritative profile, marketplace-task, review, and public-safe proof facts rather than stored checklist state.
+**Goal:** Add compact, role-aware onboarding to the existing client and freelancer dashboards, with every required completion state derived from authoritative profile, marketplace-task, and delivery-approval facts rather than stored checklist state; canonical availability and public proof remain user-controlled preferences, never forced completion requirements.
 
 **Architecture:** Add a pure onboarding domain derivation layer plus a thin service that gathers only the authenticated user's existing facts. Extend the existing client and freelancer dashboard responses with an explicit `onboarding` DTO; do not add a route, collection, progress counter, or user-controlled completion mutation. One shared dashboard component renders only applicable steps and disappears when the backend summary is complete. Existing profile, task, review, project, evidence, and showcase workflows remain the actions that change completion.
 
@@ -18,7 +18,7 @@
 - Extend the existing `GET /api/client/dashboard` and `GET /api/freelancer/dashboard` aggregates. Do not add a generic onboarding endpoint or mega-endpoint.
 - Derive every item from the authenticated user's authoritative records. Do not accept a user ID, role, completion flag, applicability flag, task ID, or action target from the browser.
 - Keep marketplace `tasks` separate from project `project_tasks`. Marketplace onboarding facts may use only `tasks`; public-safe proof may use existing Project/participant/evidence/showcase facts without merging the domains.
-- Treat canonical professional availability (`user_profiles.availability`: `open|limited|unavailable`) as distinct from legacy marketplace availability (`users.freelancer_profile.availability`: `available|part_time|busy`). Only canonical professional availability completes the onboarding item.
+- Treat canonical professional availability (`user_profiles.availability`: `open|limited|unavailable`) as distinct from legacy marketplace availability (`users.freelancer_profile.availability`: `available|part_time|busy`). `unavailable` is a valid professional preference and must never be treated as a defect. Existing persistence does not record whether the default was explicitly selected, so availability is not a required completion item and no second flag may be invented.
 - Reuse the canonical professional profile, skill catalog, task workspace, project/showcase, dashboard commands, shared primitives, safe API error helper, and dark visual system.
 - Add one compact section to each overview; do not redesign dashboards, add a new dashboard, add an AppShell control, or alter Phase A-C surfaces beyond required links/refetch integration.
 - All action targets are backend-generated, internal, allow-listed paths and are checked again by the frontend before navigation.
@@ -42,9 +42,9 @@
 | Guided profile setup | `/profile/onboarding` is a four-step professional wizard and persists the legacy `onboarding_completed` flag | Keep it as the freelancer professional setup experience, but do not treat its flag as Phase D completion. New clients go to their dashboard checklist instead of being forced through the professional wizard |
 | Legacy role profile pages | `/client/profile` and `/freelancer/profile` redirect to `/profile`; the older `ClientProfile.jsx` and `FreelancerProfile.jsx` implementations are not current route targets | Do not revive or redesign the legacy pages. Checklist profile actions target the canonical `/profile` or retained freelancer wizard |
 | Canonical skills | `UserSkill` plus `Skill`, written by `PUT /api/profile/skills`, with a maximum of 30 skills and an indexed `user_id` lookup | Require at least one canonical `UserSkill`; never count the legacy free-text `freelancer_profile.skills` array |
-| Availability | Canonical professional availability lives on `UserProfile`; a separate freelancer dashboard selector writes legacy marketplace availability | Count only canonical availability. Clarify the existing selector's accessible label as marketplace-task availability; do not silently map one field to the other |
+| Availability | Canonical professional availability lives on `UserProfile` and defaults to `unavailable`; a separate freelancer dashboard selector writes legacy marketplace availability. Neither the profile row nor the legacy `onboarding_completed` field proves that a specific availability value was deliberately selected | Treat all three canonical values as valid preferences and exclude availability from required completion. It may be shown as an optional preference action while the checklist is otherwise visible. Clarify the existing selector's accessible label as marketplace-task availability; do not silently map one field to the other or add intent storage |
 | Marketplace tasks | `Task` records retain current status plus workflow timestamps such as `assignedAt`, `startedAt`, `deliveredAt`, and `completedAt`; dashboards already load the authenticated role's tasks | Derive first assignment, start/tracking, delivery, and completion from these rows and timestamps. Do not query or count `ProjectTask` |
-| Client reviews/ratings | `Review` has a unique `{ task_id, reviewer_id, review_type }` index; client ratings use `review_type=client_to_platform` | Add a bounded existence check for a rating on one of the authenticated client's completed task IDs; never load another client's reviews |
+| Client delivery approval | A successful client approval moves the marketplace task to `completed` and records `workflow.completedAt`; freelancer ratings are a separate optional workflow | Complete onboarding from the successful approval fact. Do not query or require `Review`, and do not change the optional rating workflow |
 | Public-safe proof | `listPublicProfileProjects` already defines the strict public chain: public profile, `show_on_profile` participant, active evidence, completed public Project, active public Team, published showcase | Reuse that definition through a new bounded boolean helper. Phase D returns only `true|false`; it does not return proof details or implement Phase E connections |
 | Frontend dashboard freshness | Both dashboards reload on mount/manual refresh and reconcile relevant task SSE events; client task creation and dashboard task mutations already refresh their aggregates | The embedded onboarding summary updates through the same correctness paths. Returning from profile/project actions remounts/reloads the dashboard; relevant task events trigger the existing targeted dashboard refresh |
 
@@ -72,6 +72,7 @@ Each stable checklist item has:
 - `applicable=false` means the prerequisite stage has not occurred. It is not counted as incomplete and is not rendered as a blocked or false-negative task.
 - `completed_count` and `total_count` count applicable items only.
 - `is_complete` is true when every currently applicable item is complete. The UI renders nothing when `is_complete=true`.
+- Optional preference/growth items are returned separately in `optional_items`, never enter `completed_count`, `total_count`, or `is_complete`, and render only while required onboarding is already visible.
 - A later real event may make another item applicable. The next dashboard refresh then makes the compact checklist reappear with that actionable step.
 - If a reversible prerequisite becomes incomplete (for example, all skills are removed or canonical availability becomes `unavailable`), its item becomes incomplete again and the checklist reappears.
 - Items use a stable role-specific order; the frontend does not recalculate completion, applicability, or progress.
@@ -85,7 +86,7 @@ Refactor the existing profile completeness calculation to expose named checks wi
 - `headline`: `UserProfile.headline` is non-empty.
 - `bio`: `UserProfile.bio` has at least 80 characters, matching current completeness.
 - `location_and_timezone`: both canonical fields are non-empty.
-- `availability`: canonical value is `open` or `limited`.
+- `availability`: preserve the current completeness calculation (`open` or `limited`) for the existing profile-completeness meter only. Phase D onboarding does not consume this check because `unavailable` is a valid deliberate preference and existing records cannot prove intent.
 - `professional_link`, `interests_and_roles`, `skills`, and `education`: retain the existing completeness rules unchanged.
 
 `calculateCompleteness` continues returning the current `{ percentage, completed, total, missing }` contract. Phase D consumes named facts instead of copying the conditions.
@@ -97,9 +98,9 @@ Refactor the existing profile completeness calculation to expose named checks wi
 | `client_identity` | Always | `name && username` from canonical profile facts | `Update profile` -> `/profile` |
 | `create_marketplace_task` | Always | The authenticated client has created at least one marketplace `Task`, including a later-cancelled task | `Create task` -> `/client/dashboard?action=create-task` |
 | `track_first_task` | At least one owned task has been assigned, based on `workflow.assignedAt`, a current `freelancer_id`, or a current post-assignment status | At least one owned task has started, based on `workflow.startedAt` or a current status at/after `in_progress` | `Open task workspace` -> the most recently updated relevant `/tasks/:id?tab=work` |
-| `review_and_rate_delivery` | At least one owned task is currently `delivered`, or at least one owned task is `completed` without a client rating | At least one owned completed task has a `client_to_platform` Review by the authenticated client | For delivered work, `Review delivery` -> newest `/tasks/:id?tab=delivery`; otherwise `Rate completed work` -> newest unrated completed task's Delivery tab |
+| `review_first_delivery` | At least one owned task is currently `delivered` or has reached `completed` | At least one owned task has a real successful approval, recorded by `workflow.completedAt` or current status `completed` | `Review delivery` -> newest delivered `/tasks/:id?tab=delivery`; completed history satisfies the milestone without requiring a rating |
 
-Client progression is deliberately stage-aware. A new client sees identity and create-task actions. Assignment makes tracking applicable; delivery/completion makes review/rating applicable. A waiting downstream stage is not shown as an incomplete obligation the client cannot yet perform.
+Client progression is deliberately stage-aware. A new client sees identity and create-task actions. Assignment makes tracking applicable; delivery makes review applicable; successful approval completes it. A waiting downstream stage is not shown as an incomplete obligation the client cannot yet perform, and rating remains optional.
 
 ## Exact Freelancer Rules
 
@@ -107,12 +108,17 @@ Client progression is deliberately stage-aware. A new client sees identity and c
 | --- | --- | --- | --- |
 | `profile_fundamentals` | Always | `name && username && headline && bio && location_and_timezone` from canonical profile facts | `Complete profile` -> `/profile` |
 | `canonical_skill` | Always | At least one canonical `UserSkill` exists | `Add skills` -> `/profile` |
-| `professional_availability` | Always | `UserProfile.availability` is `open` or `limited` | `Set availability` -> `/profile` |
 | `first_marketplace_assignment` | Always | At least one marketplace task has `workflow.assignedAt`, a current matching `freelancer_id`, or a current post-assignment status | `Find work` -> `/freelancer/dashboard?view=available` |
 | `complete_marketplace_work` | A first marketplace assignment exists | At least one assigned marketplace task has `workflow.completedAt` or current status `completed` | Prefer newest active `/tasks/:id?tab=work`; otherwise `My work` -> `/freelancer/dashboard?view=work` |
-| `publish_public_safe_proof` | Completed marketplace work exists | The existing strict public-profile project chain has at least one result | `Build project proof` -> `/projects` |
 
-The proof item is only a boolean readiness milestone over existing public-safe Project/evidence/showcase records. It must not expose evidence, connect skills to proof, score the freelancer, recommend opportunities, or snapshot application data; those remain Phase E concerns.
+Optional items, excluded from all completion counts:
+
+| Optional item ID | Shown when | State | Real action |
+| --- | --- | --- | --- |
+| `review_professional_availability` | Required onboarding is visible | Reflect the current canonical preference (`open`, `limited`, or `unavailable`) without labelling any value incomplete | `Review preference` -> `/profile` |
+| `publish_public_safe_proof` | Required onboarding is visible and completed marketplace work exists | Encouraged when the strict public-safe project chain has no result; marked achieved when it does | `Build project proof` -> `/projects` |
+
+The proof item is only an optional boolean growth milestone over existing public-safe Project/evidence/showcase records. It never blocks or reopens basic onboarding and must not pressure a user to publish private work. It must not expose evidence, connect skills to proof, score the freelancer, recommend opportunities, or snapshot application data; those remain Phase E concerns.
 
 ## Dashboard API Contract
 
@@ -128,7 +134,8 @@ No new route is added. Both role dashboard responses gain an additive field:
       "is_complete": false,
       "completed_count": 3,
       "total_count": 5,
-      "items": []
+      "items": [],
+      "optional_items": []
     }
   }
 }
@@ -147,7 +154,6 @@ Contract rules:
 
 - Existing `authenticate + requireClient` and `authenticate + requireFreelancer` middleware remain the first boundary.
 - The controller passes `req.user` and only task rows already filtered by `client_id=req.user.id` or `freelancer_id=req.user.id` into the onboarding service.
-- Review existence includes both the authenticated `reviewer_id` and a task ID from that client's completed owned-task set.
 - Canonical profile and skill reads use only `req.user.id`.
 - Public-safe proof checks use only the authenticated freelancer ID and the existing strict visibility chain; they return a boolean, never proof rows.
 - Request query/body values such as `userId`, `role`, `complete`, and `taskId` are ignored because the dashboard routes define no such input contract.
@@ -159,9 +165,8 @@ Contract rules:
 - Reuse the task arrays already loaded for each dashboard. Phase D must not add another marketplace-task query or load `project_tasks`.
 - Use the authenticated `req.user` already loaded by auth middleware; do not refetch the `User` record.
 - Fetch `UserProfile` and canonical `UserSkill` facts concurrently. `UserSkill` is capped by the existing model limit; a boolean/`exists` method is preferred when implementation can preserve existing profile-service behavior.
-- Add `reviewData.hasClientRating({ reviewerId, taskIds })` using `Review.exists`/`findOne` with projection and the existing `{ task_id, reviewer_id, review_type }` index.
 - Add `showcaseService.hasPublicProfileProof(userId)` as a short-circuit sequence of indexed existence queries or a bounded aggregation ending in `$limit: 1`. It must preserve every existing public-safe condition and never materialize all profile projects.
-- Verify the new rating and proof query shapes with real non-production MongoDB `explain("executionStats")`. Required findings are an index-backed plan, bounded returned documents, and no unbounded collection scan. If this cannot be demonstrated, report the performance blocker; do not weaken the rule or silently omit a condition.
+- Verify the new proof query shape with real non-production MongoDB `explain("executionStats")`. Required findings are an index-backed plan, bounded returned documents, and no unbounded collection scan. If this cannot be demonstrated, omit the optional proof suggestion and report the performance limitation; never weaken privacy or basic onboarding.
 - The existing dashboard controllers currently materialize all of the authenticated user's marketplace tasks/payments. Phase D reuses that existing behavior and does not expand its scope; any broader dashboard pagination redesign remains outside this phase.
 
 ## Frontend Component Structure
@@ -183,7 +188,7 @@ frontend/src/
 
 - Return `null` for a missing summary, unsupported role, or `is_complete=true`.
 - Render one compact `<section>` under the overview metrics, using the existing dark surface/border/spacing system and no new hero/header.
-- Render applicable items in an ordered list; completed rows use icon plus text (not color alone), incomplete rows expose one touch-safe link.
+- Render applicable required items in an ordered list; completed rows use icon plus text (not color alone), incomplete rows expose one touch-safe link. Optional items use explicit `Optional` language and never affect progress.
 - Announce `completed_count of total_count` in visible text and expose a labelled native/progress semantic without creating a second percentage truth.
 - Preserve the existing dashboard `h1`; the component uses an `h2` and a labelled region.
 - Reject any target outside the exact onboarding allow-list: `/profile`, `/projects`, the approved dashboard query shapes, and `/tasks/:uuid?tab=work|delivery`.
@@ -202,8 +207,8 @@ Role-aware entry behavior:
 - A failed authoritative derivation fails the dashboard request through the canonical safe API error path. The existing full dashboard retry remains available; never fabricate a completed or empty checklist on backend failure.
 - For rolling compatibility, a missing `onboarding` field renders no checklist rather than an incorrect one; tests still require the new backend to return it for valid client/freelancer requests.
 - Client task creation already calls `loadOverview`; preserve that path so `create_marketplace_task` completes immediately.
-- Existing task SSE handlers refresh the aggregate after task status/progress events. Ensure assignment, start, delivery, completion, and review/rating success paths cause an aggregate refresh either through existing events or the existing return-to-dashboard/mutation refresh path.
-- Profile/skills/availability/project actions navigate to existing pages. Returning to the dashboard remounts and reloads the authoritative aggregate; no stale local completion is retained.
+- Existing task SSE handlers refresh the aggregate after task status/progress events. Ensure assignment, start, delivery, and successful approval/completion paths cause an aggregate refresh either through existing events or the existing return-to-dashboard/mutation refresh path. Optional rating mutations do not affect onboarding.
+- Profile/skills/task/project actions navigate to existing pages. Returning to the dashboard remounts and reloads the authoritative aggregate; no stale local completion is retained. Changing availability updates preference presentation but never changes required completion.
 - Buttons/links use the canonical safe error helper only where a request is performed; the checklist itself has no mutation.
 
 ## Task 1: Freeze the Pure Completion Contract
@@ -225,7 +230,7 @@ Role-aware entry behavior:
 
 - [ ] **Step 3: Write failing freelancer derivation tests**
 
-  Cover missing fundamentals, legacy-only skills, canonical skills, legacy versus canonical availability, first assignment, active work, completed work, public-proof false/true, and regression from complete to incomplete after a reversible fact is removed.
+  Cover missing fundamentals, legacy-only skills, canonical skills, every canonical availability value, first assignment, active work, completed work, optional public-proof false/true, and regression from complete to incomplete after a required reversible fact is removed. Assert `unavailable` never creates an incomplete required item.
 
 - [ ] **Step 4: Run RED**
 
@@ -244,14 +249,13 @@ Role-aware entry behavior:
 **Files:**
 
 - Create: `backend/src/services/onboardingService.js`
-- Modify: `backend/src/data/reviewData.js`
 - Modify: `backend/src/services/showcaseService.js`
 - Modify: `backend/src/serializers/index.js`
 - Create: `backend/tests/onboardingService.test.js`
 
 - [ ] **Step 1: Write failing orchestration tests**
 
-  Mock profile, skill, review, and showcase dependencies. Assert authenticated IDs are the only IDs passed; client and freelancer dependencies are role-specific; reviews are limited to owned completed tasks; proof returns only a boolean; and downstream calls are skipped when their prerequisite is not applicable.
+  Mock profile, skill, and showcase dependencies. Assert authenticated IDs are the only IDs passed; client and freelancer dependencies are role-specific; delivery completion comes only from owned task workflow/status facts; proof returns only a boolean; and optional downstream calls are skipped when they cannot be shown.
 
 - [ ] **Step 2: Write failing explicit-serializer tests**
 
@@ -261,19 +265,15 @@ Role-aware entry behavior:
 
   Run `npm --prefix backend test -- onboardingService.test.js onboarding.domain.test.js`.
 
-- [ ] **Step 4: Implement bounded rating existence**
-
-  Add `hasClientRating` using the indexed authenticated reviewer/task/type predicate and return a boolean. Empty task-ID input must return false without a Mongo query.
-
-- [ ] **Step 5: Implement bounded public-safe proof existence**
+- [ ] **Step 4: Implement bounded public-safe proof existence**
 
   Reuse every condition from `listPublicProfileProjects`, short-circuit each stage, and stop after the first qualifying result. Do not return project/evidence/showcase data.
 
-- [ ] **Step 6: Implement the role orchestration service and serializer**
+- [ ] **Step 5: Implement the role orchestration service and serializer**
 
   Use canonical profile/skill facts, already-loaded marketplace tasks, and prerequisite-aware calls. Unsupported/admin roles return no checklist rather than being coerced into another role.
 
-- [ ] **Step 7: Run GREEN and regression**
+- [ ] **Step 6: Run GREEN and regression**
 
   Run `npm --prefix backend test -- onboardingService.test.js onboarding.domain.test.js profileService.test.js contributions.domain.test.js projects.domain.test.js` and review the diff. Do not commit.
 
@@ -292,7 +292,7 @@ Role-aware entry behavior:
 
 - [ ] **Step 2: Write failing transition response tests**
 
-  Mock new, partial, task-assigned, task-delivered, completed, rated, and proof-complete facts and assert exact applicability/count changes in the returned DTO.
+  Mock new, partial, task-assigned, task-delivered, approved/completed, unavailable-preference, and optional-proof facts and assert exact applicability/count changes in the returned DTO. Assert rating presence or absence never changes onboarding.
 
 - [ ] **Step 3: Run RED**
 
@@ -382,7 +382,7 @@ Role-aware entry behavior:
 
 - [ ] **Step 1: Add uniquely owned fixtures**
 
-  Generate random IDs/marker-prefixed `.invalid` accounts for a new and progressed client/freelancer, canonical profiles/skills, marketplace tasks at required stages, one client rating, and one strict public-safe proof chain. Use securely generated disposable passwords without logging them.
+  Generate random IDs/marker-prefixed `.invalid` accounts for a new and progressed client/freelancer, canonical profiles/skills, marketplace tasks at required stages, a successful delivery approval, optional ratings that do not affect onboarding, and one strict public-safe proof chain. Use securely generated disposable passwords without logging them.
 
 - [ ] **Step 2: Preserve the database safety guard**
 
@@ -394,7 +394,7 @@ Role-aware entry behavior:
 
 - [ ] **Step 4: Add Mongo assertions and explain checks**
 
-  Assert profile facts, canonical-skill truth, legacy/canonical availability separation, marketplace-task-only derivation, client-rating ownership, strict public-proof visibility, transition/reappearance, and index-backed bounded review/proof plans.
+  Assert profile facts, canonical-skill truth, legacy/canonical availability separation, valid `unavailable` treatment, marketplace-task-only derivation, successful delivery approval, rating independence, optional strict public-proof visibility, transition/reappearance, and the index-backed bounded proof plan.
 
 - [ ] **Step 5: Add API integration assertions**
 
@@ -421,11 +421,11 @@ Role-aware entry behavior:
 
 - [ ] **Step 3: Perform client browser acceptance**
 
-  At 320, 375, 390, 430, 768, 1024, and 1440 pixels, verify new client -> compact dashboard checklist; identity action; real task creation; hidden state while downstream work is not applicable; reappearance at assignment/delivery; task-workspace deep links; review/rating completion; final disappearance; and reappearance after a reversible profile prerequisite is removed.
+  At 320, 375, 390, 430, 768, 1024, and 1440 pixels, verify new client -> compact dashboard checklist; identity action; real task creation; hidden state while downstream work is not applicable; reappearance at assignment/delivery; task-workspace deep links; successful approval completion independent of rating; final disappearance; and reappearance after a reversible profile prerequisite is removed.
 
 - [ ] **Step 4: Perform freelancer browser acceptance**
 
-  At every required width, verify professional wizard entry; canonical profile/skill/availability completion; legacy marketplace availability does not falsely complete the canonical item; find/accept/start/complete task progression; public-safe project proof; final disappearance; and reappearance after canonical skill/availability removal.
+  At every required width, verify professional wizard entry; canonical profile/skill completion; `open`, `limited`, and deliberately `unavailable` preferences do not block onboarding; legacy marketplace availability remains distinct; find/accept/start/complete task progression; optional public-safe project proof language; final disappearance; and reappearance after canonical skill/profile removal.
 
 - [ ] **Step 5: Verify accessibility and operational cleanliness**
 
@@ -447,12 +447,12 @@ Role-aware entry behavior:
 - Partial profiles use canonical named checks and exact bio boundary.
 - Legacy `onboarding_completed=true` cannot complete or hide the dashboard checklist.
 - Legacy free-text freelancer skills cannot satisfy the canonical skill item.
-- Legacy marketplace availability cannot satisfy professional availability.
-- Assignment/start/delivery/completion/rating transitions change only the intended items.
+- Canonical `unavailable` is valid, legacy marketplace availability remains distinct, and neither availability field gates required completion.
+- Assignment/start/delivery/approval transitions change only the intended items; optional rating mutations change none.
 - Non-applicable downstream items do not inflate totals or show as incomplete.
 - Reversible canonical prerequisites cause the checklist to reappear.
 - Marketplace `tasks` are counted; `project_tasks` are never counted.
-- Public proof is true only for the complete existing visibility/evidence/showcase chain.
+- Public proof is true only for the complete existing visibility/evidence/showcase chain and never affects required counts or completion.
 - Client/freelancer cross-role access and caller-supplied identity hints cannot cross account boundaries.
 - Serializer output is explicit, stable, and free of private fields.
 
@@ -471,7 +471,7 @@ Role-aware entry behavior:
 
 - Non-production Mongo fixtures demonstrate every role stage with test-owned cleanup.
 - Real dashboard APIs return exact derived state and preserve old fields.
-- Explain plans show indexed, bounded rating/proof queries.
+- Explain plans show an indexed, bounded optional-proof query.
 - Full profile, marketplace task, review, project/contribution/showcase, Phase A-C, and security regressions remain green.
 
 ## Expected Files Changed
@@ -493,7 +493,6 @@ Expected additions:
 Expected modifications:
 
 - `backend/src/domain/professionalProfile.js`
-- `backend/src/data/reviewData.js`
 - `backend/src/services/showcaseService.js`
 - `backend/src/serializers/index.js`
 - `backend/src/controllers/clientController.js`
@@ -516,7 +515,7 @@ Not expected to change: database models/collections, cloud/infrastructure files,
 - No collection, persisted checklist, or schema migration exists to roll back.
 - The pure derivation and serializers have no side effects.
 - Existing profile wizard and `onboarding_completed` storage remain compatible; Phase D simply does not use the flag as truth.
-- Review/proof helpers are read-only and can be removed independently if their explain-plan gate fails.
+- The optional proof helper is read-only and can be removed independently if its explain-plan gate fails; basic onboarding must remain correct without it.
 - If a browser-entry change regresses registration, revert only the role-aware destination logic; account creation remains unchanged.
 
 ## Phase D Acceptance Gate
@@ -526,7 +525,9 @@ Phase D passes only when all of the following are demonstrated with fresh eviden
 - Client and freelancer dashboard summaries are fully backend-derived, role-correct, and contain no stored checklist state.
 - Every exact completion/applicability rule above passes new unit and API tests.
 - No new endpoint, collection, mutable completion mutation, or Phase E proof/opportunity connection exists.
-- Canonical professional profile, skill, and availability sources are used; legacy marketplace fields cannot falsely complete professional onboarding.
+- Canonical professional profile and skill sources are used; all canonical availability values remain valid preferences, and legacy marketplace fields cannot alter required onboarding.
+- Successful delivery approval—not freelancer rating—completes the client review milestone; rating remains optional and unchanged.
+- Public proof is explicitly optional, never affects completion, and never requires private work to become public.
 - Real profile/task/review/project actions update progress automatically through existing dashboard refresh paths.
 - The checklist is compact, accessible, responsive, hidden when complete, and able to reappear when authoritative facts require it.
 - Client/freelancer IDOR and role boundaries pass.
@@ -538,5 +539,5 @@ Phase D passes only when all of the following are demonstrated with fresh eviden
 
 - No planning blocker remains.
 - The existing dashboard aggregates materialize all role-owned marketplace tasks/payments. Phase D deliberately reuses those rows and adds no second scan; scaling that pre-existing aggregate is a separate concern.
-- The public-safe proof boolean must pass its real Mongo explain-plan gate. If the existing indexes do not support the strict short-circuit query as expected, implementation must report that as a Phase D performance blocker rather than weakening privacy or adding an unapproved index/cloud change.
+- The optional public-safe proof boolean must pass its real Mongo explain-plan gate. If the existing indexes do not support the strict short-circuit query as expected, omit that optional suggestion and report the limitation rather than weakening privacy or adding an unapproved index/cloud change; this alone does not block basic onboarding.
 - The legacy `onboarding_completed` field and unrouted legacy role profile components remain technical debt, but removing them is not required for Phase D and would expand risk without improving the derived checklist contract.
