@@ -22,6 +22,16 @@ const SEARCH_RESULT_TYPES = new Set([
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/i;
 const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/i;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ONBOARDING_EXACT_TARGETS = new Set([
+  "/profile",
+  "/projects",
+  "/client/dashboard?action=create-task",
+  "/client/dashboard?view=tasks",
+  "/client/dashboard?view=deliveries",
+  "/freelancer/dashboard?view=available",
+  "/freelancer/dashboard?view=work",
+]);
+const ONBOARDING_TASK_TARGET = new RegExp(`^/tasks/${UUID_PATTERN.source.slice(1, -1)}\\?tab=(?:work|delivery)$`, "i");
 
 const normalizeSearchQuery = (value) => {
   if (typeof value !== "string") {
@@ -173,6 +183,39 @@ const serializeNotification = (notification) => {
   };
 };
 
+const onboardingAction = (action) => {
+  const targetPath = action?.targetPath;
+  if (
+    typeof action?.label !== "string"
+    || !action.label.trim()
+    || typeof targetPath !== "string"
+    || (!ONBOARDING_EXACT_TARGETS.has(targetPath) && !ONBOARDING_TASK_TARGET.test(targetPath))
+  ) return null;
+  return { label: action.label.trim(), target_path: targetPath };
+};
+
+const onboardingItem = (item) => ({
+  id: String(item?.id || ""),
+  label: String(item?.label || ""),
+  description: String(item?.description || ""),
+  applicable: Boolean(item?.applicable),
+  complete: Boolean(item?.complete),
+  ...(item?.optional ? { optional: true } : {}),
+  action: onboardingAction(item?.action),
+});
+
+const serializeOnboarding = (value) => {
+  if (!value || !["client", "freelancer"].includes(value.role)) return null;
+  return {
+    role: value.role,
+    is_complete: Boolean(value.isComplete),
+    completed_count: Number(value.completedCount) || 0,
+    total_count: Number(value.totalCount) || 0,
+    items: Array.isArray(value.items) ? value.items.map(onboardingItem) : [],
+    optional_items: Array.isArray(value.optionalItems) ? value.optionalItems.map(onboardingItem) : [],
+  };
+};
+
 module.exports = {
   SEARCH_GROUPS,
   SEARCH_RESULT_LIMIT,
@@ -183,4 +226,5 @@ module.exports = {
   serializeTask,
   serializeSubmission,
   serializeNotification,
+  serializeOnboarding,
 };

@@ -10,6 +10,7 @@ const userData = require("../data/userData");
 const realtimeHub = require("../services/realtimeHub");
 const performanceService = require("../services/performanceService");
 const taskService = require("../services/taskService");
+const onboardingService = require("../services/onboardingService");
 const { errors } = require("../utils/appError");
 const { parseListQuery } = require("../utils/queryOptions");
 const { paginationMeta } = require("../utils/apiResponse");
@@ -46,6 +47,7 @@ exports.getDashboard = async (req, res, next) => {
     const allTasks = await taskData.findTasks({ freelancer_id: freelancerId });
     const payments = await paymentData.findPayments({ freelancer_id: freelancerId });
     const reviews = await reviewData.findReviews({ reviewee_id: freelancerId });
+    const onboarding = await onboardingService.getFreelancerOnboarding({ user: req.user, tasks: allTasks });
 
     const activeTasks = allTasks.filter((t) =>
       [TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS, TASK_STATUS.CLIENT_REVISION, TASK_STATUS.REVISION_REQUESTED].includes(t.status),
@@ -98,6 +100,7 @@ exports.getDashboard = async (req, res, next) => {
         performanceScore,
         onTimeDeliveryRate,
         currentWork,
+        onboarding,
       },
     });
   } catch (error) {

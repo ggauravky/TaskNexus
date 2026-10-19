@@ -92,6 +92,20 @@ Authenticated AppShells expose one responsive, touch-safe trigger and support `C
 
 Client and freelancer quick actions pass only allow-listed URL state into their existing dashboards. Phase C does not redesign any dashboard, task workspace, notification surface, or legacy task modal.
 
+## Phase D: Role-Aware Onboarding
+
+Phase D adds a compact shared onboarding checklist to the existing client and freelancer dashboard overview responses and pages. Completion is derived on every dashboard refresh from authoritative `User`, `UserProfile`, canonical `UserSkill`, and marketplace `Task` facts. There is no onboarding collection, writable completion flag, new endpoint, or `ProjectTask` dependency. Administrators remain excluded.
+
+Client onboarding covers identity, creation of a marketplace task, tracking the first assigned task, and review of the first delivered task. The review milestone completes when the real delivery approval transitions the task to `completed`; a freelancer rating remains optional and does not affect onboarding.
+
+Freelancer onboarding covers professional profile fundamentals, at least one canonical skill, a first marketplace assignment, and a completed marketplace task. Canonical professional availability remains the `UserProfile.availability` preference. `open`, `limited`, and deliberately selected `unavailable` are all valid preferences and none is required for basic completion. The legacy marketplace task-availability selector remains a separate existing contract and is labelled accordingly.
+
+### Progressive and privacy contract
+
+Downstream items become applicable only when the real prerequisite exists, so a completed checklist may disappear and later reappear when an assignment or delivery introduces the next step. Reversible required facts, such as a canonical skill or identity field, restore the checklist when removed. The frontend never recalculates progress; it renders bounded serialized counts, stable ordered items, and backend-generated internal actions after an independent route allow-list check.
+
+Public-safe project/showcase proof is an optional growth item after completed marketplace work and never affects required counts. Private work is never required to become public, and Phase D does not add Profile-to-Proof-to-Opportunity behavior.
+
 ## Later phases
 
-Role-aware onboarding and Profile-to-Proof-to-Opportunity integration remain intentionally unimplemented after Phase C.
+Profile-to-Proof-to-Opportunity integration remains intentionally unimplemented after Phase D.

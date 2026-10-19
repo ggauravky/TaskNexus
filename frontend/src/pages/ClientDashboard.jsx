@@ -7,6 +7,7 @@ import TaskDetailsModal from "../components/client/TaskDetailsModal";
 import EmptyState from "../components/common/EmptyState";
 import Loading from "../components/common/Loading";
 import StatusBadge from "../components/common/StatusBadge";
+import RoleOnboardingChecklist from "../components/onboarding/RoleOnboardingChecklist";
 import WorkspaceSettingsDialog from "../components/dashboard/WorkspaceSettingsDialog";
 import { MetricStrip, Pagination, SectionCard, WorkspaceHeader } from "../components/dashboard/WorkspacePrimitives";
 import { usePreferences } from "../hooks/usePreferences";
@@ -235,6 +236,7 @@ const ClientDashboard = () => {
 
         {view === "overview" ? <>
           <MetricStrip items={metrics} />
+          <RoleOnboardingChecklist onboarding={dashboard?.onboarding} />
           {!dashboard?.totalTasks ? <SectionCard title="No tasks yet" description="Create your first task to start a delivery."><EmptyState icon={ListChecks} title="Your client workspace is ready" description="Post a clear brief and TaskNexus will move it through review, assignment, delivery, and approval." action={<button onClick={() => setShowCreate(true)} className="team-button-primary"><Plus className="h-4 w-4" /> Create your first task</button>} /></SectionCard> : <>
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,0.8fr)]">
               <SectionCard title="Needs attention" description="Only work that requires a client decision or is overdue.">{dashboard?.attentionTasks?.length ? <div className="space-y-2">{dashboard.attentionTasks.map((task) => <AttentionRow key={task.id} task={task} onOpen={() => openTaskWorkspace(task)} />)}</div> : <EmptyState icon={FileCheck2} title="You're all caught up" description="There are no deliveries or overdue tasks requiring action." className="py-7" />}</SectionCard>

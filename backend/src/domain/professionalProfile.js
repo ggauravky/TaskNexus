@@ -174,18 +174,34 @@ const normalizeEducationInput = (input) => {
   };
 };
 
-const calculateCompleteness = ({ user, profile, skills = [], education = [] }) => {
+const presentText = (value) => typeof value === "string" && Boolean(value.trim());
+
+const profileCompletionFacts = ({ user, profile, skills = [], education = [] }) => ({
+  name: presentText(user?.profile?.firstName) && presentText(user?.profile?.lastName),
+  username: presentText(profile?.username),
+  headline: presentText(profile?.headline),
+  bio: typeof profile?.bio === "string" && profile.bio.trim().length >= 80,
+  locationAndTimezone: presentText(profile?.location) && presentText(profile?.timezone),
+  availability: profile?.availability === "open" || profile?.availability === "limited",
+  professionalLink: [profile?.github_url, profile?.linkedin_url, profile?.portfolio_url].some(presentText),
+  interestsAndRoles: Boolean(profile?.interests?.length && profile?.preferred_roles?.length),
+  skills: skills.length > 0,
+  education: education.length > 0,
+});
+
+const calculateCompleteness = (bundle) => {
+  const facts = profileCompletionFacts(bundle);
   const checks = [
-    ["name", Boolean(user?.profile?.firstName && user?.profile?.lastName)],
-    ["username", Boolean(profile?.username)],
-    ["headline", Boolean(profile?.headline)],
-    ["bio", Boolean(profile?.bio && profile.bio.length >= 80)],
-    ["location and timezone", Boolean(profile?.location && profile?.timezone)],
-    ["availability", Boolean(profile?.availability && profile.availability !== "unavailable")],
-    ["professional link", Boolean(profile?.github_url || profile?.linkedin_url || profile?.portfolio_url)],
-    ["interests and roles", Boolean(profile?.interests?.length && profile?.preferred_roles?.length)],
-    ["skills", skills.length > 0],
-    ["education", education.length > 0],
+    ["name", facts.name],
+    ["username", facts.username],
+    ["headline", facts.headline],
+    ["bio", facts.bio],
+    ["location and timezone", facts.locationAndTimezone],
+    ["availability", facts.availability],
+    ["professional link", facts.professionalLink],
+    ["interests and roles", facts.interestsAndRoles],
+    ["skills", facts.skills],
+    ["education", facts.education],
   ];
   const completed = checks.filter(([, value]) => value).length;
   return {
@@ -204,5 +220,6 @@ module.exports = {
   normalizeProfileInput,
   normalizeSkillAssignments,
   normalizeEducationInput,
+  profileCompletionFacts,
   calculateCompleteness,
 };

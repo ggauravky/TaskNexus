@@ -11,7 +11,7 @@ const configuredApiBase = process.argv.slice(2).find((argument) => !argument.sta
 const apiBase = (configuredApiBase || "http://localhost:5000/api").replace(/\/$/, "");
 const runId = randomUUID();
 const password = `Tn-${randomBytes(18).toString("base64url")}9aA`;
-const ids = { admin: randomUUID() };
+const ids = { admin: randomUUID(), phaseDSkill: randomUUID() };
 const teamIds = [];
 const projectIds = [];
 const searchTerm = `phasec${runId.slice(0, 8)}`;
@@ -63,7 +63,9 @@ const expectOk = async (path, token) => {
 };
 
 const cleanup = async () => {
-  const userIds = Object.values(ids).filter(Boolean);
+  const userIds = Object.entries(ids)
+    .filter(([key, value]) => key !== "phaseDSkill" && Boolean(value))
+    .map(([, value]) => value);
   if (!userIds.length) return;
   const users = () => mongoose.trusted({ $in: userIds });
   const createdTeams = await models.Team.find({ created_by: users() }).select("_id").lean();
@@ -75,6 +77,7 @@ const cleanup = async () => {
     models.AuditLog.deleteMany({ user_id: users() }),
     models.UserEducation.deleteMany({ user_id: users() }),
     models.UserSkill.deleteMany({ user_id: users() }),
+    models.Skill.deleteMany({ _id: ids.phaseDSkill }),
     models.TeamActivity.deleteMany({ team_id: teams() }),
     models.TeamInvitation.deleteMany({ team_id: teams() }),
     models.TeamJoinRequest.deleteMany({ team_id: teams() }),
@@ -179,6 +182,61 @@ const run = async () => {
       { _id: phaseC.tasks[6], task_id: `TSK-${runId}-PHASEC-UNASSIGNED`, client_id: ids.lead, task_details: { title: `${searchTerm} unassigned` }, status: "submitted" },
       { _id: phaseC.tasks[7], task_id: `TSK-${runId}-PHASEC-UNRELATED`, client_id: ids.lead, freelancer_id: ids.contributor, task_details: { title: `${searchTerm} unrelated` }, status: "in_progress" },
     ]);
+
+    const anonymousClientDashboard = await call("/client/dashboard");
+    assert.equal(anonymousClientDashboard.status, 401, "client onboarding dashboard must require authentication");
+    assert.equal((await call("/client/dashboard", { token: freelancerToken })).status, 403, "freelancer must not read client onboarding");
+    assert.equal((await call("/freelancer/dashboard", { token: clientToken })).status, 403, "client must not read freelancer onboarding");
+
+    await Promise.all([
+      models.UserProfile.updateOne({ _id: ids.client }, { $set: { username: `phase-d-client-${runId.slice(0, 8)}` } }),
+      models.UserProfile.updateOne({ _id: ids.freelancer }, { $set: {
+        username: `phase-d-freelancer-${runId.slice(0, 8)}`,
+        headline: "QA professional",
+        bio: "Professional onboarding integration biography with enough detail to satisfy the canonical profile contract.",
+        location: "QA City",
+        timezone: "UTC",
+        availability: "unavailable",
+      } }),
+      models.Skill.create({ _id: ids.phaseDSkill, slug: `phase-d-${runId}`, name: `Phase D ${runId}`, normalized_name: `phase d ${runId}`, category: "other" }),
+    ]);
+    await models.UserSkill.create({
+      _id: `${ids.freelancer}:${ids.phaseDSkill}`,
+      user_id: ids.freelancer,
+      skill_id: ids.phaseDSkill,
+      proficiency: "advanced",
+      is_primary: true,
+    });
+
+    const clientPartial = await expectOk("/client/dashboard", clientToken);
+    assert.equal(clientPartial.data.onboarding.role, "client");
+    assert.equal(clientPartial.data.onboarding.is_complete, true, "completed applicable steps should hide the client checklist until delivery review applies");
+    assert.equal(clientPartial.data.onboarding.items.find((item) => item.id === "review_first_delivery").applicable, false);
+    const freelancerPartial = await expectOk("/freelancer/dashboard", freelancerToken);
+    assert.equal(freelancerPartial.data.onboarding.role, "freelancer");
+    assert.equal(freelancerPartial.data.onboarding.is_complete, false);
+    assert.equal(freelancerPartial.data.onboarding.optional_items.find((item) => item.id === "review_professional_availability").complete, true);
+
+    await models.Task.updateOne({ _id: phaseC.tasks[0] }, {
+      $set: { status: "completed", "workflow.completedAt": new Date() },
+    });
+    const [clientComplete, freelancerComplete] = await Promise.all([
+      expectOk("/client/dashboard", clientToken),
+      expectOk("/freelancer/dashboard", freelancerToken),
+    ]);
+    assert.equal(clientComplete.data.onboarding.is_complete, true, "approval must complete client onboarding without rating");
+    assert.equal(freelancerComplete.data.onboarding.is_complete, true, "unavailable must not block freelancer onboarding");
+    assert.equal(await models.Review.countDocuments({ task_id: phaseC.tasks[0] }), 0, "rating must remain optional");
+    for (const payload of [clientComplete.data.onboarding, freelancerComplete.data.onboarding]) {
+      assert.equal("email" in payload, false);
+      assert.equal("password" in payload, false);
+      for (const item of [...payload.items, ...payload.optional_items]) {
+        if (item.action) assert.match(item.action.target_path, /^\/(?:profile|projects|client\/dashboard|freelancer\/dashboard|tasks\/)/);
+      }
+    }
+    await models.UserSkill.deleteMany({ user_id: ids.freelancer });
+    const freelancerReappeared = await expectOk("/freelancer/dashboard", freelancerToken);
+    assert.equal(freelancerReappeared.data.onboarding.is_complete, false, "removing a canonical skill must restore onboarding");
 
     const anonymousSearch = await call(`/search?q=${searchTerm}`);
     assert.equal(anonymousSearch.status, 401, "global search must require authentication");

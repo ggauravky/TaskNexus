@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import SkillPicker from "../components/profile/SkillPicker";
+import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import { toEditableProfile } from "../utils/profile";
 
@@ -12,6 +13,7 @@ const label = (value) => value.split("_").map((word) => word === "ai" || word ==
 
 const ProfileOnboarding = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [bundle, setBundle] = useState(null);
   const [form, setForm] = useState(null);
@@ -20,13 +22,22 @@ const ProfileOnboarding = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!user) return;
+    if (user.role === "client") {
+      navigate("/client/dashboard", { replace: true });
+      return;
+    }
+    if (user.role !== "freelancer") {
+      navigate("/admin/dashboard", { replace: true });
+      return;
+    }
     api.get("/profile").then((response) => {
       const data = response.data.data;
       setBundle(data);
       setForm(toEditableProfile(data));
       setSkills(data.skills || []);
     }).catch(() => setError("Guided setup could not be loaded."));
-  }, []);
+  }, [navigate, user]);
 
   const set = (name, value) => setForm((current) => ({ ...current, [name]: value }));
   const toggle = (name, value) => {
@@ -59,7 +70,7 @@ const ProfileOnboarding = () => {
       else {
         await api.put("/profile/onboarding", form);
         toast.success("Your profile is ready");
-        navigate("/profile");
+        navigate("/freelancer/dashboard");
       }
     } catch (requestError) {
       setError(requestError.response?.data?.error?.message || "This step could not be saved.");

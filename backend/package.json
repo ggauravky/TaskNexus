@@ -35,6 +35,8 @@
         "qa:phase9-browser": "node scripts/phase9BrowserFixture.js",
         "qa:phase-c-browser": "node scripts/phaseCSearchBrowserFixture.js qa --confirm-tasknexus-v2-staging",
         "qa:phase-c-browser:cleanup": "node scripts/phaseCSearchBrowserFixture.js cleanup --confirm-tasknexus-v2-staging",
+        "qa:phase-d-browser": "node scripts/phaseDOnboardingBrowserFixture.js qa --confirm-tasknexus-v2-staging",
+        "qa:phase-d-browser:cleanup": "node scripts/phaseDOnboardingBrowserFixture.js cleanup --confirm-tasknexus-v2-staging",
         "provision:admin": "node scripts/createAdmin.js --confirm-admin-provision",
         "test": "jest --runInBand",
         "test:watch": "jest --watch",

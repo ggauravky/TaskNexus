@@ -134,7 +134,7 @@ const Register = () => {
       return;
     }
 
-    navigate("/profile/onboarding");
+    navigate(formData.role === "client" ? "/client/dashboard" : "/profile/onboarding");
   };
 
   return (
