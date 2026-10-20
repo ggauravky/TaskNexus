@@ -4,9 +4,12 @@ import toast from "react-hot-toast";
 import { Link, useParams } from "react-router-dom";
 import TeamShell from "../components/teams/TeamShell";
 import Dialog from "../components/common/Dialog";
+import ApplicationProofPicker from "../components/opportunities/ApplicationProofPicker";
+import RelevantProofSection from "../components/proof/RelevantProofSection";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import { APPLICATION_STATUS_LABELS, ELIGIBILITY_LABELS, NATIVE_APPLICATION_STAGE_LABELS, OPPORTUNITY_TYPE_LABELS, WORK_MODE_LABELS, apiError, compensationLabel, formatDate, locationLabel } from "../utils/opportunities";
+import { proofSelectionError } from "../utils/proof";
 
 const OpportunityDetailPage = () => {
   const { slug } = useParams();
@@ -17,7 +20,8 @@ const OpportunityDetailPage = () => {
   const [notes, setNotes] = useState("");
   const [applyOpen, setApplyOpen] = useState(false);
   const [eligibleProjects, setEligibleProjects] = useState([]);
-  const [applicationForm, setApplicationForm] = useState({ coverNote: "", selectedProjectIds: [], consent: false });
+  const [applicationForm, setApplicationForm] = useState({ coverNote: "", selectedProjectIds: [], selectedEvidenceIds: [], consent: false });
+  const selectionError = proofSelectionError(eligibleProjects, applicationForm);
   const load = useCallback(async () => {
     setState("loading");
     try {
@@ -27,8 +31,8 @@ const OpportunityDetailPage = () => {
       setNotes(next.viewer_state?.notes || "");
       setState("ready");
       setDynamicMeta(next);
-    } catch (_error) {
-      setState("missing");
+    } catch (error) {
+      setState(error.response?.status === 404 ? "missing" : "error");
     }
   }, [slug]);
   useEffect(() => { load(); }, [load]);
@@ -68,6 +72,7 @@ const OpportunityDetailPage = () => {
     try {
       const response = await api.get("/native-applications/eligible-projects");
       setEligibleProjects(response.data.data || []);
+      setApplicationForm({ coverNote: "", selectedProjectIds: [], selectedEvidenceIds: [], consent: false });
       setApplyOpen(true);
     } catch (error) { toast.error(apiError(error)); }
     finally { setBusy(false); }
@@ -90,7 +95,8 @@ const OpportunityDetailPage = () => {
     finally { setBusy(false); }
   };
   if (state === "loading") return <TeamShell><div className="flex min-h-[70dvh] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#828fff]" /></div></TeamShell>;
-  if (!item) return <TeamShell><main className="mx-auto max-w-3xl px-4 py-24 text-center"><CircleAlert className="mx-auto h-8 w-8 text-[#62666d]" /><h1 className="mt-4 text-2xl font-semibold">Opportunity not found</h1><Link to="/opportunities" className="team-button-primary mt-6">Browse open Opportunities</Link></main></TeamShell>;
+  if (state === "error") return <TeamShell><main className="mx-auto max-w-3xl px-4 py-24 text-center"><CircleAlert className="mx-auto h-8 w-8 text-amber-300" /><h1 className="mt-4 text-2xl font-semibold">Could not load this Opportunity</h1><p className="mt-3 text-sm text-[#8a8f98]">The request failed without a not-found response. You can retry safely.</p><button type="button" onClick={load} className="team-button-primary mt-6">Retry</button></main></TeamShell>;
+  if (state === "missing" || !item) return <TeamShell><main className="mx-auto max-w-3xl px-4 py-24 text-center"><CircleAlert className="mx-auto h-8 w-8 text-[#62666d]" /><h1 className="mt-4 text-2xl font-semibold">Opportunity not found</h1><Link to="/opportunities" className="team-button-primary mt-6">Browse open Opportunities</Link></main></TeamShell>;
   return <TeamShell><main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
     <Link to="/opportunities" className="text-sm text-[#828fff] hover:text-[#b7bdf8]">← All Opportunities</Link>
     <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -105,6 +111,7 @@ const OpportunityDetailPage = () => {
         <Section title="Responsibilities"><List values={item.responsibilities} /></Section>
         <Section title="Requirements"><List values={item.requirements} /></Section>
         <Section title="Skills"><div className="flex flex-wrap gap-2">{item.required_skills.map((skill) => <span className="team-chip" key={skill.id}>Required · {skill.name}</span>)}{item.preferred_skills.map((skill) => <span className="team-chip" key={skill.id}>Preferred · {skill.name}</span>)}</div></Section>
+        {item.relevant_proof ? <RelevantProofSection proof={item.relevant_proof} /> : null}
         <Section title="Source and provenance">
           <p className="text-sm leading-6 text-[#a8adb6]">{sourceLabel(item.source?.type)} {item.source?.type === "organization_owned" ? "This listing is managed by authorized Organization members." : "TaskNexus displays this external role and does not represent itself as the employer."}</p>
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><SourceFact label="Published at source" value={formatDate(item.source?.published_at)} /><SourceFact label="Last verified" value={formatDate(item.source?.last_verified_at)} /></dl>
@@ -122,7 +129,7 @@ const OpportunityDetailPage = () => {
         {isAuthenticated && item.application_mode === "external" ? <section className="rounded-xl border border-[#23252a] bg-[#0f1011] p-5"><h2 className="font-medium">Track your application</h2><p className="mt-2 text-xs leading-5 text-[#8a8f98]">Private notes and status are owned by you. They are not sent to the organization.</p><label className="mt-4 block"><span className="team-label">Status</span><select disabled={busy} className="team-input" value={item.viewer_state?.application_status || "interested"} onChange={(event) => track(event.target.value)}>{Object.entries(APPLICATION_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="mt-4 block"><span className="team-label">Private notes</span><textarea className="team-input min-h-24 resize-y" maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} /></label><button disabled={busy} onClick={() => track(item.viewer_state?.application_status || "interested")} className="team-button-secondary mt-3 w-full">Save tracking details</button></section> : null}
       </aside>
     </div>
-    {applyOpen ? <Dialog onClose={() => setApplyOpen(false)} titleId="native-application-title" descriptionId="native-application-description" panelClassName="max-w-2xl"><form onSubmit={submitNativeApplication}><div className="flex items-start justify-between gap-4 border-b border-[#23252a] p-5"><div><h2 id="native-application-title" className="text-lg font-semibold">Apply with TaskNexus</h2><p id="native-application-description" className="mt-2 text-sm leading-6 text-[#8a8f98]">Review exactly what will be shared with {item.organization.name}.</p></div><button type="button" aria-label="Close application" onClick={() => setApplyOpen(false)} className="team-icon-button"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-5"><section className="rounded-lg border border-[#34343a] bg-[#141516] p-4"><h3 className="text-sm font-medium">Shared at submission</h3><ul className="mt-3 space-y-2 text-xs leading-5 text-[#8a8f98]"><li>Display name, username, headline, and avatar</li><li>Education summary and skills</li><li>Only the public evidence-backed Projects you select below</li><li>Your optional cover note</li></ul><p className="mt-3 text-xs font-medium text-[#d0d6e0]">Never shared: email, phone, private Projects, Teams, saved Opportunities, private notes, blocks, sessions, or security data.</p></section><label className="block"><span className="team-label">Cover note <span className="text-[#62666d]">optional</span></span><textarea maxLength={2000} className="team-input mt-2 min-h-32" value={applicationForm.coverNote} onChange={(event) => setApplicationForm({ ...applicationForm, coverNote: event.target.value })} /><span className="mt-1 block text-right text-xs text-[#62666d]">{applicationForm.coverNote.length}/2000</span></label><fieldset><legend className="team-label">Evidence-backed Projects <span className="text-[#62666d]">optional, up to 5</span></legend>{eligibleProjects.length ? <div className="mt-3 space-y-2">{eligibleProjects.map((project) => { const checked = applicationForm.selectedProjectIds.includes(project.id); return <label key={project.id} className="flex cursor-pointer gap-3 rounded-lg border border-[#23252a] p-3"><input type="checkbox" checked={checked} disabled={!checked && applicationForm.selectedProjectIds.length >= 5} onChange={(event) => setApplicationForm({ ...applicationForm, selectedProjectIds: event.target.checked ? [...applicationForm.selectedProjectIds, project.id] : applicationForm.selectedProjectIds.filter((id) => id !== project.id) })} /><span><span className="block text-sm font-medium">{project.name}</span><span className="mt-1 block text-xs text-[#8a8f98]">{project.participant_role} · {project.evidence_count} public-safe evidence item{project.evidence_count === 1 ? "" : "s"}</span></span></label>; })}</div> : <p className="mt-3 text-sm text-[#62666d]">No eligible completed public Projects. You can still apply without selecting one.</p>}</fieldset><label className="flex gap-3 rounded-lg border border-[#34343a] p-4"><input required type="checkbox" checked={applicationForm.consent} onChange={(event) => setApplicationForm({ ...applicationForm, consent: event.target.checked })} /><span className="text-sm leading-6 text-[#a8adb6]">I consent to share the bounded application snapshot listed above with this Organization and understand it is preserved as submitted.</span></label></div><div className="flex justify-end gap-2 border-t border-[#23252a] p-5"><button type="button" onClick={() => setApplyOpen(false)} className="team-button-secondary">Cancel</button><button disabled={busy || !applicationForm.consent} className="team-button-primary">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />} Submit application</button></div></form></Dialog> : null}
+    {applyOpen ? <Dialog onClose={() => setApplyOpen(false)} titleId="native-application-title" descriptionId="native-application-description" panelClassName="max-w-2xl"><form onSubmit={submitNativeApplication}><div className="flex items-start justify-between gap-4 border-b border-[#23252a] p-5"><div><h2 id="native-application-title" className="text-lg font-semibold">Apply with TaskNexus</h2><p id="native-application-description" className="mt-2 text-sm leading-6 text-[#8a8f98]">Review exactly what will be shared with {item.organization.name}.</p></div><button type="button" aria-label="Close application" onClick={() => setApplyOpen(false)} className="team-icon-button"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-5"><section className="rounded-lg border border-[#34343a] bg-[#141516] p-4"><h3 className="text-sm font-medium">Shared at submission</h3><ul className="mt-3 space-y-2 text-xs leading-5 text-[#8a8f98]"><li>Display name, username, headline, and avatar</li><li>Education summary and skills</li><li>Only the public evidence-backed Projects and specific evidence you select below</li><li>Your optional cover note</li></ul><p className="mt-3 text-xs font-medium text-[#d0d6e0]">Never shared: email, phone, private Projects, Teams, saved Opportunities, private notes, blocks, sessions, or security data.</p></section><label className="block"><span className="team-label">Cover note <span className="text-[#62666d]">optional</span></span><textarea maxLength={2000} className="team-input mt-2 min-h-32" value={applicationForm.coverNote} onChange={(event) => setApplicationForm({ ...applicationForm, coverNote: event.target.value })} /><span className="mt-1 block text-right text-xs text-[#62666d]">{applicationForm.coverNote.length}/2000</span></label><ApplicationProofPicker projects={eligibleProjects} selectedProjectIds={applicationForm.selectedProjectIds} selectedEvidenceIds={applicationForm.selectedEvidenceIds} onChange={({ selectedProjectIds, selectedEvidenceIds }) => setApplicationForm({ ...applicationForm, selectedProjectIds, selectedEvidenceIds })} disabled={busy} /><label className="flex gap-3 rounded-lg border border-[#34343a] p-4"><input required type="checkbox" checked={applicationForm.consent} onChange={(event) => setApplicationForm({ ...applicationForm, consent: event.target.checked })} /><span className="text-sm leading-6 text-[#a8adb6]">I consent to share the bounded application snapshot listed above with this Organization and understand it is preserved as submitted.</span></label></div><div className="flex justify-end gap-2 border-t border-[#23252a] p-5"><button type="button" onClick={() => setApplyOpen(false)} className="team-button-secondary">Cancel</button><button disabled={busy || !applicationForm.consent || Boolean(selectionError)} className="team-button-primary">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />} Submit application</button></div></form></Dialog> : null}
   </main></TeamShell>;
 };
 const Section = ({ title, children }) => <section className="border-b border-[#23252a] py-8"><h2 className="text-xl font-semibold tracking-[-0.02em]">{title}</h2><div className="mt-4">{children}</div></section>;

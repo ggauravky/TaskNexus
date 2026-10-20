@@ -137,12 +137,32 @@ const run = async () => {
     assert.equal(await models.OrganizationMembership.countDocuments({ organization_id: organization.id, role: "owner", status: "active" }), 1, "Exactly one active owner must remain");
     assert.equal((await call(`/organizations/${organization.id}/transfer-ownership`, { method: "POST", token: tokens.reviewer, body: { userId: ids.owner } })).status, 403, "Recruiter self-escalation must be denied");
 
-    const teamId = randomUUID(); const projectId = randomUUID(); teamIds.push(teamId); projectIds.push(projectId);
-    await models.Team.create({ _id: teamId, name: `Phase 9 Evidence ${marker}`, slug: `phase9-evidence-${marker}`, created_by: ids.candidate, owner_id: ids.candidate, visibility: "private", join_policy: "invite_only", status: "active" });
-    await models.TeamMembership.create({ _id: randomUUID(), team_id: teamId, user_id: ids.candidate, role: "owner", status: "active" });
-    await models.Project.create({ _id: projectId, team_id: teamId, name: "Evidence-backed public Project", slug: `evidence-project-${marker}`, tagline: "A consent-safe Project snapshot fixture.", status: "completed", visibility: "public", created_by: ids.candidate, completed_at: new Date(), repository_url: "https://github.com/octocat/Hello-World" });
-    await models.ProjectParticipant.create({ _id: randomUUID(), team_id: teamId, project_id: projectId, user_id: ids.candidate, role: "lead", status: "active", show_on_profile: true });
-    await models.ContributionEvidence.create({ _id: randomUUID(), team_id: teamId, project_id: projectId, user_id: ids.candidate, created_by: ids.candidate, evidence_type: "project_participation", verification_level: "internal_verified", status: "active", origin: "system", title: "Verified Project participation", source_key: `phase9:${marker}:project`, occurred_at: new Date(), public_safe: true });
+    const teamId = randomUUID(); const projectId = randomUUID(); const privateTeamId = randomUUID(); const privateProjectId = randomUUID();
+    const selectedEvidenceIds = [randomUUID(), randomUUID()]; const revokedEvidenceId = randomUUID(); const otherEvidenceId = randomUUID();
+    teamIds.push(teamId, privateTeamId); projectIds.push(projectId, privateProjectId);
+    await models.Team.insertMany([
+      { _id: teamId, name: `Phase 9 Evidence ${marker}`, slug: `phase9-evidence-${marker}`, created_by: ids.candidate, owner_id: ids.candidate, visibility: "public", join_policy: "invite_only", status: "active" },
+      { _id: privateTeamId, name: `Phase 9 Private ${marker}`, slug: `phase9-private-${marker}`, created_by: ids.candidate, owner_id: ids.candidate, visibility: "private", join_policy: "invite_only", status: "active" },
+    ]);
+    await models.TeamMembership.insertMany([
+      { _id: randomUUID(), team_id: teamId, user_id: ids.candidate, role: "owner", status: "active" },
+      { _id: randomUUID(), team_id: privateTeamId, user_id: ids.candidate, role: "owner", status: "active" },
+    ]);
+    await models.Project.insertMany([
+      { _id: projectId, team_id: teamId, name: "Evidence-backed public Project", slug: `evidence-project-${marker}`, tagline: "A consent-safe Project snapshot fixture.", status: "completed", visibility: "public", created_by: ids.candidate, completed_at: new Date(), repository_url: "https://github.com/octocat/Hello-World" },
+      { _id: privateProjectId, team_id: privateTeamId, name: "Private parent Project", slug: `private-project-${marker}`, status: "completed", visibility: "public", created_by: ids.candidate, completed_at: new Date() },
+    ]);
+    await models.ProjectParticipant.insertMany([
+      { _id: randomUUID(), team_id: teamId, project_id: projectId, user_id: ids.candidate, role: "lead", status: "active", show_on_profile: true },
+      { _id: randomUUID(), team_id: privateTeamId, project_id: privateProjectId, user_id: ids.candidate, role: "contributor", status: "active", show_on_profile: true },
+    ]);
+    await models.ContributionEvidence.insertMany([
+      { _id: selectedEvidenceIds[0], team_id: teamId, project_id: projectId, user_id: ids.candidate, created_by: ids.candidate, evidence_type: "project_participation", verification_level: "internal_verified", status: "active", origin: "system", title: "Verified Project participation", source_key: `phase9:${marker}:project`, occurred_at: new Date("2026-10-01T00:00:00.000Z"), public_safe: true },
+      { _id: selectedEvidenceIds[1], team_id: teamId, project_id: projectId, user_id: ids.candidate, created_by: ids.candidate, evidence_type: "github_pull_request", verification_level: "external_verified", status: "active", origin: "user", title: "Public pull request", source_key: `phase9:${marker}:pull`, source_url: "https://github.com/octocat/Hello-World/pull/1347", occurred_at: new Date("2026-10-02T00:00:00.000Z"), public_safe: true },
+      { _id: revokedEvidenceId, team_id: teamId, project_id: projectId, user_id: ids.candidate, created_by: ids.candidate, evidence_type: "external_link", verification_level: "unverified", status: "revoked", origin: "user", title: "Revoked link", source_key: `phase9:${marker}:revoked`, occurred_at: new Date(), public_safe: true },
+      { _id: otherEvidenceId, team_id: teamId, project_id: projectId, user_id: ids.outsider, created_by: ids.outsider, evidence_type: "external_link", verification_level: "unverified", status: "active", origin: "user", title: "Another user's proof", source_key: `phase9:${marker}:other`, occurred_at: new Date(), public_safe: true },
+      { _id: randomUUID(), team_id: privateTeamId, project_id: privateProjectId, user_id: ids.candidate, created_by: ids.candidate, evidence_type: "project_participation", verification_level: "internal_verified", status: "active", origin: "system", title: "Private ancestry proof", source_key: `phase9:${marker}:private`, occurred_at: new Date(), public_safe: true },
+    ]);
 
     const draft = await call(`/organizations/${organization.id}/opportunities`, { method: "POST", token: tokens.reviewer, body: nativeOpportunityBody("Main") });
     assert.equal(draft.status, 201, JSON.stringify(draft.payload)); opportunityIds.push(draft.payload.data.id);
@@ -150,9 +170,18 @@ const run = async () => {
     const published = await call(`/organizations/${organization.id}/opportunities/${draft.payload.data.id}/publish`, { method: "POST", token: tokens.reviewer, body: { revision: draft.payload.data.revision } });
     assert.equal(published.status, 200, JSON.stringify(published.payload));
 
+    const eligibleProof = await call("/native-applications/eligible-projects", { token: tokens.candidate });
+    assert.equal(eligibleProof.status, 200, JSON.stringify(eligibleProof.payload));
+    assert.deepEqual(eligibleProof.payload.data.map((item) => item.id), [projectId], "Private Team ancestry must exclude an otherwise public Project");
+    assert.deepEqual(eligibleProof.payload.data[0].evidence.map((item) => item.id), [selectedEvidenceIds[1], selectedEvidenceIds[0]], "Only active caller-owned public-safe evidence may be listed");
+    assert.equal(eligibleProof.payload.data[0].target_path, `/teams/phase9-evidence-${marker}/projects/evidence-project-${marker}`);
+    assert.equal((await call(`/opportunities/${draft.payload.data.id}/applications`, { method: "POST", token: tokens.candidate, body: { selectedProjectIds: [privateProjectId], consent: true } })).status, 403, "Private Team ancestry must fail submission revalidation");
+    assert.equal((await call(`/opportunities/${draft.payload.data.id}/applications`, { method: "POST", token: tokens.candidate, body: { selectedProjectIds: [projectId], selectedEvidenceIds: [revokedEvidenceId], consent: true } })).status, 403, "Revoked evidence must fail submission revalidation");
+    assert.equal((await call(`/opportunities/${draft.payload.data.id}/applications`, { method: "POST", token: tokens.candidate, body: { selectedProjectIds: [projectId], selectedEvidenceIds: [otherEvidenceId], consent: true } })).status, 403, "Another user's evidence must fail submission revalidation");
+
     const applicationRace = await Promise.all([
-      call(`/opportunities/${draft.payload.data.id}/applications`, { method: "POST", token: tokens.candidate, body: { coverNote: "A bounded plain-text application.", selectedProjectIds: [projectId], consent: true } }),
-      call(`/opportunities/${draft.payload.data.id}/applications`, { method: "POST", token: tokens.candidate, body: { coverNote: "A duplicate submission.", selectedProjectIds: [projectId], consent: true } }),
+      call(`/opportunities/${draft.payload.data.id}/applications`, { method: "POST", token: tokens.candidate, body: { coverNote: "A bounded plain-text application.", selectedProjectIds: [projectId], selectedEvidenceIds, consent: true } }),
+      call(`/opportunities/${draft.payload.data.id}/applications`, { method: "POST", token: tokens.candidate, body: { coverNote: "A duplicate submission.", selectedProjectIds: [projectId], selectedEvidenceIds, consent: true } }),
     ]);
     assert.equal(applicationRace.filter((result) => result.status === 201).length, 1, "Duplicate native application race must have one winner");
     const application = applicationRace.find((result) => result.status === 201).payload.data;
@@ -163,7 +192,15 @@ const run = async () => {
     assert.equal(detailText.includes(`phase9-${marker}-candidate@example.invalid`), false, "Recruiter DTO must exclude email");
     assert.equal(detailText.includes("phone"), false, "Recruiter DTO must exclude phone");
     assert.equal(recruiterDetail.payload.data.candidate.projects.length, 1, "Consented public Project snapshot must be included");
-    assert.equal(recruiterDetail.payload.data.candidate.evidence.length, 1, "Public-safe evidence snapshot must be included");
+    assert.equal(recruiterDetail.payload.data.candidate.evidence.length, 2, "Exactly selected public-safe evidence must be included");
+    assert.deepEqual(recruiterDetail.payload.data.candidate.evidence.map((item) => item.id).sort(), [...selectedEvidenceIds].sort());
+    const storedBeforeSourceChange = await models.NativeApplication.findById(application.id).select("submitted_profile_snapshot").lean();
+    const immutableSnapshot = JSON.stringify(storedBeforeSourceChange.submitted_profile_snapshot);
+    await models.Team.updateOne({ _id: teamId }, { $set: { visibility: "private" } });
+    await models.Project.updateOne({ _id: projectId }, { $set: { visibility: "team" } });
+    await models.ContributionEvidence.updateMany({ _id: trustedIn(selectedEvidenceIds) }, { $set: { status: "revoked", revoked_at: new Date() } });
+    const storedAfterSourceChange = await models.NativeApplication.findById(application.id).select("submitted_profile_snapshot").lean();
+    assert.equal(JSON.stringify(storedAfterSourceChange.submitted_profile_snapshot), immutableSnapshot, "Submitted snapshots must remain byte-stable after source visibility and evidence lifecycle changes");
 
     const stageRace = await Promise.all([
       call(`/native-applications/${application.id}/stage`, { method: "POST", token: tokens.reviewer, body: { stage: "reviewing", revision: application.revision } }),

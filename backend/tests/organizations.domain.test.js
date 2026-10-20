@@ -64,6 +64,7 @@ describe("Phase 9 MongoDB models and invariants", () => {
     await expect(application({ stage: "hired" }).validate()).rejects.toThrow();
     await expect(application({ cover_note: "x".repeat(2001) }).validate()).rejects.toThrow();
     await expect(application({ selected_project_ids: Array.from({ length: 6 }, (_, index) => `${index}`) }).validate()).rejects.toThrow();
+    await expect(application({ selected_evidence_ids: Array.from({ length: 13 }, (_, index) => `${index}`) }).validate()).rejects.toThrow();
   });
   test("requires external URLs and permits URL-free TaskNexus-native Opportunities", async () => {
     await expect(nativeOpportunity().validate()).resolves.toBeUndefined();

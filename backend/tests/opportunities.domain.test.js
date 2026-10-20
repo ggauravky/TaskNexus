@@ -39,5 +39,38 @@ describe("Phase 8 input boundaries, DTOs, and indexes", () => {
   test("accepts only credential-free HTTPS URLs and plain text", () => { expect(_private.httpsUrl("https://example.com/apply", "Application", true)).toBe("https://example.com/apply"); expect(() => _private.httpsUrl("javascript:alert(1)", "Application", true)).toThrow("HTTPS"); expect(() => _private.httpsUrl("https://user:pass@example.com", "Application", true)).toThrow("HTTPS"); expect(() => _private.plainText("<script>", 100, "Text")).toThrow("plain text"); });
   test("does not expose actor, raw IDs, or private state in public DTOs", () => { const opportunity = { ...role().toObject(), id: IDS.opportunity }; const organization = { id: IDS.org, name: "Acme", slug: "acme", organization_type: "company", created_by: IDS.user }; const publicOrg = organizationPublicDto(organization); const dto = opportunityCandidateDto(opportunity, { organization, detail: true, isOpen: true }); expect(publicOrg).not.toHaveProperty("created_by"); expect(dto).not.toHaveProperty("created_by"); expect(dto).not.toHaveProperty("eligibility"); expect(dto).not.toHaveProperty("viewer_state"); expect(JSON.stringify(dto)).not.toContain(IDS.user); });
   test("candidate DTO derives source and excludes user identity", () => { const dto = candidateStateDto({ id: "state", opportunity_id: IDS.opportunity, user_id: IDS.user, saved: true, application_status: "applied", revision: 2 }); expect(dto.source).toBe("user_tracked"); expect(dto).not.toHaveProperty("user_id"); });
+  test("adds factual proof only to the authenticated candidate detail contract", () => {
+    const opportunity = { ...role().toObject(), id: IDS.opportunity };
+    const relevantProof = {
+      required_skills: [{
+        skill: { id: IDS.js, slug: "javascript", name: "JavaScript" },
+        projects: [{ id: "project-1", target_path: "/teams/studio/projects/work-hub", evidence_summary: { total: 1, internal_verified: 0, external_verified: 1, unverified: 0 }, evidence: [] }],
+      }],
+      project_count: 1,
+      evidence_count: 1,
+      disclaimer: "Factual overlap from your TaskNexus profile and permitted Project proof. This is not a score or eligibility decision.",
+    };
+    const eligibility = { result: "possibly_eligible", required_skills: [{ id: IDS.js, result: "pass" }] };
+
+    const anonymous = opportunityCandidateDto(opportunity, { detail: true, relevantProof });
+    const authenticated = opportunityCandidateDto(opportunity, { detail: true, includeCandidate: true, eligibility, relevantProof });
+
+    expect(anonymous).not.toHaveProperty("relevant_proof");
+    expect(authenticated.relevant_proof).toEqual(relevantProof);
+    expect(authenticated.eligibility).toBe(eligibility);
+    expect(JSON.stringify(authenticated.relevant_proof.required_skills)).not.toMatch(/score|rank|applicant|preferred/i);
+  });
+  test("returns a stable empty relevant-proof shape for authenticated candidates", () => {
+    expect(opportunityCandidateDto({ ...role().toObject(), id: IDS.opportunity }, { detail: true, includeCandidate: true }).relevant_proof).toEqual({
+      required_skills: [],
+      project_count: 0,
+      evidence_count: 0,
+      disclaimer: "Factual overlap from your TaskNexus profile and permitted Project proof. This is not a score or eligibility decision.",
+    });
+  });
+  test("does not add proof decoration to authenticated catalog DTOs", () => {
+    const dto = opportunityCandidateDto({ ...role().toObject(), id: IDS.opportunity }, { includeCandidate: true, detail: false });
+    expect(dto).not.toHaveProperty("relevant_proof");
+  });
   test("declares query and race-critical indexes", () => { expect(hasIndex(Organization, { slug: 1 }, { unique: true })).toBe(true); expect(hasIndex(Opportunity, { slug: 1 }, { unique: true })).toBe(true); expect(hasIndex(Opportunity, { status: 1, published_at: -1 })).toBe(true); expect(hasIndex(Opportunity, { type: 1, status: 1, published_at: -1 })).toBe(true); expect(hasIndex(Opportunity, { required_skill_ids: 1, status: 1, published_at: -1 })).toBe(true); expect(hasIndex(OpportunityCandidateState, { user_id: 1, opportunity_id: 1 }, { unique: true })).toBe(true); expect(hasIndex(OpportunityCandidateState, { user_id: 1, application_status: 1, updated_at: -1 })).toBe(true); });
 });

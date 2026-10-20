@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 const {
-  ApplicationActivity, ContributionEvidence, NativeApplication, Notification, Opportunity, Organization,
-  OrganizationMembership, Project, ProjectParticipant, Skill, User, UserEducation, UserProfile, UserSkill,
+  ApplicationActivity, NativeApplication, Notification, Opportunity, Organization,
+  OrganizationMembership, Skill, User, UserEducation, UserProfile, UserSkill,
 } = require("../models");
 const { raw: domain } = require("../contracts/domain");
 const { toApp, toApps } = require("../models/helpers");
@@ -11,6 +11,7 @@ const { paginationMeta } = require("../utils/apiResponse");
 const { parseListQuery } = require("../utils/queryOptions");
 const { isDuplicateKey, withTransaction } = require("../utils/transactions");
 const authz = require("./organizationAuthorization");
+const professionalProofService = require("./professionalProofService");
 const { applicantDetailDto, applicantSummaryDto, candidateApplicationDto } = require("../serializers/organizationSerializers");
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,31 +46,9 @@ const createNotification = (session, data) => Notification.create([{
   _id: randomUUID(), entity_type: "native_application", status: "unread", priority: "medium", ...data,
 }], { session });
 
-const loadEligibleProjectData = async (candidateId, projectIds, evidenceIds, session = null) => {
-  if (!projectIds.length && evidenceIds.length) throw errors.validation("Evidence must belong to a selected Project");
-  if (!projectIds.length) return { projects: [], evidence: [] };
-  const participants = await ProjectParticipant.find({
-    user_id: candidateId, project_id: trustedIn(projectIds), status: "active",
-  }).session(session).select("project_id role").lean();
-  if (participants.length !== projectIds.length) throw errors.forbidden("A selected Project is not available to this candidate");
-  const projects = await Project.find({ _id: trustedIn(projectIds), visibility: "public", status: "completed" })
-    .session(session).select("_id name tagline completed_at repository_url demo_url").lean();
-  if (projects.length !== projectIds.length) throw errors.forbidden("Only completed public Projects may be shared");
-  const allEvidence = await ContributionEvidence.find({
-    user_id: candidateId, project_id: trustedIn(projectIds), status: "active", public_safe: true,
-  }).session(session).select("_id project_id title summary evidence_type verification_level source_url occurred_at").sort({ occurred_at: -1 }).lean();
-  const evidenceByProject = new Map();
-  allEvidence.forEach((row) => evidenceByProject.set(row.project_id, [...(evidenceByProject.get(row.project_id) || []), row]));
-  if (projectIds.some((id) => !(evidenceByProject.get(id) || []).length)) throw errors.validation("Each selected Project must have public-safe contribution evidence");
-  let selectedEvidence = evidenceIds.length ? allEvidence.filter((row) => evidenceIds.includes(String(row._id))) : projectIds.flatMap((id) => (evidenceByProject.get(id) || []).slice(0, 2));
-  if (evidenceIds.length && selectedEvidence.length !== evidenceIds.length) throw errors.forbidden("A selected evidence item is not public-safe or does not belong to this candidate");
-  selectedEvidence = selectedEvidence.slice(0, 12);
-  const roleByProject = new Map(participants.map((row) => [row.project_id, row.role]));
-  return {
-    projects: projects.map((row) => ({ id: String(row._id), name: row.name, tagline: row.tagline || null, participant_role: roleByProject.get(String(row._id)), completed_at: row.completed_at || null, repository_url: row.repository_url || null, demo_url: row.demo_url || null })),
-    evidence: selectedEvidence.map((row) => ({ id: String(row._id), project_id: row.project_id, title: row.title, summary: row.summary || null, evidence_type: row.evidence_type, verification_level: row.verification_level, source_url: row.source_url || null, occurred_at: row.occurred_at })),
-  };
-};
+const loadEligibleProjectData = (candidateId, projectIds, evidenceIds, session = null) => professionalProofService.loadSelectedApplicationProof(
+  candidateId, projectIds, evidenceIds, session,
+);
 
 const buildSnapshot = async (candidateId, projectIds, evidenceIds, session = null) => {
   const [user, profile, education, assignments, selected] = await Promise.all([
@@ -93,17 +72,7 @@ const buildSnapshot = async (candidateId, projectIds, evidenceIds, session = nul
   };
 };
 
-const listEligibleProjects = async (candidateId) => {
-  const participants = await ProjectParticipant.find({ user_id: candidateId, status: "active" }).select("project_id role").lean();
-  const projectIds = participants.map((row) => row.project_id);
-  const [projects, evidenceCounts] = await Promise.all([
-    Project.find({ _id: trustedIn(projectIds), visibility: "public", status: "completed" }).select("_id name tagline completed_at repository_url demo_url").sort({ completed_at: -1 }).limit(25).lean(),
-    ContributionEvidence.aggregate([{ $match: { user_id: candidateId, project_id: { $in: projectIds }, status: "active", public_safe: true } }, { $group: { _id: "$project_id", count: { $sum: 1 } } }]),
-  ]);
-  const countMap = new Map(evidenceCounts.map((row) => [row._id, row.count]));
-  const roleMap = new Map(participants.map((row) => [row.project_id, row.role]));
-  return projects.filter((row) => countMap.has(String(row._id))).map((row) => ({ id: String(row._id), name: row.name, tagline: row.tagline || null, participant_role: roleMap.get(String(row._id)), completed_at: row.completed_at || null, evidence_count: countMap.get(String(row._id)) }));
-};
+const listEligibleProjects = (candidateId) => professionalProofService.listApplicationEligibleProof(candidateId);
 
 const submit = async (opportunityId, candidateId, input = {}) => {
   const projectIds = idList(input.selectedProjectIds, 5, "Selected Projects");

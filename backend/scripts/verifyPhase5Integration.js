@@ -11,10 +11,12 @@ const taskService = require("../src/services/projectTaskService");
 const contributionService = require("../src/services/contributionService");
 const repositoryService = require("../src/services/projectRepositoryService");
 const showcaseService = require("../src/services/showcaseService");
+const professionalProofService = require("../src/services/professionalProofService");
 
 const runId = randomUUID();
 const ids = { owner: randomUUID(), contributor: randomUUID(), outsider: randomUUID() };
 const teamId = randomUUID();
+const skillId = randomUUID();
 let projectId = null;
 
 const fulfilled = (results) => results.filter((item) => item.status === "fulfilled");
@@ -26,6 +28,8 @@ const createFixtures = async () => {
     await models.UserProfile.create({ _id: id, username: `p5-${runId.slice(0, 8)}-${name}`.slice(0, 30), headline: `${name} evidence verifier`, visibility: "public", github_url: name === "contributor" ? "https://github.com/octocat" : null, onboarding_completed: true });
   }
   await models.Team.create({ _id: teamId, name: "Phase Five Verification", slug: `phase-five-${runId.slice(0, 8)}`, created_by: ids.owner, owner_id: ids.owner, visibility: "public", join_policy: "invite_only", status: "active" });
+  await models.Skill.create({ _id: skillId, slug: `phase-five-${runId.slice(0, 8)}`, name: `Phase Five ${runId.slice(0, 8)}`, normalized_name: `phase five ${runId}`, category: "quality", is_active: true });
+  await models.UserSkill.create({ _id: randomUUID(), user_id: ids.contributor, skill_id: skillId, proficiency: "advanced", is_primary: true });
   await models.TeamMembership.insertMany([
     { _id: randomUUID(), team_id: teamId, user_id: ids.owner, role: "owner", status: "active" },
     { _id: randomUUID(), team_id: teamId, user_id: ids.contributor, role: "member", status: "active" },
@@ -45,6 +49,8 @@ const cleanup = async () => {
   await models.TeamMembership.deleteMany({ team_id: teamId });
   await models.Team.deleteOne({ _id: teamId });
   await models.UserProfile.deleteMany({ _id: mongoose.trusted({ $in: Object.values(ids) }) });
+  await models.UserSkill.deleteMany({ user_id: mongoose.trusted({ $in: Object.values(ids) }) });
+  await models.Skill.deleteOne({ _id: skillId });
   await models.User.deleteMany({ _id: mongoose.trusted({ $in: Object.values(ids) }) });
 };
 
@@ -58,7 +64,7 @@ const run = async () => {
   await connectDatabase();
   try {
     await createFixtures();
-    const project = await projectService.createProject(teamId, ids.owner, { name: "Evidence Architecture", slug: `evidence-${runId.slice(0, 8)}`, visibility: "public" });
+    const project = await projectService.createProject(teamId, ids.owner, { name: "Evidence Architecture", slug: `evidence-${runId.slice(0, 8)}`, visibility: "public", skillIds: [skillId] });
     projectId = project.id;
     await participantService.addParticipant(projectId, ids.owner, { userId: ids.contributor, role: "contributor" });
     await projectService.transitionProject(projectId, ids.owner, "active");
@@ -135,6 +141,13 @@ const run = async () => {
     assert.equal(publicDto.participants.every((item, index, rows) => index === 0 || rows[index - 1].profile.display_name.localeCompare(item.profile.display_name) <= 0), true);
     const profileProjects = await showcaseService.listPublicProfileProjects(ids.contributor);
     assert.equal(profileProjects.length, 1);
+    const profileProof = await professionalProofService.getPublicProfileProofBundle(ids.contributor);
+    assert.deepEqual(profileProof.projects, profileProjects);
+    assert.equal(profileProof.connections.length, 1);
+    assert.equal(profileProof.connections[0].skill.id, skillId);
+    assert.equal(profileProof.connections[0].projects[0].id, projectId);
+    assert.equal(profileProof.connections[0].projects[0].evidence_summary.total >= 2, true);
+    assert.equal(JSON.stringify(profileProof.connections).includes("Private implementation detail"), false);
 
     const plans = await Promise.all([
       models.ContributionEvidence.find({ user_id: ids.contributor, status: "active" }).sort({ occurred_at: -1 }).explain("queryPlanner"),

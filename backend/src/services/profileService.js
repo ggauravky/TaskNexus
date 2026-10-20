@@ -1,7 +1,7 @@
 const profileData = require("../data/profileData");
 const userData = require("../data/userData");
 const { errors } = require("../utils/appError");
-const { listPublicProfileProjects } = require("./showcaseService");
+const { getPublicProfileProofBundle } = require("./professionalProofService");
 const { publicContext } = require("./discoveryService");
 const {
   INTERESTS,
@@ -188,16 +188,18 @@ const getPublicProfile = async (usernameValue) => {
   const username = normalizeUsername(usernameValue, { required: true });
   const profile = await profileData.findProfileByUsername(username);
   if (!profile || profile.visibility !== "public") throw errors.notFound("Profile not found");
-  const [user, skills, education, projects, context] = await Promise.all([
+  const [user, skills, education, proof, context] = await Promise.all([
     userData.findUserById(profile.user_id),
     profileData.listUserSkills(profile.user_id),
     profileData.listEducation(profile.user_id),
-    listPublicProfileProjects(profile.user_id),
+    getPublicProfileProofBundle(profile.user_id),
     publicContext([profile.user_id]),
   ]);
   if (!user || user.status !== "active") throw errors.notFound("Profile not found");
   return {
-    ...publicSerializer({ user, profile, skills, education }), projects,
+    ...publicSerializer({ user, profile, skills, education }),
+    projects: proof.projects,
+    proof_connections: proof.connections,
     evidenceSummary: context.evidence.get(profile.user_id) || { internal_task_contributions: 0, verified_github_pull_requests: 0, verified_external_evidence: 0 },
     publishedProjectCount: context.projectCounts.get(profile.user_id) || 0,
   };

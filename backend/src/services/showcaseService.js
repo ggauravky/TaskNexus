@@ -12,6 +12,7 @@ const { errors } = require("../utils/appError");
 const { projectErrors } = require("../utils/projectErrors");
 const { withTransaction } = require("../utils/transactions");
 const { httpsUrl, stringList, text } = require("./projectValidation");
+const professionalProofService = require("./professionalProofService");
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
 const showcaseDto = (row) => ({
@@ -169,103 +170,9 @@ const getPublicShowcase = async (teamSlug, projectSlug) => {
   };
 };
 
-const listPublicProfileProjects = async (userId) => {
-  const publicProfile = await UserProfile.exists({ _id: userId, visibility: "public" });
-  if (!publicProfile) return [];
-  const participations = await ProjectParticipant.find({ user_id: userId, show_on_profile: true }).lean();
-  if (!participations.length) return [];
-  const projectIds = participations.map((row) => row.project_id);
-  const evidenceProjectIds = await ContributionEvidence.distinct("project_id", { user_id: userId, project_id: trustedIn(projectIds), status: "active" });
-  if (!evidenceProjectIds.length) return [];
-  const projects = toApps(await Project.find({ _id: trustedIn(evidenceProjectIds), status: "completed", visibility: "public" }).lean());
-  const teams = toApps(await Team.find({ _id: trustedIn(projects.map((row) => row.team_id)), status: "active", visibility: "public" }).lean());
-  const teamMap = new Map(teams.map((row) => [row.id, row]));
-  const showcases = toApps(await ProjectShowcase.find({ project_id: trustedIn(projects.map((row) => row.id)), status: "published" }).lean());
-  const showcaseMap = new Map(showcases.map((row) => [row.project_id, row]));
-  return projects.filter((project) => teamMap.has(project.team_id) && showcaseMap.has(project.id)).map((project) => {
-    const team = teamMap.get(project.team_id); const showcase = showcaseMap.get(project.id);
-    return { name: project.name, slug: project.slug, team: { name: team.name, slug: team.slug }, headline: showcase.headline, summary: showcase.summary, hero_image_url: showcase.hero_image_url || null, url: `/showcase/${team.slug}/${project.slug}` };
-  });
-};
+const listPublicProfileProjects = async (userId) => (await professionalProofService.getPublicProfileProofBundle(userId)).projects;
 
-const hasPublicProfileProof = async (userId) => {
-  const publicProfile = await UserProfile.exists({ _id: userId, visibility: "public" });
-  if (!publicProfile) return false;
-  const rows = await ProjectParticipant.aggregate([
-    { $match: { user_id: userId, status: "active", show_on_profile: true } },
-    {
-      $lookup: {
-        from: "contribution_evidence",
-        let: { projectId: "$project_id" },
-        pipeline: [
-          { $match: { $expr: { $and: [
-            { $eq: ["$project_id", "$$projectId"] },
-            { $eq: ["$user_id", userId] },
-            { $eq: ["$status", "active"] },
-            { $eq: ["$public_safe", true] },
-          ] } } },
-          { $limit: 1 },
-          { $project: { _id: 1 } },
-        ],
-        as: "eligible_evidence",
-      },
-    },
-    { $match: { "eligible_evidence.0": { $exists: true } } },
-    {
-      $lookup: {
-        from: "projects",
-        let: { projectId: "$project_id" },
-        pipeline: [
-          { $match: { $expr: { $and: [
-            { $eq: ["$_id", "$$projectId"] },
-            { $eq: ["$status", "completed"] },
-            { $eq: ["$visibility", "public"] },
-          ] } } },
-          { $limit: 1 },
-          { $project: { _id: 1, team_id: 1 } },
-        ],
-        as: "eligible_project",
-      },
-    },
-    { $match: { "eligible_project.0": { $exists: true } } },
-    {
-      $lookup: {
-        from: "teams",
-        let: { teamId: { $arrayElemAt: ["$eligible_project.team_id", 0] } },
-        pipeline: [
-          { $match: { $expr: { $and: [
-            { $eq: ["$_id", "$$teamId"] },
-            { $eq: ["$status", "active"] },
-            { $eq: ["$visibility", "public"] },
-          ] } } },
-          { $limit: 1 },
-          { $project: { _id: 1 } },
-        ],
-        as: "eligible_team",
-      },
-    },
-    { $match: { "eligible_team.0": { $exists: true } } },
-    {
-      $lookup: {
-        from: "project_showcases",
-        let: { projectId: "$project_id" },
-        pipeline: [
-          { $match: { $expr: { $and: [
-            { $eq: ["$project_id", "$$projectId"] },
-            { $eq: ["$status", "published"] },
-          ] } } },
-          { $limit: 1 },
-          { $project: { _id: 1 } },
-        ],
-        as: "published_showcase",
-      },
-    },
-    { $match: { "published_showcase.0": { $exists: true } } },
-    { $limit: 1 },
-    { $project: { _id: 1 } },
-  ]);
-  return rows.length > 0;
-};
+const hasPublicProfileProof = (userId) => professionalProofService.hasPublicProfileProof(userId);
 
 module.exports = {
   getPublicShowcase, getShowcase, hasPublicProfileProof, listPublicProfileProjects,
