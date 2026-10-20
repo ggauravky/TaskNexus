@@ -9,6 +9,7 @@ const { paginationMeta } = require("../utils/apiResponse");
 const { parseListQuery } = require("../utils/queryOptions");
 const { isDuplicateKey, withTransaction } = require("../utils/transactions");
 const { evaluateOpportunity, loadCandidateContext } = require("./opportunityEligibilityService");
+const { listOpportunityRelevantProof } = require("./professionalProofService");
 const { candidateStateDto, organizationPublicDto, opportunityCandidateDto } = require("../serializers/opportunitySerializers");
 const organizationAuthz = require("./organizationAuthorization");
 const { organizationPermissions } = require("../serializers/organizationSerializers");
@@ -197,17 +198,18 @@ const openFilter = (now = new Date()) => ({ status: "published", $and: mongoose.
 const loadDecoration = async (opportunities, actorId = null, { detail = false } = {}) => {
   const ids = opportunities.map((row) => row.id); const orgIds = [...new Set(opportunities.map((row) => row.organization_id))];
   const skillIds = [...new Set(opportunities.flatMap((row) => [...(row.required_skill_ids || []), ...(row.preferred_skill_ids || [])]))];
-  const [organizations, skills, states, nativeApplications, candidate] = await Promise.all([
+  const [organizations, skills, states, nativeApplications, candidate, relevantProofRows] = await Promise.all([
     Organization.find({ _id: trustedIn(orgIds) }).lean(), Skill.find({ _id: trustedIn(skillIds), is_active: true }).select("_id slug name category").lean(),
     actorId ? OpportunityCandidateState.find({ user_id: actorId, opportunity_id: trustedIn(ids) }).lean() : [],
     actorId ? NativeApplication.find({ candidate_id: actorId, opportunity_id: trustedIn(ids) }).select("_id opportunity_id stage submitted_at withdrawn_at revision").lean() : [],
     actorId ? loadCandidateContext(actorId) : null,
+    detail && actorId ? Promise.all(opportunities.map((row) => listOpportunityRelevantProof(actorId, row))) : [],
   ]);
   const orgMap = new Map(toApps(organizations).map((row) => [row.id, row])); const stateMap = new Map(toApps(states).map((row) => [row.opportunity_id, row]));
   const nativeMap = new Map(toApps(nativeApplications).map((row) => [row.opportunity_id, row]));
   const skillMap = new Map(toApps(skills).map((row) => [row.id, { id: row.id, slug: row.slug, name: row.name, category: row.category }]));
-  return opportunities.map((row) => {
-    const context = { detail, includeCandidate: Boolean(actorId), organization: orgMap.get(row.organization_id), requiredSkills: (row.required_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), preferredSkills: (row.preferred_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), state: stateMap.get(row.id) || null, nativeApplication: nativeMap.get(row.id) || null, isOpen: isOpen(row) };
+  return opportunities.map((row, index) => {
+    const context = { detail, includeCandidate: Boolean(actorId), organization: orgMap.get(row.organization_id), requiredSkills: (row.required_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), preferredSkills: (row.preferred_skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean), state: stateMap.get(row.id) || null, nativeApplication: nativeMap.get(row.id) || null, relevantProof: detail && actorId ? relevantProofRows[index] : null, isOpen: isOpen(row) };
     context.eligibility = candidate ? evaluateOpportunity(row, candidate, skillMap) : null;
     return opportunityCandidateDto(row, context);
   });

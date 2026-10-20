@@ -433,6 +433,10 @@ projectParticipant.schema.index({ user_id: 1, status: 1, updated_at: -1 });
 projectParticipant.schema.index({ project_id: 1, role: 1, status: 1 });
 projectParticipant.schema.index({ team_id: 1, user_id: 1, status: 1 });
 projectParticipant.schema.index({ user_id: 1, show_on_profile: 1 });
+projectParticipant.schema.index(
+  { user_id: 1, status: 1, show_on_profile: 1, updated_at: -1 },
+  { name: "user_active_profile_projects" },
+);
 
 const projectTask = model("ProjectTask", {
   _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },
@@ -494,6 +498,10 @@ contributionEvidence.schema.index({ user_id: 1, status: 1, occurred_at: -1 });
 contributionEvidence.schema.index({ project_id: 1, status: 1, occurred_at: -1 });
 contributionEvidence.schema.index({ project_id: 1, user_id: 1, status: 1, occurred_at: -1 });
 contributionEvidence.schema.index({ repository_id: 1, provider_ref: 1 });
+contributionEvidence.schema.index(
+  { user_id: 1, status: 1, public_safe: 1, project_id: 1, occurred_at: -1 },
+  { name: "user_public_proof_by_project" },
+);
 
 const projectRepository = model("ProjectRepository", {
   _id: stringId(), team_id: { type: String, required: true }, project_id: { type: String, required: true },

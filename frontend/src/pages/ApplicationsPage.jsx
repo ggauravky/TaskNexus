@@ -8,6 +8,7 @@ import TeamShell from "../components/teams/TeamShell";
 import PageHeader from "../components/ui/PageHeader";
 import api from "../services/api";
 import { APPLICATION_STATUS_LABELS, NATIVE_APPLICATION_STAGE_LABELS, apiError, formatDate } from "../utils/opportunities";
+import { safeApplicationTarget } from "../utils/proof";
 
 const externalSections = [
   ["saved", "Saved"], ["interested", "Interested"], ["applied", "Applied"],
@@ -65,6 +66,7 @@ const ApplicationsPage = () => {
       </div>
       <div className="space-y-6 p-5">
         <div className="flex flex-wrap gap-2"><span className="team-chip">{NATIVE_APPLICATION_STAGE_LABELS[detail.stage]}</span><span className="team-chip">Submitted {formatDate(detail.submitted_at)}</span></div>
+        <div className="flex flex-wrap gap-3">{detail.opportunity?.slug && safeApplicationTarget(`/opportunities/${detail.opportunity.slug}`) ? <Link className="text-sm text-[#828fff] hover:text-[#b7bdf8]" to={safeApplicationTarget(`/opportunities/${detail.opportunity.slug}`)}>View Opportunity</Link> : null}{detail.organization?.slug && safeApplicationTarget(`/organizations/${detail.organization.slug}`) ? <Link className="text-sm text-[#828fff] hover:text-[#b7bdf8]" to={safeApplicationTarget(`/organizations/${detail.organization.slug}`)}>View Organization</Link> : null}</div>
         <section><h3 className="text-sm font-medium">Shared snapshot</h3><p className="mt-2 text-sm text-[#8a8f98]">{detail.shared_snapshot?.display_name || "TaskNexus candidate"}{detail.shared_snapshot?.headline ? ` · ${detail.shared_snapshot.headline}` : ""}</p>{detail.shared_snapshot?.projects?.length ? <div className="mt-3 flex flex-wrap gap-2">{detail.shared_snapshot.projects.map((project) => <span key={project.id} className="team-chip">{project.name}</span>)}</div> : <p className="mt-2 text-xs text-[#62666d]">No Projects were shared.</p>}{detail.shared_snapshot?.evidence?.length ? <div className="mt-3 space-y-2">{detail.shared_snapshot.evidence.map((item) => <div key={item.id} className="rounded-lg border border-[#23252a] bg-[#141516] p-3"><p className="text-sm text-[#d0d6e0]">{item.title}</p><p className="mt-1 text-xs text-[#62666d]">{item.evidence_type.replaceAll("_", " ")} · {item.verification_level.replaceAll("_", " ")}</p></div>)}</div> : null}</section>
         <section><h3 className="text-sm font-medium">Application timeline</h3><ol className="mt-3 space-y-3">{detail.activity?.map((item) => <li key={item.id} className="rounded-lg border border-[#23252a] bg-[#141516] p-3 text-sm"><span className="text-[#d0d6e0]">{NATIVE_APPLICATION_STAGE_LABELS[item.to_stage] || item.type}</span><span className="ml-2 text-xs text-[#62666d]">{formatDate(item.created_at)}</span></li>)}</ol></section>
       </div>

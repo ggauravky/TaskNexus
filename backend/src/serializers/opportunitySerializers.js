@@ -1,3 +1,5 @@
+const { relevantProofDto } = require("./proofSerializers");
+
 const locationDto = (item) => item ? ({ country: item.country || null, state: item.state || null, city: item.city || null, display: item.display || null }) : null;
 
 const organizationPublicDto = (organization, context = {}) => ({
@@ -48,6 +50,7 @@ const opportunityCandidateDto = (opportunity, context = {}) => ({
   ...opportunityPublicDto(opportunity, context),
   ...(context.includeCandidate ? {
     eligibility: context.eligibility || null,
+    ...(context.detail ? { relevant_proof: context.relevantProof || relevantProofDto([]) } : {}),
     viewer_state: candidateStateDto(context.state),
     viewer_native_application: context.nativeApplication ? {
       id: context.nativeApplication.id, stage: context.nativeApplication.stage,

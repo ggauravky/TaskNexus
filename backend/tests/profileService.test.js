@@ -15,8 +15,8 @@ jest.mock("../src/data/userData", () => ({
   findUserById: jest.fn(),
   updateUser: jest.fn(),
 }));
-jest.mock("../src/services/showcaseService", () => ({
-  listPublicProfileProjects: jest.fn().mockResolvedValue([]),
+jest.mock("../src/services/professionalProofService", () => ({
+  getPublicProfileProofBundle: jest.fn().mockResolvedValue({ projects: [], connections: [] }),
 }));
 jest.mock("../src/services/discoveryService", () => ({
   publicContext: jest.fn().mockResolvedValue({ evidence: new Map(), projectCounts: new Map() }),
@@ -24,6 +24,7 @@ jest.mock("../src/services/discoveryService", () => ({
 
 const profileData = require("../src/data/profileData");
 const userData = require("../src/data/userData");
+const professionalProofService = require("../src/services/professionalProofService");
 const profileService = require("../src/services/profileService");
 
 const user = {
@@ -50,6 +51,7 @@ describe("Phase 2 profile service", () => {
     jest.clearAllMocks();
     profileData.listUserSkills.mockResolvedValue([]);
     profileData.listEducation.mockResolvedValue([]);
+    professionalProofService.getPublicProfileProofBundle.mockResolvedValue({ projects: [], connections: [] });
   });
 
   test("public serializer never exposes private account or marketplace fields", async () => {
@@ -69,6 +71,40 @@ describe("Phase 2 profile service", () => {
     profileData.findProfileByUsername.mockResolvedValue({ ...profile, visibility: "private" });
     await expect(profileService.getPublicProfile("aria-nair")).rejects.toMatchObject({ statusCode: 404 });
     expect(userData.findUserById).not.toHaveBeenCalled();
+  });
+
+  test("adds canonical proof connections while preserving the legacy Projects array", async () => {
+    const projects = [{
+      name: "Accessible work hub",
+      slug: "accessible-work-hub",
+      team: { name: "Studio", slug: "studio" },
+      headline: "Proof",
+      summary: "Published summary",
+      hero_image_url: null,
+      url: "/showcase/studio/accessible-work-hub",
+    }];
+    const proofConnections = [{
+      skill: { id: "skill-react", slug: "react", name: "React" },
+      projects: [{
+        id: "project-1",
+        name: "Accessible work hub",
+        completed_at: new Date("2026-10-01T00:00:00.000Z"),
+        team: { name: "Studio", slug: "studio" },
+        target_path: "/showcase/studio/accessible-work-hub",
+        evidence_summary: { total: 1, internal_verified: 0, external_verified: 1, unverified: 0 },
+        evidence: [],
+      }],
+    }];
+    profileData.findProfileByUsername.mockResolvedValue(profile);
+    userData.findUserById.mockResolvedValue(user);
+    professionalProofService.getPublicProfileProofBundle.mockResolvedValue({ projects, connections: proofConnections });
+
+    const result = await profileService.getPublicProfile("aria-nair");
+
+    expect(result.projects).toEqual(projects);
+    expect(result.proof_connections).toEqual(proofConnections);
+    expect(result.proof_connections[0].skill).toEqual({ id: "skill-react", slug: "react", name: "React" });
+    expect(JSON.stringify(result.proof_connections)).not.toMatch(/metadata|source_key|attachment|task_id|score|rank/i);
   });
 
   test("duplicate usernames are rejected before update", async () => {

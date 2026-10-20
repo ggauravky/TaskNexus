@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import PublicNavigation from "../components/marketing/PublicNavigation";
 import CollaborationRequestDialog from "../components/discovery/CollaborationRequestDialog";
+import SkillProofConnections from "../components/proof/SkillProofConnections";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 
@@ -32,6 +33,7 @@ const PublicProfile = () => {
   const { username } = useParams();
   const [profile, setProfile] = useState(null);
   const [state, setState] = useState("loading");
+  const [retryKey, setRetryKey] = useState(0);
   const [requestOpen, setRequestOpen] = useState(false);
 
   useEffect(() => {
@@ -43,12 +45,13 @@ const PublicProfile = () => {
         setState("ready");
         document.title = `${response.data.data.name.display} | TaskNexus`;
       })
-      .catch(() => { if (active) setState("missing"); });
+      .catch((error) => { if (active) setState(error.response?.status === 404 ? "missing" : "error"); });
     return () => { active = false; };
-  }, [username]);
+  }, [retryKey, username]);
 
   if (state === "loading") return <div className="flex min-h-[100dvh] items-center justify-center bg-[#010102] text-[#f7f8f8]"><Loader2 className="h-7 w-7 animate-spin text-[#828fff]" aria-label="Loading public profile" /></div>;
   if (state === "missing") return <div className="min-h-[100dvh] bg-[#010102] text-[#f7f8f8]"><header className="border-b border-[#23252a]"><PublicNavigation dark /></header><main className="mx-auto flex max-w-3xl flex-col items-start px-4 py-24 sm:px-6"><p className="text-sm font-medium text-[#828fff]">Profile unavailable</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em]">This profile is private or does not exist.</h1><p className="mt-4 text-[#8a8f98]">We use the same response for both states to protect member privacy.</p><Link to="/" className="profile-quiet-button mt-8"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to TaskNexus</Link></main></div>;
+  if (state === "error") return <div className="min-h-[100dvh] bg-[#010102] text-[#f7f8f8]"><header className="border-b border-[#23252a]"><PublicNavigation dark /></header><main className="mx-auto flex max-w-3xl flex-col items-start px-4 py-24 sm:px-6"><p className="text-sm font-medium text-amber-300">Could not load profile</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em]">The profile service is temporarily unavailable.</h1><p className="mt-4 text-[#8a8f98]">Your request was not treated as a missing or private profile. Try again safely.</p><button type="button" onClick={() => setRetryKey((value) => value + 1)} className="team-button-primary mt-8">Retry</button></main></div>;
 
   const initials = `${profile.name.first?.[0] || ""}${profile.name.last?.[0] || ""}`.toUpperCase() || "TN";
   const primarySkills = profile.skills.filter((skill) => skill.isPrimary);
@@ -100,6 +103,7 @@ const PublicProfile = () => {
             <PublicSection title="Additional skills" count={otherSkills.length}>
               <div className="flex flex-wrap gap-2">{otherSkills.map((skill) => <span key={skill.id} className="rounded-md border border-[#34343a] bg-[#0f1011] px-3 py-2 text-sm text-[#d0d6e0]">{skill.name} <span className="ml-1 text-xs capitalize text-[#62666d]">{skill.proficiency}</span></span>)}{otherSkills.length === 0 ? <Empty text="No additional skills listed." /> : null}</div>
             </PublicSection>
+            <SkillProofConnections connections={profile.proof_connections || []} />
             <PublicSection title="Published projects" count={(profile.projects || []).length}>
               <div className="grid gap-3 sm:grid-cols-2">{(profile.projects || []).map((project) => <Link key={project.url} to={project.url} className="rounded-xl border border-[#34343a] bg-[#0f1011] p-5 transition-colors hover:border-[#5e6ad2]"><p className="text-xs text-[#828fff]">{project.team.name}</p><h3 className="mt-2 font-medium text-[#f7f8f8]">{project.name}</h3><p className="mt-2 line-clamp-3 text-sm leading-6 text-[#8a8f98]">{project.summary}</p><span className="mt-4 inline-flex text-xs text-[#b7bdf8]">View evidence-backed showcase</span></Link>)}{!(profile.projects || []).length ? <Empty text="No published projects selected for this profile." /> : null}</div>
             </PublicSection>

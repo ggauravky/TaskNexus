@@ -36,6 +36,8 @@ describe("Phase 5 canonical contribution contracts", () => {
   test("declares dedupe and timeline indexes", () => {
     expect(hasIndex(ContributionEvidence, { project_id: 1, source_key: 1 }, { unique: true })).toBe(true);
     expect(hasIndex(ContributionEvidence, { user_id: 1, status: 1, occurred_at: -1 })).toBe(true);
+    expect(hasIndex(ProjectParticipant, { user_id: 1, status: 1, show_on_profile: 1, updated_at: -1 }, { name: "user_active_profile_projects" })).toBe(true);
+    expect(hasIndex(ContributionEvidence, { user_id: 1, status: 1, public_safe: 1, project_id: 1, occurred_at: -1 }, { name: "user_public_proof_by_project" })).toBe(true);
     expect(hasIndex(ProjectRepository, { project_id: 1, provider: 1, owner_key: 1, repository_key: 1 }, { unique: true })).toBe(true);
     expect(hasIndex(ProjectShowcase, { project_id: 1 }, { unique: true })).toBe(true);
   });
