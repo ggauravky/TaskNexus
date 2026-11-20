@@ -106,6 +106,16 @@ Downstream items become applicable only when the real prerequisite exists, so a 
 
 Public-safe project/showcase proof is an optional growth item after completed marketplace work and never affects required counts. Private work is never required to become public, and Phase D does not add Profile-to-Proof-to-Opportunity behavior.
 
+## Phase E — Profile, proof, and opportunities
+
+Public profiles keep their existing completeness calculation and connect canonical skill IDs to completed public Projects with active participation, explicit profile opt-in, public-safe evidence, and a published showcase. The optional Phase D growth item recognizes the published proof chain even when none of its Project skills overlap the user's profile. Project details expose `showcase_path` only while the completed public Project has a published showcase under an active public Team.
+
+Showcases publish public-safe active evidence from opted-in active participants with visible profiles. Counts retain the original verification states and include only permitted evidence. Contributor previews are bounded to 100 opted-in participants. Up to 12 featured IDs are independently checked, including authors outside the preview. Indexed queries scope evidence by Project and eligible authors, and MongoDB returns grouped counts instead of raw evidence histories.
+
+Opportunity detail gives freelancers their own required-skill proof, with the owning Organization's management view excluded. The detail response uses `Cache-Control: private, no-store`. Eligibility remains independent of proof. Native applications accept no proof or explicit public-safe evidence selections for each selected Project, up to five Projects and twelve evidence items. The server revalidates selection in the submit transaction and stores it in the immutable application snapshot. Applicants can navigate back to the Opportunity and Organization. Recruiter access remains scoped by existing Organization RBAC.
+
+Local acceptance on 2026-11-21 passed 384 Jest tests across 49 suites and 50 frontend tests. The disposable Mongo replica set passed the database, API, Projects, contribution/showcase, Opportunities, Organization, and Phase E verifiers. Phase E checked indexed queries with private-evidence volume, privacy and IDOR, explicit sharing, and immutable snapshots. Edge browser QA passed at 320, 375, 390, 430, 768, 1024, and 1440 px. Both lint runs, the production build and configuration checks, and the source secret scan passed.
+
 ## Later phases
 
 Profile-to-Proof-to-Opportunity integration remains intentionally unimplemented after Phase D.

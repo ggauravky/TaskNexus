@@ -117,11 +117,17 @@ const loadProofBundle = async ({
       limit: PROOF_LIMITS.profileSkills,
     }),
   ]);
-  if (!participants.length) return { connections: [], projects: [], applicationProjects: [] };
+  const allowedRequiredSkills = requiredSkillIds === null ? null : new Set(requiredSkillIds.map(String));
+  const userSkillIds = new Set(userSkills.map((row) => String(row.skill_id)));
+  const opportunitySkillIds = requiredSkillIds?.filter((id) => userSkillIds.has(String(id)));
+  if (!participants.length || opportunitySkillIds?.length === 0) {
+    return { connections: [], projects: [], applicationProjects: [] };
+  }
 
   const participantProjectIds = unique(participants.map((row) => row.project_id));
   const projects = await readRows(Project.find({
     _id: trustedIn(participantProjectIds), status: "completed", visibility: "public",
+    ...(opportunitySkillIds ? { skill_ids: trustedIn(opportunitySkillIds) } : {}),
   }), {
     select: "_id team_id name slug tagline completed_at skill_ids repository_url demo_url",
   });
@@ -142,20 +148,23 @@ const loadProofBundle = async ({
   if (!effectiveProjects.length) return { connections: [], projects: [], applicationProjects: [] };
 
   const evidenceGroups = await loadEvidenceGroups(userId, effectiveProjects.map(idOf), evidencePreviewLimit);
-  effectiveProjects = effectiveProjects.filter((project) => evidenceGroups.has(idOf(project))).sort(sortProjects).slice(0, uniqueProjectLimit);
-  if (!effectiveProjects.length) return { connections: [], projects: [], applicationProjects: [] };
+  const evidenceBackedProjects = effectiveProjects.filter((project) => evidenceGroups.has(idOf(project))).sort(sortProjects);
+  if (!evidenceBackedProjects.length) return { connections: [], projects: [], applicationProjects: [] };
+  const projectPreview = evidenceBackedProjects.slice(0, uniqueProjectLimit);
+  const proofCandidates = includeApplicationFields ? projectPreview : evidenceBackedProjects;
 
-  const allowedRequiredSkills = requiredSkillIds === null ? null : new Set(requiredSkillIds.map(String));
-  const userSkillIds = new Set(userSkills.map((row) => String(row.skill_id)));
-  const connectedSkillIds = unique(effectiveProjects.flatMap((project) => project.skill_ids || []))
+  const connectedSkillIds = unique(proofCandidates.flatMap((project) => project.skill_ids || []))
     .filter((skillId) => includeApplicationFields || (userSkillIds.has(skillId) && (!allowedRequiredSkills || allowedRequiredSkills.has(skillId))));
   const skills = connectedSkillIds.length
     ? await readRows(Skill.find({ _id: trustedIn(connectedSkillIds), is_active: true }), { select: "_id slug name is_active" })
     : [];
   const skillMap = byId(skills);
   const participantMap = new Map(participants.map((row) => [String(row.project_id), row]));
+  const matchingProjects = proofCandidates
+    .filter((project) => (project.skill_ids || []).some((skillId) => skillMap.has(String(skillId))))
+    .slice(0, uniqueProjectLimit);
 
-  const projectDtos = new Map(effectiveProjects.map((project) => {
+  const projectDtos = new Map(matchingProjects.map((project) => {
     const projectId = idOf(project);
     const team = teamMap.get(String(project.team_id));
     const showcase = showcaseMap.get(projectId);
@@ -176,14 +185,14 @@ const loadProofBundle = async ({
   const orderedSkillIds = userSkills.map((row) => String(row.skill_id))
     .filter((skillId) => skillMap.has(skillId) && (!allowedRequiredSkills || allowedRequiredSkills.has(skillId)));
   const connections = orderedSkillIds.slice(0, PROOF_LIMITS.profileSkills).map((skillId) => {
-    const connectedProjects = effectiveProjects
+    const connectedProjects = matchingProjects
       .filter((project) => (project.skill_ids || []).map(String).includes(skillId))
       .slice(0, projectsPerSkill)
       .map((project) => projectDtos.get(idOf(project)));
     return proofConnectionDto(skillMap.get(skillId), connectedProjects);
   }).filter((connection) => connection.projects.length);
 
-  const legacyProjects = effectiveProjects.map((project) => {
+  const legacyProjects = projectPreview.map((project) => {
     const team = teamMap.get(String(project.team_id));
     const showcase = showcaseMap.get(idOf(project));
     return {
@@ -197,7 +206,7 @@ const loadProofBundle = async ({
     };
   });
 
-  const applicationProjects = includeApplicationFields ? effectiveProjects.map((project) => {
+  const applicationProjects = includeApplicationFields ? projectPreview.map((project) => {
     const projectId = idOf(project);
     const group = evidenceGroups.get(projectId);
     const team = teamMap.get(String(project.team_id));
@@ -271,23 +280,18 @@ const loadSelectedApplicationProof = async (userId, projectIds, evidenceIds, ses
   if (teams.length !== unique(projects.map((row) => row.team_id)).length) {
     throw errors.forbidden("Only Projects in active public Teams may be shared");
   }
+  if (!evidenceIds.length) throw errors.validation("Select at least one evidence item for each selected Project");
 
-  const allEvidence = toApps(await sessionQuery(ContributionEvidence.find({
-    user_id: userId, project_id: trustedIn(projectIds), status: "active", public_safe: true,
-  }), session).select("_id project_id title summary evidence_type verification_level source_url occurred_at").sort({ occurred_at: -1, _id: 1 }).lean());
-  const evidenceByProject = new Map();
-  allEvidence.forEach((row) => evidenceByProject.set(String(row.project_id), [...(evidenceByProject.get(String(row.project_id)) || []), row]));
-  if (projectIds.some((id) => !(evidenceByProject.get(String(id)) || []).length)) {
-    throw errors.validation("Each selected Project must have public-safe contribution evidence");
-  }
-
-  let selectedEvidence = evidenceIds.length
-    ? allEvidence.filter((row) => evidenceIds.includes(idOf(row)))
-    : projectIds.flatMap((id) => (evidenceByProject.get(String(id)) || []).slice(0, 2));
-  if (evidenceIds.length && selectedEvidence.length !== evidenceIds.length) {
+  const selectedEvidence = toApps(await sessionQuery(ContributionEvidence.find({
+    _id: trustedIn(evidenceIds), user_id: userId, project_id: trustedIn(projectIds), status: "active", public_safe: true,
+  }), session).hint({ _id: 1 }).select("_id project_id title summary evidence_type verification_level source_url occurred_at").sort({ occurred_at: -1, _id: 1 }).lean());
+  if (selectedEvidence.length !== evidenceIds.length) {
     throw errors.forbidden("A selected evidence item is not public-safe or does not belong to this candidate");
   }
-  selectedEvidence = selectedEvidence.slice(0, PROOF_LIMITS.applicationSelectedEvidence);
+  const evidenceProjectIds = new Set(selectedEvidence.map((row) => String(row.project_id)));
+  if (projectIds.some((id) => !evidenceProjectIds.has(String(id)))) {
+    throw errors.validation("Select at least one evidence item for each selected Project");
+  }
   const roleByProject = new Map(participants.map((row) => [String(row.project_id), row.role]));
   return {
     projects: projects.map((row) => ({
@@ -312,7 +316,7 @@ const loadSelectedApplicationProof = async (userId, projectIds, evidenceIds, ses
   };
 };
 
-const hasPublicProfileProof = async (userId) => (await listPublicProfileConnections(userId)).length > 0;
+const hasPublicProfileProof = async (userId) => (await getPublicProfileProofBundle(userId)).projects.length > 0;
 
 module.exports = {
   getPublicProfileProofBundle,

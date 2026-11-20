@@ -1,6 +1,6 @@
 const { randomUUID } = require("crypto");
 const mongoose = require("mongoose");
-const { ContributionEvidence, Project, ProjectParticipant, Skill, Team, TeamMembership } = require("../models");
+const { ContributionEvidence, Project, ProjectParticipant, ProjectShowcase, Skill, Team, TeamMembership } = require("../models");
 const { toApp } = require("../models/helpers");
 const projectData = require("../data/projectData");
 const teamData = require("../data/teamData");
@@ -137,11 +137,14 @@ const listMyProjects = async (userId, query) => {
 const getProject = async (projectId, userId, options = {}) => {
   const context = await authz.getContext(projectId, userId, null, options);
   authz.requireVisible(context);
-  const [counts, skillMap, participantRows, creatorMap] = await Promise.all([
+  const effectivePublic = authz.isEffectivePublic(context);
+  const [counts, skillMap, participantRows, creatorMap, publishedShowcase] = await Promise.all([
     projectData.projectCounts([projectId]),
     projectData.skillsByIds(context.project.skill_ids || []),
     projectData.listParticipants(projectId, { page: 1, limit: 50 }),
     teamData.profileSummaries([context.project.created_by], { publicOnly: true }),
+    effectivePublic && context.project.status === "completed"
+      ? ProjectShowcase.exists({ project_id: projectId, status: "published" }) : null,
   ]);
   const profiles = await teamData.profileSummaries(participantRows.items.map((item) => item.user_id), { publicOnly: true });
   const participants = participantRows.items.map((row) => ({
@@ -149,7 +152,8 @@ const getProject = async (projectId, userId, options = {}) => {
     show_on_profile: Boolean(row.show_on_profile), profile: profiles.get(row.user_id) || null,
   }));
   return projectDetail(context.project, {
-    team: context.team, effectivePublic: authz.isEffectivePublic(context),
+    team: context.team, effectivePublic,
+    showcasePath: publishedShowcase ? `/showcase/${context.team.slug}/${context.project.slug}` : null,
     skills: (context.project.skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean),
     participantCount: counts.participants.get(projectId) || 0,
     taskSummary: counts.tasks.get(projectId), milestoneSummary: counts.milestones.get(projectId),

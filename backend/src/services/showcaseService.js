@@ -1,7 +1,7 @@
 const { randomUUID } = require("crypto");
 const mongoose = require("mongoose");
 const {
-  ContributionEvidence, Project, ProjectParticipant, ProjectRepository, ProjectShowcase, Team, UserProfile,
+  ContributionEvidence, Project, ProjectParticipant, ProjectRepository, ProjectShowcase, Team,
 } = require("../models");
 const { toApp, toApps } = require("../models/helpers");
 const authz = require("./projectAuthorization");
@@ -15,6 +15,7 @@ const { httpsUrl, stringList, text } = require("./projectValidation");
 const professionalProofService = require("./professionalProofService");
 
 const trustedIn = (values) => mongoose.trusted({ $in: values });
+const PUBLIC_CONTRIBUTOR_LIMIT = 100;
 const showcaseDto = (row) => ({
   id: row.id, project_id: row.project_id, status: row.status,
   headline: row.headline || "", summary: row.summary || "", problem: row.problem || "",
@@ -142,29 +143,46 @@ const getPublicShowcase = async (teamSlug, projectSlug) => {
   if (!project) throw projectErrors.notFound();
   const showcase = toApp(await ProjectShowcase.findOne({ project_id: project.id, status: "published" }).lean());
   if (!showcase) throw projectErrors.notFound();
-  const evidenceRows = toApps(await ContributionEvidence.find({ project_id: project.id, status: "active" }).sort({ occurred_at: -1 }).lean());
-  const evidenceById = new Map(evidenceRows.map((row) => [row.id, row]));
-  const featuredEvidence = (showcase.featured_evidence_ids || []).map((id) => evidenceById.get(id)).filter(Boolean).map(publicEvidenceDto);
-  const evidenceUsers = [...new Set(evidenceRows.map((row) => row.user_id))];
-  const [participants, profiles, repositories] = await Promise.all([
-    ProjectParticipant.find({ project_id: project.id, user_id: trustedIn(evidenceUsers) }).lean(),
-    UserProfile.find({ _id: trustedIn(evidenceUsers), visibility: "public" }).lean(),
+  const featuredIds = (showcase.featured_evidence_ids || []).slice(0, 12);
+  const participantFilter = { project_id: project.id, status: "active", show_on_profile: true };
+  const evidenceFilter = { project_id: project.id, status: "active", public_safe: true };
+  const [participants, repositories, featuredRows] = await Promise.all([
+    ProjectParticipant.find(participantFilter)
+      .select("user_id role").sort({ user_id: 1 }).limit(PUBLIC_CONTRIBUTOR_LIMIT).lean(),
     ProjectRepository.find({ project_id: project.id, verification_status: "verified" }).sort({ created_at: 1 }).lean(),
+    featuredIds.length ? ContributionEvidence.find({ ...evidenceFilter, _id: trustedIn(featuredIds) })
+      .hint({ _id: 1 }).select("_id user_id evidence_type verification_level title source_url occurred_at").lean() : [],
   ]);
-  const profileMap = new Map(profiles.map((row) => [String(row._id), toApp(row)]));
+  const participantIds = new Set(participants.map((row) => row.user_id));
+  const additionalAuthors = [...new Set(featuredRows.map((row) => row.user_id))].filter((id) => !participantIds.has(id));
+  const featuredParticipants = additionalAuthors.length ? await ProjectParticipant.find({
+    ...participantFilter, user_id: trustedIn(additionalAuthors),
+  }).select("user_id").lean() : [];
+  const users = await teamData.profileSummaries([
+    ...participantIds, ...featuredParticipants.map((row) => row.user_id),
+  ], { publicOnly: true });
+  const visibleIds = [...participantIds].filter((id) => users.get(id)?.id);
+  const groups = visibleIds.length ? await ContributionEvidence.aggregate([
+    { $match: { ...evidenceFilter, user_id: { $in: visibleIds } } },
+    { $group: { _id: { userId: "$user_id", level: "$verification_level" }, total: { $sum: 1 } } },
+  ]) : [];
+  const evidenceById = new Map(toApps(featuredRows).filter((row) => users.get(row.user_id)?.id).map((row) => [row.id, row]));
+  const featuredEvidence = featuredIds.map((id) => evidenceById.get(id)).filter(Boolean).map(publicEvidenceDto);
   const counts = new Map();
-  evidenceRows.forEach((row) => {
-    const current = counts.get(row.user_id) || { total: 0, internal_verified: 0, external_verified: 0, unverified: 0 };
-    current.total += 1; current[row.verification_level] += 1; counts.set(row.user_id, current);
-  });
-  const users = await teamData.profileSummaries(evidenceUsers, { publicOnly: true });
-  const participantDtos = participants.filter((row) => profileMap.has(row.user_id) && users.has(row.user_id)).map((row) => ({
+  for (const { _id: { userId, level }, total } of groups) {
+    const current = counts.get(userId) || { total: 0, internal_verified: 0, external_verified: 0, unverified: 0 };
+    current.total += total;
+    current[level] = total;
+    counts.set(userId, current);
+  }
+  const participantDtos = participants.filter((row) => users.has(row.user_id) && counts.has(row.user_id)).map((row) => ({
     profile: users.get(row.user_id), role: row.role, evidence: counts.get(row.user_id),
   })).sort((a, b) => String(a.profile.display_name).localeCompare(String(b.profile.display_name)));
   return {
     team: { name: team.name, slug: team.slug, avatar_url: team.avatar_url || null },
     project: { name: project.name, slug: project.slug, tagline: project.tagline || null, completed_at: project.completed_at, demo_url: project.demo_url || null },
-    showcase: showcaseDto(showcase), participants: participantDtos, featured_evidence: featuredEvidence,
+    showcase: showcaseDto({ ...showcase, featured_evidence_ids: featuredEvidence.map((row) => row.id) }),
+    participants: participantDtos, featured_evidence: featuredEvidence,
     repositories: toApps(repositories).map((row) => ({ provider: row.provider, owner: row.owner, repository: row.repository, url: row.canonical_url })),
     seo: { title: `${showcase.headline} | ${team.name}`, description: showcase.summary, canonical: `/showcase/${team.slug}/${project.slug}`, image: showcase.hero_image_url || null },
   };

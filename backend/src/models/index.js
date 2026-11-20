@@ -429,6 +429,7 @@ const projectParticipant = model("ProjectParticipant", {
   assignment_epoch: { type: Number, min: 0, default: 0, select: false },
 }, { collection: "project_participants" });
 projectParticipant.schema.index({ project_id: 1, user_id: 1 }, { unique: true });
+projectParticipant.schema.index({ project_id: 1, status: 1, show_on_profile: 1, user_id: 1 });
 projectParticipant.schema.index({ user_id: 1, status: 1, updated_at: -1 });
 projectParticipant.schema.index({ project_id: 1, role: 1, status: 1 });
 projectParticipant.schema.index({ team_id: 1, user_id: 1, status: 1 });
@@ -497,6 +498,7 @@ contributionEvidence.schema.index({ project_id: 1, source_key: 1 }, { unique: tr
 contributionEvidence.schema.index({ user_id: 1, status: 1, occurred_at: -1 });
 contributionEvidence.schema.index({ project_id: 1, status: 1, occurred_at: -1 });
 contributionEvidence.schema.index({ project_id: 1, user_id: 1, status: 1, occurred_at: -1 });
+contributionEvidence.schema.index({ project_id: 1, status: 1, public_safe: 1, user_id: 1, verification_level: 1 });
 contributionEvidence.schema.index({ repository_id: 1, provider_ref: 1 });
 contributionEvidence.schema.index(
   { user_id: 1, status: 1, public_safe: 1, project_id: 1, occurred_at: -1 },

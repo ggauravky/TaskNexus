@@ -23,7 +23,7 @@ const ids = Object.fromEntries([
 const evidenceIds = [randomUUID(), randomUUID(), randomUUID()];
 const hiddenEvidenceIds = [randomUUID(), randomUUID(), randomUUID()];
 const tokens = {};
-let applicationId = null;
+const applicationIds = [];
 let server;
 let apiBase;
 
@@ -41,7 +41,7 @@ const call = async (path, { token, method = "GET", body } = {}) => {
   const text = await response.text();
   let payload;
   try { payload = JSON.parse(text); } catch (_error) { payload = { text }; }
-  return { status: response.status, payload };
+  return { status: response.status, payload, headers: response.headers };
 };
 
 const createUser = async (label, role = "freelancer") => {
@@ -71,7 +71,7 @@ const cleanup = async () => {
   const teamIds = [ids.team, ids.privateTeam];
   const organizationIds = [ids.organizationA, ids.organizationB];
   const opportunityIds = [ids.opportunity];
-  const applications = applicationId ? [applicationId] : [];
+  const applications = applicationIds;
   await Promise.all([
     models.ApplicationActivity.deleteMany({ application_id: trustedIn(applications) }),
     models.Notification.deleteMany({ $or: mongoose.trusted([
@@ -111,7 +111,7 @@ const cleanup = async () => {
 const seed = async () => {
   await cleanup();
   await Promise.all([
-    createUser("candidateA"), createUser("candidateB"), createUser("outsider"),
+    createUser("candidateA"), createUser("candidateB"), createUser("outsider", "client"),
     createUser("recruiterA"), createUser("recruiterB"), createUser("admin", "admin"),
   ]);
   await models.Skill.insertMany([
@@ -184,6 +184,7 @@ const seed = async () => {
 };
 
 const assertIndexedAndBounded = (plan, label, maxDocs, maxReturned) => {
+  plan = plan.stages?.find((stage) => stage.$cursor)?.$cursor || plan;
   const winningPlan = JSON.stringify(plan.queryPlanner?.winningPlan || {});
   assert.match(winningPlan, /IXSCAN/, `${label} must use an index`);
   assert.doesNotMatch(winningPlan, /COLLSCAN/, `${label} must not use a collection scan`);
@@ -200,12 +201,19 @@ const verifyQueryPlans = async () => {
     models.ContributionEvidence.find({ user_id: ids.candidateA, status: "active", public_safe: true, project_id: trustedIn([ids.project, ids.sameNameProject]) }).select("project_id evidence_type verification_level title source_url occurred_at").sort({ occurred_at: -1, _id: 1 }).limit(25).explain("executionStats"),
     models.ProjectShowcase.find({ project_id: trustedIn([ids.project, ids.sameNameProject]), status: "published" }).select("project_id status published_at").limit(12).explain("executionStats"),
     models.UserSkill.find({ user_id: ids.candidateA }).select("skill_id is_primary created_at").sort({ is_primary: -1, created_at: 1, _id: 1 }).limit(20).explain("executionStats"),
-    models.Project.find({ _id: trustedIn([ids.project, ids.sameNameProject]), status: "completed", visibility: "public" }).select("team_id skill_ids").limit(12).explain("executionStats"),
+    models.Project.find({ _id: trustedIn([ids.project, ids.sameNameProject]), status: "completed", visibility: "public", skill_ids: trustedIn([ids.skill]) }).select("team_id skill_ids").limit(12).explain("executionStats"),
     models.Team.find({ _id: trustedIn([ids.team]), status: "active", visibility: "public" }).select("slug name").limit(12).explain("executionStats"),
+    models.ProjectParticipant.find({ project_id: ids.project, status: "active", show_on_profile: true }).select("user_id role").sort({ user_id: 1 }).limit(100).explain("executionStats"),
+    models.ContributionEvidence.find({ _id: trustedIn(evidenceIds.slice(0, 2)), user_id: ids.candidateA, project_id: ids.project, status: "active", public_safe: true }).hint({ _id: 1 }).sort({ occurred_at: -1, _id: 1 }).explain("executionStats"),
+    models.ContributionEvidence.aggregate([
+      { $match: { project_id: ids.project, status: "active", public_safe: true, user_id: { $in: [ids.candidateA] } } },
+      { $group: { _id: { userId: "$user_id", level: "$verification_level" }, total: { $sum: 1 } } },
+    ]).explain("executionStats"),
   ]);
   const checks = [
     ["participant candidates", 100, 100], ["public evidence", 25, 25], ["published showcases", 12, 12],
     ["profile skills", 20, 20], ["eligible Projects", 12, 12], ["public Team ancestry", 12, 12],
+    ["public showcase participants", 100, 100], ["explicit application selection", 2, 2], ["public showcase count input", 3, 3],
   ];
   checks.forEach(([label, maxDocs, maxReturned], index) => assertIndexedAndBounded(plans[index], label, maxDocs, maxReturned));
 };
@@ -236,14 +244,37 @@ const run = async () => {
     assert.equal(publicText.includes("Not public safe"), false);
     assert.equal(publicText.includes("Other candidate fixture"), false);
 
+    const showcasePath = `/showcase/phase-e-public-${marker}/canonical-proof-${marker}`;
+    const projectPath = `/projects/by-slug/phase-e-public-${marker}/canonical-proof-${marker}`;
+    await models.ProjectShowcase.updateOne({ _id: ids.showcase }, { $set: {
+      featured_evidence_ids: [evidenceIds[1], hiddenEvidenceIds[0], hiddenEvidenceIds[2]],
+    } });
+    let showcase = await call(showcasePath);
+    assert.equal(showcase.status, 200);
+    assert.deepEqual(showcase.payload.data.featured_evidence.map((item) => item.id), [evidenceIds[1]]);
+    assert.deepEqual(showcase.payload.data.showcase.featured_evidence_ids, [evidenceIds[1]]);
+    assert.deepEqual(showcase.payload.data.participants.map((item) => item.evidence.total), [3]);
+    assert.equal((await call(projectPath)).payload.data.showcase_path, showcasePath);
+
     await models.ProjectParticipant.updateOne({ project_id: ids.project, user_id: ids.candidateA }, { $set: { show_on_profile: false } });
     profile = await call(profilePath);
     assert.equal(profile.status, 200);
     assert.equal(profile.payload.data.proof_connections.length, 0, "profile opt-out must remove the connection");
+    showcase = await call(showcasePath);
+    assert.deepEqual(showcase.payload.data.participants, []);
+    assert.deepEqual(showcase.payload.data.featured_evidence, []);
     await models.ProjectParticipant.updateOne({ project_id: ids.project, user_id: ids.candidateA }, { $set: { show_on_profile: true } });
     await models.UserProfile.updateOne({ _id: ids.candidateA }, { $set: { visibility: "private" } });
     assert.equal((await call(profilePath)).status, 404, "private profiles must remain undiscoverable");
+    assert.deepEqual((await call(showcasePath)).payload.data.participants, []);
     await models.UserProfile.updateOne({ _id: ids.candidateA }, { $set: { visibility: "public" } });
+    await models.ProjectParticipant.updateOne({ project_id: ids.project, user_id: ids.candidateA }, { $set: { status: "removed" } });
+    assert.deepEqual((await call(showcasePath)).payload.data.featured_evidence, []);
+    await models.ProjectParticipant.updateOne({ project_id: ids.project, user_id: ids.candidateA }, { $set: { status: "active" } });
+    await models.ProjectShowcase.updateOne({ _id: ids.showcase }, { $set: { status: "unpublished" } });
+    assert.equal((await call(showcasePath)).status, 404);
+    assert.equal((await call(projectPath)).payload.data.showcase_path, null);
+    await models.ProjectShowcase.updateOne({ _id: ids.showcase }, { $set: { status: "published" } });
 
     const opportunityPath = `/opportunities/phase-e-proof-opportunity-${marker}`;
     const anonymous = await call(opportunityPath);
@@ -251,15 +282,16 @@ const run = async () => {
     assert.equal(Object.hasOwn(anonymous.payload.data, "relevant_proof"), false, "anonymous detail must not receive candidate proof");
     const candidateA = await call(opportunityPath, { token: tokens.candidateA });
     assert.equal(candidateA.status, 200, JSON.stringify(candidateA.payload));
+    assert.match(candidateA.headers.get("cache-control") || "", /private, no-store/);
     assert.equal(candidateA.payload.data.relevant_proof.project_count, 1);
     assert.equal(candidateA.payload.data.relevant_proof.required_skills[0].skill.id, ids.skill);
     assert.deepEqual(candidateA.payload.data.relevant_proof.required_skills[0].projects.map((item) => item.id), [ids.project]);
     const candidateBInjected = await call(`${opportunityPath}?candidateId=${ids.candidateA}`, { token: tokens.candidateB });
     assert.equal(candidateBInjected.payload.data.relevant_proof.project_count, 0, "candidate ID injection must not cross identities");
-    for (const token of [tokens.outsider, tokens.recruiterA, tokens.recruiterB, tokens.admin]) {
+    for (const token of [tokens.outsider, tokens.recruiterA, tokens.admin]) {
       const selfOnly = await call(opportunityPath, { token });
       assert.equal(selfOnly.status, 200);
-      assert.equal(selfOnly.payload.data.relevant_proof.project_count, 0, "other roles must receive only their own proof context");
+      assert.equal(Object.hasOwn(selfOnly.payload.data, "relevant_proof"), false, "non-candidate views must omit proof");
     }
 
     const eligible = await call("/native-applications/eligible-projects", { token: tokens.candidateA });
@@ -268,6 +300,12 @@ const run = async () => {
     const canonicalEligible = eligible.payload.data.find((item) => item.id === ids.project);
     assert.ok(canonicalEligible);
     assert.deepEqual(canonicalEligible.evidence.map((item) => item.id), evidenceIds);
+
+    const implicit = await call(`/opportunities/${ids.opportunity}/applications`, {
+      method: "POST", token: tokens.candidateA,
+      body: { selectedProjectIds: [ids.project], selectedEvidenceIds: [], consent: true },
+    });
+    assert.equal(implicit.status, 400, "a project selection must not attach implicit evidence");
 
     const rejectedEvidence = await call(`/opportunities/${ids.opportunity}/applications`, {
       method: "POST", token: tokens.candidateA,
@@ -279,7 +317,8 @@ const run = async () => {
       body: { coverNote: "Exact Phase E proof selection.", selectedProjectIds: [ids.project], selectedEvidenceIds: [evidenceIds[0], evidenceIds[1]], consent: true },
     });
     assert.equal(submitted.status, 201, JSON.stringify(submitted.payload));
-    applicationId = submitted.payload.data.id;
+    const applicationId = submitted.payload.data.id;
+    applicationIds.push(applicationId);
     const storedBefore = await models.NativeApplication.findById(applicationId).select("submitted_profile_snapshot").lean();
     const immutableSnapshot = JSON.stringify(storedBefore.submitted_profile_snapshot);
     assert.deepEqual(storedBefore.submitted_profile_snapshot.evidence.map((item) => item.id).sort(), [evidenceIds[0], evidenceIds[1]].sort());
@@ -302,6 +341,19 @@ const run = async () => {
     await models.Team.updateOne({ _id: ids.team }, { $set: { visibility: "public" } });
     await models.Project.updateOne({ _id: ids.project }, { $set: { visibility: "public" } });
     await models.ContributionEvidence.updateMany({ _id: trustedIn(evidenceIds) }, { $set: { status: "active" }, $unset: { revoked_at: "" } });
+    const noProof = await call(`/opportunities/${ids.opportunity}/applications`, {
+      method: "POST", token: tokens.candidateB, body: { consent: true },
+    });
+    assert.equal(noProof.status, 201, "an application can be submitted without proof");
+    applicationIds.push(noProof.payload.data.id);
+    const { submitted_profile_snapshot: emptySnapshot } = await models.NativeApplication.findById(noProof.payload.data.id).lean();
+    assert.deepEqual(emptySnapshot.projects, []);
+    assert.deepEqual(emptySnapshot.evidence, []);
+    await models.ContributionEvidence.insertMany(Array.from({ length: 128 }, (_, index) => ({
+      _id: randomUUID(), project_id: ids.project, team_id: ids.team, user_id: ids.candidateA, created_by: ids.candidateA,
+      evidence_type: "external_link", verification_level: "unverified", status: "active", origin: "user",
+      title: "Private evidence volume control", source_key: `phase-e:${marker}:volume:${index}`, occurred_at: new Date(), public_safe: false,
+    })));
     await verifyQueryPlans();
 
     const marketplaceImports = [require.resolve("../src/services/professionalProofService"), require.resolve("../src/serializers/proofSerializers")]

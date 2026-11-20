@@ -4,6 +4,7 @@ const { Organization, Opportunity, OpportunityCandidateState } = require("../src
 const { evaluateOpportunity } = require("../src/services/opportunityEligibilityService");
 const { _private } = require("../src/services/opportunityService");
 const { candidateStateDto, organizationPublicDto, opportunityCandidateDto } = require("../src/serializers/opportunitySerializers");
+const { relevantProofDto } = require("../src/serializers/proofSerializers");
 
 const IDS = { org: "80000000-0000-4000-8000-000000000001", opportunity: "80000000-0000-4000-8000-000000000002", user: "80000000-0000-4000-8000-000000000003", js: "80000000-0000-4000-8000-000000000004", sql: "80000000-0000-4000-8000-000000000005" };
 const role = (overrides = {}) => new Opportunity({ _id: IDS.opportunity, organization_id: IDS.org, type: "internship", title: "Platform Engineering Intern", slug: "platform-engineering-intern", summary: "Build reliable product systems.", description: "A structured early-career role.", work_mode: "hybrid", locations: [{ city: "Bengaluru", country: "India" }], employment_type: "full_time", application_url: "https://careers.example.com/jobs/42", required_skill_ids: [IDS.js], preferred_skill_ids: [IDS.sql], eligibility: { eligible_degrees: ["B.Tech"], eligible_fields: ["Computer Science"], graduation_year_min: 2026, graduation_year_max: 2028, freshers_allowed: true, allowed_countries: ["India"] }, status: "draft", source_type: "official", source_url: "https://careers.example.com", created_by: IDS.user, ...overrides });
@@ -61,12 +62,18 @@ describe("Phase 8 input boundaries, DTOs, and indexes", () => {
     expect(JSON.stringify(authenticated.relevant_proof.required_skills)).not.toMatch(/score|rank|applicant|preferred/i);
   });
   test("returns a stable empty relevant-proof shape for authenticated candidates", () => {
-    expect(opportunityCandidateDto({ ...role().toObject(), id: IDS.opportunity }, { detail: true, includeCandidate: true }).relevant_proof).toEqual({
+    expect(opportunityCandidateDto({ ...role().toObject(), id: IDS.opportunity }, { detail: true, includeCandidate: true, relevantProof: relevantProofDto([]) }).relevant_proof).toEqual({
       required_skills: [],
       project_count: 0,
       evidence_count: 0,
       disclaimer: "Factual overlap from your TaskNexus profile and permitted Project proof. This is not a score or eligibility decision.",
     });
+  });
+  test("keeps personalized eligibility without adding proof to a non-candidate detail", () => {
+    const eligibility = { result: "unknown" };
+    const dto = opportunityCandidateDto({ ...role().toObject(), id: IDS.opportunity }, { detail: true, includeCandidate: true, eligibility });
+    expect(dto.eligibility).toBe(eligibility);
+    expect(dto).not.toHaveProperty("relevant_proof");
   });
   test("does not add proof decoration to authenticated catalog DTOs", () => {
     const dto = opportunityCandidateDto({ ...role().toObject(), id: IDS.opportunity }, { includeCandidate: true, detail: false });

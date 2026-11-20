@@ -195,7 +195,7 @@ const opportunityInput = async (input, { partial = false, session = null } = {})
 const isOpen = (row, now = new Date()) => row.status === "published" && (!row.application_deadline || new Date(row.application_deadline) > now) && (!row.expires_at || new Date(row.expires_at) > now);
 const openFilter = (now = new Date()) => ({ status: "published", $and: mongoose.trusted([{ $or: [{ application_deadline: null }, { application_deadline: mongoose.trusted({ $gt: now }) }] }, { $or: [{ expires_at: null }, { expires_at: mongoose.trusted({ $gt: now }) }] }]) });
 
-const loadDecoration = async (opportunities, actorId = null, { detail = false } = {}) => {
+const loadDecoration = async (opportunities, actorId = null, { detail = false, includeRelevantProof = false } = {}) => {
   const ids = opportunities.map((row) => row.id); const orgIds = [...new Set(opportunities.map((row) => row.organization_id))];
   const skillIds = [...new Set(opportunities.flatMap((row) => [...(row.required_skill_ids || []), ...(row.preferred_skill_ids || [])]))];
   const [organizations, skills, states, nativeApplications, candidate, relevantProofRows] = await Promise.all([
@@ -203,7 +203,7 @@ const loadDecoration = async (opportunities, actorId = null, { detail = false } 
     actorId ? OpportunityCandidateState.find({ user_id: actorId, opportunity_id: trustedIn(ids) }).lean() : [],
     actorId ? NativeApplication.find({ candidate_id: actorId, opportunity_id: trustedIn(ids) }).select("_id opportunity_id stage submitted_at withdrawn_at revision").lean() : [],
     actorId ? loadCandidateContext(actorId) : null,
-    detail && actorId ? Promise.all(opportunities.map((row) => listOpportunityRelevantProof(actorId, row))) : [],
+    detail && actorId && includeRelevantProof ? Promise.all(opportunities.map((row) => listOpportunityRelevantProof(actorId, row))) : [],
   ]);
   const orgMap = new Map(toApps(organizations).map((row) => [row.id, row])); const stateMap = new Map(toApps(states).map((row) => [row.opportunity_id, row]));
   const nativeMap = new Map(toApps(nativeApplications).map((row) => [row.opportunity_id, row]));
@@ -295,7 +295,10 @@ const getOpportunity = async (slug, actorId = null, actorRole = null) => {
   let state = null; if (actorId) state = toApp(await OpportunityCandidateState.findOne({ user_id: actorId, opportunity_id: row.id }).lean());
   const membership = actorId ? await OrganizationMembership.exists({ organization_id: row.organization_id, user_id: actorId, status: "active" }) : null;
   if (row.status !== "published" && actorRole !== "admin" && !membership && !state?.application_status && !state?.saved) throw errors.notFound("Opportunity not found");
-  const [result] = await loadDecoration([row], actorId, { detail: true }); return actorRole === "admin" || membership ? { ...result, revision: row.revision } : result;
+  const [result] = await loadDecoration([row], actorId, {
+    detail: true, includeRelevantProof: actorRole === "freelancer" && !membership,
+  });
+  return actorRole === "admin" || membership ? { ...result, revision: row.revision } : result;
 };
 
 const createManagedOpportunity = async (organizationId, actorId, input) => {

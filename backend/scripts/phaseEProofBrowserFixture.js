@@ -24,6 +24,7 @@ const password = `Tn-PhaseE-QA-${randomBytes(18).toString("base64url")}9aA!`;
 const emails = Object.freeze({
   candidate: `${marker}-candidate@example.invalid`,
   other: `${marker}-other@example.invalid`,
+  recruiter: `${marker}-recruiter@example.invalid`,
 });
 const slugs = Object.freeze({
   skill: `${marker}-skill`, team: `${marker}-team`, project: `${marker}-project`,
@@ -99,7 +100,7 @@ const createUser = async (label) => {
 const setup = async () => {
   await cleanup();
   const ids = {
-    candidate: await createUser("candidate"), other: await createUser("other"),
+    candidate: await createUser("candidate"), other: await createUser("other"), recruiter: await createUser("recruiter"),
     skill: randomUUID(), team: randomUUID(), project: randomUUID(), showcase: randomUUID(),
     organization: randomUUID(), opportunity: randomUUID(), evidence: [randomUUID(), randomUUID()],
   };
@@ -114,7 +115,8 @@ const setup = async () => {
     { _id: ids.evidence[0], team_id: ids.team, project_id: ids.project, user_id: ids.candidate, created_by: ids.candidate, evidence_type: "project_participation", verification_level: "internal_verified", status: "active", origin: "system", title: "TaskNexus participation", source_key: `${marker}:internal`, occurred_at: new Date("2026-10-02T00:00:00.000Z"), public_safe: true },
     { _id: ids.evidence[1], team_id: ids.team, project_id: ids.project, user_id: ids.candidate, created_by: ids.candidate, evidence_type: "github_pull_request", verification_level: "external_verified", status: "active", origin: "user", title: "Browser fixture pull request", source_key: `${marker}:external`, source_url: "https://github.com/octocat/Hello-World/pull/1347", occurred_at: new Date("2026-10-01T00:00:00.000Z"), public_safe: true },
   ]);
-  await models.Organization.create({ _id: ids.organization, name: "Phase E Browser Organization", slug: slugs.organization, organization_type: "startup", status: "active", management_mode: "platform_managed", created_by: ids.candidate });
+  await models.Organization.create({ _id: ids.organization, name: "Phase E Browser Organization", slug: slugs.organization, organization_type: "startup", status: "active", management_mode: "organization_managed", owner_id: ids.recruiter, created_by: ids.recruiter });
+  await models.OrganizationMembership.create({ _id: randomUUID(), organization_id: ids.organization, user_id: ids.recruiter, role: "owner", status: "active" });
   await models.Opportunity.create({
     _id: ids.opportunity, organization_id: ids.organization, type: "internship", title: "Phase E Browser Opportunity",
     slug: slugs.opportunity, summary: "Inspect factual Project overlap.", description: "A disposable browser acceptance role.",
@@ -174,13 +176,15 @@ const stopServers = async () => {
 const trackProblems = (page) => {
   const consoleProblems = [];
   const networkProblems = [];
+  const authProbePath = (url) => /\/api\/auth\/(?:me|refresh)$/.test(url);
   page.on("console", (message) => {
+    if (authProbePath(message.location().url) && /status of 401\b/.test(message.text())) return;
     if (["warning", "error"].includes(message.type())) consoleProblems.push(`${message.type()}: ${message.text()}`);
   });
   page.on("pageerror", (error) => consoleProblems.push(`pageerror: ${error.message}`));
   page.on("response", (response) => {
     const url = new URL(response.url());
-    const expectedAuthProbe = response.status() === 401 && ["/api/auth/me", "/api/auth/refresh"].some((pathname) => url.pathname.endsWith(pathname));
+    const expectedAuthProbe = response.status() === 401 && authProbePath(url.pathname);
     if (response.status() >= 400 && !expectedAuthProbe) networkProblems.push(`${response.status()} ${url.pathname}`);
   });
   return { consoleProblems, networkProblems };
@@ -208,10 +212,17 @@ const verifyPublicProfile = async (browser) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${FRONTEND_ORIGIN}/u/${marker}-candidate`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Skills connected to published work" }).waitFor();
-    await page.getByText("Canonical browser Project", { exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Canonical browser Project", level: 4 }).waitFor();
     assert.equal(await page.getByRole("link", { name: "View Project proof" }).getAttribute("href"), `/showcase/${slugs.team}/${slugs.project}`);
     assert.equal((await page.locator("body").innerText()).toLowerCase().includes("candidate rank"), false);
     await assertNoOverflow(page, `public profile at ${width}px`);
+    await page.getByRole("link", { name: "View Project proof" }).click();
+    await page.getByRole("heading", { name: "Canonical browser proof", level: 1 }).waitFor();
+    await assertNoOverflow(page, `public showcase at ${width}px`);
+    await page.goto(`${FRONTEND_ORIGIN}/teams/${slugs.team}/projects/${slugs.project}`, { waitUntil: "networkidle" });
+    const showcaseLink = page.getByRole("link", { name: "View published showcase" });
+    assert.equal(await showcaseLink.getAttribute("href"), `/showcase/${slugs.team}/${slugs.project}`);
+    await assertNoOverflow(page, `public project at ${width}px`);
   }
   assert.deepEqual(problems.consoleProblems, [], `public profile console problems: ${problems.consoleProblems.join(" | ")}`);
   assert.deepEqual(problems.networkProblems, [], `public profile network problems: ${problems.networkProblems.join(" | ")}`);
@@ -226,7 +237,7 @@ const verifyCandidateFlow = async (browser, ids) => {
   const opportunityUrl = `${FRONTEND_ORIGIN}/opportunities/${slugs.opportunity}`;
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto(opportunityUrl, { waitUntil: "networkidle" });
+    await page.goto(opportunityUrl, { waitUntil: "domcontentloaded" });
     await page.getByRole("heading", { name: "Relevant proof from your Projects" }).waitFor();
     await page.getByText("Canonical browser Project", { exact: true }).waitFor();
     await assertNoOverflow(page, `Opportunity at ${width}px`);
@@ -245,9 +256,11 @@ const verifyCandidateFlow = async (browser, ids) => {
 
   await page.getByRole("button", { name: "Apply with TaskNexus" }).click();
   const projectChoice = page.getByRole("checkbox", { name: /Canonical browser Project/ });
-  await projectChoice.check();
+  await projectChoice.focus();
+  await projectChoice.press("Space");
+  assert.equal(await projectChoice.evaluate((node) => node === document.activeElement), true, "choosing a Project must retain keyboard focus");
   await page.getByText(/Select at least one evidence item for each selected Project/).waitFor();
-  const evidenceChoice = page.getByRole("checkbox", { name: /TaskNexus participation/ });
+  const evidenceChoice = page.getByRole("checkbox", { name: /Joined the project/ });
   await evidenceChoice.check();
   const consent = page.getByRole("checkbox", { name: /I consent to share/ });
   await consent.check();
@@ -256,7 +269,7 @@ const verifyCandidateFlow = async (browser, ids) => {
   await projectChoice.uncheck();
   await page.getByText("0/5 Projects and 0/12 evidence items selected.").waitFor();
   await projectChoice.check();
-  await page.getByRole("checkbox", { name: /TaskNexus participation/ }).check();
+  await evidenceChoice.check();
   const submittedResponse = page.waitForResponse((response) => response.request().method() === "POST" && /\/api\/opportunities\/.+\/applications$/.test(new URL(response.url()).pathname));
   await submit.click();
   assert.equal((await submittedResponse).status(), 201);
@@ -267,7 +280,7 @@ const verifyCandidateFlow = async (browser, ids) => {
   const immutableSnapshot = JSON.stringify(application.submitted_profile_snapshot);
   await models.UserProfile.updateOne({ _id: ids.candidate }, { $set: { headline: "Changed after browser submission" } });
   await models.ContributionEvidence.updateMany({ project_id: ids.project }, { $set: { status: "revoked", revoked_at: new Date() } });
-  await page.goto(`${FRONTEND_ORIGIN}/applications`, { waitUntil: "networkidle" });
+  await page.goto(`${FRONTEND_ORIGIN}/applications`, { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "View application" }).click();
   const details = page.getByRole("dialog", { name: "Phase E Browser Opportunity" });
   await details.waitFor();
@@ -287,10 +300,10 @@ const verifyOtherCandidateIsolation = async (browser) => {
   const page = await context.newPage();
   const problems = trackProblems(page);
   await login(page, "other");
-  await page.goto(`${FRONTEND_ORIGIN}/opportunities/${slugs.opportunity}`, { waitUntil: "networkidle" });
+  await page.goto(`${FRONTEND_ORIGIN}/opportunities/${slugs.opportunity}`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Relevant proof from your Projects" }).waitFor();
-  await page.getByText("No factual Project proof overlaps the required skills yet.").waitFor();
-  await page.goto(`${FRONTEND_ORIGIN}/applications`, { waitUntil: "networkidle" });
+  await page.getByText(/No factual Project proof currently overlaps/).waitFor();
+  await page.goto(`${FRONTEND_ORIGIN}/applications`, { waitUntil: "domcontentloaded" });
   await page.getByText("No TaskNexus applications yet").waitFor();
   assert.deepEqual(problems.consoleProblems, [], `isolation console problems: ${problems.consoleProblems.join(" | ")}`);
   assert.deepEqual(problems.networkProblems, [], `isolation network problems: ${problems.networkProblems.join(" | ")}`);
@@ -325,9 +338,12 @@ const run = async () => {
     if (mode !== "qa") throw new Error("Use qa or cleanup mode");
     await runQa();
   } finally {
-    await stopServers();
-    await cleanup();
-    await disconnectDatabase();
+    try {
+      await stopServers();
+      await cleanup();
+    } finally {
+      await disconnectDatabase();
+    }
   }
 };
 

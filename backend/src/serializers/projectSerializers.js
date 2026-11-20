@@ -28,6 +28,7 @@ const projectDetail = (project, context = {}) => ({
   completed_at: project.completed_at || null,
   repository_url: project.repository_url || null,
   demo_url: project.demo_url || null,
+  showcase_path: context.showcasePath || null,
   created_by: context.createdBy || null,
   participants: context.participants || [],
 });

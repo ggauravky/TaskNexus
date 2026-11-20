@@ -19,6 +19,7 @@ const query = (rows) => {
     sort: jest.fn(() => chain),
     limit: jest.fn(() => chain),
     session: jest.fn(() => chain),
+    hint: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(rows),
   };
   return chain;
@@ -57,7 +58,9 @@ const arrange = ({
   mockModels.UserProfile.exists.mockResolvedValue(profile ? { _id: "profile-1" } : null);
   mockModels.UserSkill.find.mockReturnValue(query(userSkills));
   mockModels.ProjectParticipant.find.mockReturnValue(query(participants));
-  mockModels.Project.find.mockReturnValue(query(projects));
+  mockModels.Project.find.mockImplementation((filter) => query(filter.skill_ids
+    ? projects.filter((project) => project.skill_ids.some((id) => filter.skill_ids.$in.includes(id)))
+    : projects));
   mockModels.Team.find.mockReturnValue(query(teams));
   mockModels.ProjectShowcase.find.mockReturnValue(query(showcases));
   mockModels.Skill.find.mockReturnValue(query(skills));
@@ -68,6 +71,23 @@ describe("professional proof visibility service", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     arrange();
+  });
+
+  test("rejects a selected project when the candidate selected no evidence", async () => {
+    mockModels.ContributionEvidence.find.mockReturnValue(query([baseEvidence()]));
+    await expect(service.loadSelectedApplicationProof("user-1", ["project-1"], []))
+      .rejects.toThrow(/select.*evidence/i);
+  });
+
+  test("requires an explicitly selected item for each selected project", async () => {
+    arrange({
+      participants: [{ project_id: "project-1" }, { project_id: "project-2" }],
+      projects: [{ id: "project-1", team_id: "team-1" }, { id: "project-2", team_id: "team-1" }],
+    });
+    mockModels.ContributionEvidence.find.mockImplementation((filter) => query(filter._id
+      ? [baseEvidence()] : [baseEvidence(), baseEvidence({ id: "evidence-2", project_id: "project-2" })]));
+    await expect(service.loadSelectedApplicationProof("user-1", ["project-1", "project-2"], ["evidence-1"]))
+      .rejects.toThrow(/select.*evidence/i);
   });
 
   test("publishes only canonical skill overlap with strict profile proof ancestry", async () => {
@@ -127,6 +147,22 @@ describe("professional proof visibility service", () => {
     }));
   });
 
+  test.each(["Opportunity", "public profile"])("unrelated Projects cannot fill the %s proof preview", async (surface) => {
+    const projects = Array.from({ length: 13 }, (_, index) => ({
+      id: `project-${index}`, team_id: "team-1", name: `Project ${index}`, slug: `project-${index}`,
+      skill_ids: [index === 0 ? "skill-react" : "skill-node"], completed_at: new Date(Date.UTC(2026, 9, index + 1)),
+    }));
+    arrange({
+      projects, participants: projects.map((project) => ({ project_id: project.id })),
+      showcases: projects.map(({ id }) => ({ project_id: id, status: "published" })),
+      evidenceGroups: projects.map(({ id }) => evidenceGroup(id, [baseEvidence({ project_id: id })])),
+    });
+    const connections = surface === "Opportunity"
+      ? (await service.listOpportunityRelevantProof("user-1", { required_skill_ids: ["skill-react"] })).required_skills
+      : await service.listPublicProfileConnections("user-1");
+    expect(connections[0]?.projects.map((project) => project.id)).toEqual(["project-0"]);
+  });
+
   test("applies deterministic Project ordering and all response caps", async () => {
     const projects = Array.from({ length: 14 }, (_, index) => ({
       id: `project-${String(index + 1).padStart(2, "0")}`,
@@ -149,6 +185,9 @@ describe("professional proof visibility service", () => {
 
   test("hasPublicProfileProof delegates to the same strict policy", async () => {
     await expect(service.hasPublicProfileProof("user-1")).resolves.toBe(true);
+    arrange({ userSkills: [] });
+    await expect(service.hasPublicProfileProof("user-1")).resolves.toBe(true);
+    await expect(service.listPublicProfileConnections("user-1")).resolves.toEqual([]);
     arrange({ showcases: [] });
     await expect(service.hasPublicProfileProof("user-1")).resolves.toBe(false);
   });

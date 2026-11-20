@@ -10,7 +10,10 @@ exports.updateOrganization = action(async (req, res) => sendSuccess(res, { data:
 exports.verifyOrganization = action(async (req, res) => sendSuccess(res, { data: await service.verifyOrganization(req.params.id, req.userId, req.body), message: "Organization verification updated" }));
 
 exports.listOpportunities = action(async (req, res) => { const result = await service.listOpportunities(req.query, req.userId); return sendSuccess(res, { data: result.items, meta: result.meta }); });
-exports.opportunityDetail = action(async (req, res) => sendSuccess(res, { data: await service.getOpportunity(req.params.slug, req.userId, req.userRole) }));
+exports.opportunityDetail = action(async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  return sendSuccess(res, { data: await service.getOpportunity(req.params.slug, req.userId, req.userRole) });
+});
 exports.createOpportunity = action(async (req, res) => sendSuccess(res, { status: 201, data: await service.createOpportunity(req.userId, req.body), message: "Opportunity created as a draft" }));
 exports.updateOpportunity = action(async (req, res) => sendSuccess(res, { data: await service.updateOpportunity(req.params.id, req.userId, req.body), message: "Opportunity updated" }));
 exports.publishOpportunity = action(async (req, res) => sendSuccess(res, { data: await service.publishOpportunity(req.params.id, req.userId, req.body), message: "Opportunity published" }));
