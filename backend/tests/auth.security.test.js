@@ -1,4 +1,5 @@
 const request = require("supertest");
+const { createHash } = require("node:crypto");
 
 process.env.NODE_ENV = "test";
 process.env.JWT_ACCESS_SECRET = "phase0-test-access-secret";
@@ -13,6 +14,7 @@ jest.mock("../src/data/userData", () => ({
   findUserById: jest.fn(),
   findUsers: jest.fn(),
   updateUser: jest.fn(),
+  replaceRefreshToken: jest.fn(),
   comparePassword: jest.fn(),
 }));
 jest.mock("../src/data/auditLogData", () => ({
@@ -44,6 +46,12 @@ describe("Phase 0 authentication and authorization baseline", () => {
     userData.findUserById.mockImplementation(async (id) =>
       users.find((user) => user.id === id) || null,
     );
+    userData.replaceRefreshToken.mockImplementation(async (id, expected, replacement) => {
+      const user = users.find((candidate) => candidate.id === id && candidate.status === "active" && candidate.refresh_token === expected);
+      if (!user) return false;
+      user.refresh_token = replacement;
+      return true;
+    });
     userData.createUser.mockImplementation(async ({ email, password, role, profile: userProfile }) => {
       const user = {
         id: `00000000-0000-4000-8000-${String(nextId++).padStart(12, "0")}`,
@@ -204,10 +212,29 @@ describe("Phase 0 authentication and authorization baseline", () => {
       .set("Cookie", [`refreshToken=${originalRefreshToken}`]);
     expect(response.status).toBe(200);
     expect(response.body.data.accessToken).toEqual(expect.any(String));
-    const tokenUpdates = userData.updateUser.mock.calls.filter(
-      ([, updates]) => typeof updates.refresh_token === "string",
-    );
-    expect(tokenUpdates.at(-1)[1].refresh_token).not.toBe(originalRefreshDigest);
+    const rotatedCookie = response.headers["set-cookie"][0].match(/^refreshToken=([^;]+)/)[1];
+    expect(users[0].refresh_token).toBe(createHash("sha256").update(rotatedCookie).digest("hex"));
+    expect(users[0].refresh_token).not.toBe(originalRefreshDigest);
+  });
+
+  test("only one refresh wins when two requests have read the same session digest", async () => {
+    const id = "00000000-0000-4000-8000-000000000016";
+    const token = require("../src/config/jwt").generateRefreshToken(id, "freelancer");
+    const user = { id, role: "freelancer", status: "active", refresh_token: createHash("sha256").update(token).digest("hex") };
+    users.push(user);
+    let release;
+    const bothRead = new Promise((resolve) => { release = resolve; });
+    let reads = 0;
+    userData.findUserById.mockImplementation(async () => {
+      const snapshot = { ...user };
+      if (++reads === 2) release();
+      await bothRead;
+      return snapshot;
+    });
+    const refresh = () => request(app).post("/api/auth/refresh").set("Cookie", [`refreshToken=${token}`]);
+    const results = await Promise.all([refresh(), refresh()]);
+    expect(results.map(({ status }) => status).sort()).toEqual([200, 401]);
+    expect(results.find(({ status }) => status === 401).headers["set-cookie"]).toBeUndefined();
   });
 
   test("invalid refresh token is rejected", async () => {

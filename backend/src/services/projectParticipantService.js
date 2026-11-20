@@ -18,7 +18,7 @@ const listParticipants = async (projectId, userId, query) => {
   const context = await authz.getContext(projectId, userId);
   authz.requireVisible(context);
   const options = parseListQuery(query, { allowedSorts: ["joined_at"], defaultLimit: 30, maxLimit: 50 });
-  const result = await projectData.listParticipants(projectId, options);
+  const result = await projectData.listParticipants(projectId, { ...options, publicOnly: !context.membership });
   const profiles = await teamData.profileSummaries(result.items.map((item) => item.user_id), { publicOnly: true });
   return { items: result.items.map((item) => participantDto(item, profiles.get(item.user_id))), meta: paginationMeta(result) };
 };

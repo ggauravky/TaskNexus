@@ -1,24 +1,9 @@
 let mockPersistedSubmission;
 
 const mockSubmissionData = {
-  findSubmissionById: jest.fn(async () => ({
-    ...mockPersistedSubmission,
-    task: {
-      id: "11111111-1111-4111-8111-111111111111",
-      client_id: "22222222-2222-4222-8222-222222222222",
-      freelancer_id: "33333333-3333-4333-8333-333333333333",
-      status: "delivered",
-      task_details: { title: "Delivery task", revisionLimit: 2 },
-    },
-  })),
-  getRevisionCount: jest.fn(async () => 0),
-  updateSubmission: jest.fn(async (_id, updates) => {
-    mockPersistedSubmission = { ...mockPersistedSubmission, ...updates };
-    return { ...mockPersistedSubmission };
-  }),
+  reviewSubmissionAtomically: jest.fn(),
 };
-const mockTaskService = { transitionTo: jest.fn(async () => undefined) };
-const mockNotificationService = { create: jest.fn(async () => undefined) };
+const mockNotificationService = { publishCreated: jest.fn() };
 const mockAuditLogData = { log: jest.fn(async () => undefined) };
 const mockRealtimeHub = { publish: jest.fn(), publishToUser: jest.fn() };
 
@@ -30,7 +15,6 @@ jest.mock("../src/data/auditLogData", () => mockAuditLogData);
 jest.mock("../src/data/userData", () => ({}));
 jest.mock("../src/utils/logger", () => ({ info: jest.fn(), error: jest.fn() }));
 jest.mock("../src/services/notificationService", () => mockNotificationService);
-jest.mock("../src/services/taskService", () => mockTaskService);
 jest.mock("../src/services/realtimeHub", () => mockRealtimeHub);
 
 const clientController = require("../src/controllers/clientController");
@@ -54,6 +38,19 @@ describe("client submission review", () => {
   });
 
   test("requesting a revision keeps the submission active for freelancer resubmission", async () => {
+    const task = {
+      id: "11111111-1111-4111-8111-111111111111",
+      client_id: "22222222-2222-4222-8222-222222222222",
+      freelancer_id: mockPersistedSubmission.freelancer_id,
+      status: "client_revision",
+      task_details: { title: "Delivery task" },
+    };
+    const submission = {
+      ...mockPersistedSubmission,
+      client_review: { status: "revision_requested", feedback: "Please add the QA summary." },
+    };
+    const notification = { recipient_id: submission.freelancer_id, type: "revision_requested" };
+    mockSubmissionData.reviewSubmissionAtomically.mockResolvedValue({ task, submission, notification });
     const req = {
       params: { id: mockPersistedSubmission.id },
       user: { id: "22222222-2222-4222-8222-222222222222" },
@@ -67,10 +64,13 @@ describe("client submission review", () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(mockPersistedSubmission.is_active).toBe(true);
-    expect(mockPersistedSubmission.client_review).toMatchObject({
-      status: "revision_requested",
-      feedback: "Please add the QA summary.",
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      data: { ...submission, task },
+    }));
+    expect(mockNotificationService.publishCreated).toHaveBeenCalledWith(notification);
+    expect(mockSubmissionData.reviewSubmissionAtomically).toHaveBeenCalledWith({
+      submissionId: submission.id, clientId: task.client_id, action: "request_revision",
+      feedback: "Please add the QA summary.", ip: "127.0.0.1",
     });
   });
 });

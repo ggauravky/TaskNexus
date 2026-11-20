@@ -2,11 +2,9 @@ const taskData = require("../data/taskData");
 const reviewData = require("../data/reviewData");
 const submissionData = require("../data/submissionData");
 const paymentData = require("../data/paymentData");
-const auditLogData = require("../data/auditLogData");
 const userData = require("../data/userData");
 const logger = require("../utils/logger");
 const NotificationService = require("../services/notificationService");
-const taskService = require("../services/taskService");
 const onboardingService = require("../services/onboardingService");
 const { TASK_STATUS, PAYMENT_STATUS } = require("../config/constants");
 const realtimeHub = require("../services/realtimeHub");
@@ -33,9 +31,10 @@ exports.getDashboard = async (req, res, next) => {
   try {
     const clientId = req.user.id;
 
-    const [allTasks, payments] = await Promise.all([
-      taskData.findTasks({ client_id: clientId }),
-      paymentData.findPayments({ client_id: clientId }),
+    const owner = { client_id: clientId };
+    const [allTasks, paymentSummary] = await Promise.all([
+      taskData.findDashboardTaskFacts(owner),
+      paymentData.summarizeClientPayments(clientId),
     ]);
     const onboarding = await onboardingService.getClientOnboarding({ user: req.user, tasks: allTasks });
 
@@ -58,9 +57,7 @@ exports.getDashboard = async (req, res, next) => {
     ).length;
     const pendingReview = allTasks.filter((task) => task.status === TASK_STATUS.DELIVERED).length;
 
-    const totalSpent = payments
-      .filter((payment) => payment.status === PAYMENT_STATUS.RELEASED)
-      .reduce((sum, payment) => sum + (payment.amounts?.taskBudget || 0), 0);
+    const totalSpent = paymentSummary.released;
 
     const completedWithWorkflow = allTasks.filter(
       (task) =>
@@ -86,8 +83,8 @@ exports.getDashboard = async (req, res, next) => {
           );
 
     const byUpdatedAt = (left, right) => new Date(right.updated_at || 0) - new Date(left.updated_at || 0);
-    const recentTasks = await decorateTasks([...allTasks].sort(byUpdatedAt).slice(0, 5));
-    const attentionTasks = await decorateTasks(allTasks
+    const recentFacts = [...allTasks].sort(byUpdatedAt).slice(0, 5);
+    const attentionFacts = allTasks
       .filter((task) => {
         if (task.status === TASK_STATUS.DELIVERED) return true;
         if (![TASK_STATUS.ASSIGNED, TASK_STATUS.IN_PROGRESS, TASK_STATUS.CLIENT_REVISION].includes(task.status)) return false;
@@ -95,7 +92,9 @@ exports.getDashboard = async (req, res, next) => {
         return Number.isFinite(deadline) && deadline < Date.now();
       })
       .sort(byUpdatedAt)
-      .slice(0, 5));
+      .slice(0, 5);
+    const [recentCards, attentionCards] = await taskData.loadDashboardTaskCards(owner, recentFacts, attentionFacts);
+    const [recentTasks, attentionTasks] = await Promise.all([decorateTasks(recentCards), decorateTasks(attentionCards)]);
 
     res.status(200).json({
       success: true,
@@ -293,152 +292,31 @@ exports.reviewSubmission = async (req, res, next) => {
       });
     }
 
-    const submission = await submissionData.findSubmissionById(req.params.id);
-
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        message: "Submission not found",
-      });
-    }
-
-    const task = submission.task;
-
-    if (task.client_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to review this submission",
-      });
-    }
-
-    if (submission.client_review.status !== "pending") {
-      return res.status(400).json({
-        success: false,
-        message: "Submission has already been reviewed",
-      });
-    }
-
-    if (task.status !== TASK_STATUS.DELIVERED) {
-      return res.status(400).json({
-        success: false,
-        message: "Task is not in delivered status",
-      });
-    }
-
-    if (action === "approve") {
-      await submissionData.updateSubmission(submission.id, {
-        client_review: {
-          status: "approved",
-          reviewedAt: new Date(),
-          feedback: feedback || "",
-        },
-      });
-
-      await taskService.transitionTo(task.id, TASK_STATUS.COMPLETED);
-
-      const taskBudget = task.task_details.budget;
-      const platformCommission = 15;
-      const platformFee = (taskBudget * platformCommission) / 100;
-      const freelancerPayout = taskBudget - platformFee;
-
-      await paymentData.createPayment({
-        task_id: task.id,
-        client_id: req.user.id,
-        freelancer_id: task.freelancer_id,
-        amounts: {
-          taskBudget,
-          platformCommission,
-          platformFee,
-          freelancerPayout,
-        },
-        status: PAYMENT_STATUS.ESCROWED,
-        escrow: {
-          heldAt: new Date(),
-        },
-      });
-
-      realtimeHub.publish({
-        users: [task.client_id, task.freelancer_id].filter(Boolean),
-        event: "task.status_changed",
-        payload: {
-          taskId: task.id,
-          status: TASK_STATUS.COMPLETED,
-        },
-      });
-      realtimeHub.publishToUser(task.freelancer_id, "payout.new", {
-        taskId: task.id,
-        status: PAYMENT_STATUS.ESCROWED,
-      });
-
-      await NotificationService.create({
-        recipient_id: submission.freelancer_id,
-        type: "submission_approved",
-        content: {
-            title: "Submission Approved",
-            message: `Your submission for task "${task.task_details.title}" has been approved!`,
-        },
-        related_task_id: task.id,
-      });
-
-      logger.info(`Submission approved: ${submission.id}`);
-    } else if (action === "request_revision") {
-      const revisionCount = await submissionData.getRevisionCount(task.id);
-      const revisionLimit = Number(task.task_details.revisionLimit || 2);
-
-      if (Number(revisionCount || 0) >= revisionLimit) {
-        return res.status(400).json({
-          success: false,
-          message: "Revision limit exceeded for this task",
-        });
-      }
-
-      await submissionData.updateSubmission(submission.id, {
-        client_review: {
-          status: "revision_requested",
-          reviewedAt: new Date(),
-          feedback: revisionRequested || feedback || "",
-        },
-      });
-
-      await taskService.transitionTo(task.id, TASK_STATUS.CLIENT_REVISION);
-
-      await NotificationService.create({
-        recipient_id: submission.freelancer_id,
-        type: "revision_requested",
-        content: {
-            title: "Revision Requested",
-            message: `Client has requested revisions for task "${task.task_details.title}"`,
-        },
-        related_task_id: task.id,
-      });
-
-      logger.info(`Revision requested: ${submission.id}`);
-
-      realtimeHub.publish({
-        users: [task.client_id, task.freelancer_id].filter(Boolean),
-        event: "task.status_changed",
-        payload: {
-          taskId: task.id,
-          status: TASK_STATUS.CLIENT_REVISION,
-        },
-      });
-    }
-
-    await auditLogData.log({
-      user_id: req.user.id,
-      action: `submission_${action}`,
-      resource: "submission",
-      resource_id: submission.id,
-      changes: { taskId: task.id, feedback, action },
-      ip_address: req.ip,
+    const approve = action === "approve";
+    const { task, submission, notification } = await submissionData.reviewSubmissionAtomically({
+      submissionId: req.params.id, clientId: req.user.id, action,
+      feedback: approve ? feedback || "" : revisionRequested || feedback || "",
+      ip: req.ip,
     });
+
+    realtimeHub.publish({
+      users: [task.client_id, task.freelancer_id].filter(Boolean),
+      event: "task.status_changed",
+      payload: { taskId: task.id, status: task.status },
+    });
+    if (approve) {
+      realtimeHub.publishToUser(task.freelancer_id, "payout.new", {
+        taskId: task.id, status: PAYMENT_STATUS.ESCROWED,
+      });
+    }
+    NotificationService.publishCreated(notification);
 
     res.status(200).json({
       success: true,
       message: `Submission ${
         action === "approve" ? "approved" : "revision requested"
       } successfully`,
-      data: submission,
+      data: { ...submission, task },
     });
   } catch (error) {
     logger.error("Error reviewing submission:", error);

@@ -1,0 +1,43 @@
+# TaskNexus V2 — Phase F4 release readiness
+
+**Production readiness NO. Release not authorized.** This report covers repository-side and local evidence. Production and hosted staging were outside the approved execution scope.
+
+## Repository controls
+
+- `npm run verify:launch` now includes the frontend Node test suite through `npm run verify`. Frontend declares a cross-platform `npm test` entry point. The secondary GitHub verification workflow now uses the same Node floor, read-only repository permissions and high-severity production audits. Existing workflow names and hosted deployment settings were left in place.
+- The launch verifier identifies the checked-in historical synthetic scale artifact as an artifact contract. The old scale runner was deliberately skipped because it drops a fixed database on the configured host and overwrites tracked results. Use the guarded dashboard benchmark for fresh local measurements. Harden or retire the legacy runner before offering it to general operators.
+- A full dependency audit found secondary dev/build advisories after the F2 production audit. F4 updated brace-expansion to 1.1.22 on both sides and frontend Vite to 8.3.8, postcss through its compatible 8.5 line, postcss-selector-parser to 6.1.6 and source-map-js to 1.2.4. No dependency major was changed.
+- Build/config evidence covers React/Vite output, API origin, JSON-LD CSP hashes, Render source readiness path, GridFS/SMTP production validation, and environment guards. Repository Render config currently declares automatic deployment. Verify actual branch protection, check names and hosted deployment trigger independently before merging any release commit. Do not infer live settings from this file.
+- Structured request IDs, latency logs, safe error responses, liveness and database readiness are present. Locally checked readiness across connection state changes. Hosted metric aggregation, cold starts, pool saturation, SSE retention and alert delivery are separate verification.
+
+## Golden paths and evidence
+
+| Journey | Local decision and limits |
+|---|---|
+| Client and freelancer | Core marketplace API PASS: create, administrator moderation, accept, start, progress, deliver, request revision, one winning resubmission, revision cap, approval and recorded internal escrow. Browser onboarding PASS. Full signup/email verification through delivery is PARTIAL: separate registration/auth tests passed, fixture used synthetic accounts, and no mailbox verification route was found. |
+| Team and Project | Local API/Integration PASS for invitations, assignment/status, contributions/showcase, ownership/revocation, and search privacy. Full manual browser journey PARTIAL. |
+| Candidate | Local API and Phase E browser PASS for public proof, candidate overlap, deliberate selection, application submission, unchanged snapshot, and other-candidate isolation. |
+| Organization/recruiter | Local API PASS for authorized publishing, review, stage/withdraw races and cross-organization denial. Complete recruiter browser journey PARTIAL. |
+| Administrator | Local API PASS for moderation, role denial, task/user lists, audit access and internal dispute resolution. Search and onboarding-exclusion browser checks PASS. Complete admin browser journey PARTIAL. |
+| Responsive | Phase C/D/E browser fixtures passed at 320, 375, 390, 430, 768, 1024 and 1440 px where applicable. Evidence covers the scripted flows, keyboard/focus and privacy. Full cross-role browser replay and hosted device/HTTPS checks remain unverified. |
+
+MongoDB integration, the HTTP API suite, the Team/Project/contribution/Discovery/Hackathon/Opportunity/Organization suites, Phase E proof, F2 marketplace and GridFS verifiers passed using a disposable loopback replica set. The database verifier passed all 45 collections after the integration fixtures initialized indexes. The first check against an empty database reported missing indexes. Local health probes returned liveness 200 while disconnected and readiness 503 → 200 → 503 with `Cache-Control: no-store`. SMTP template/config verification used disabled delivery.
+
+The final `npm run verify:launch` passed on Node 24.22.1 with both linters, 49 backend suites and 385 tests, 50 frontend tests, the Vite production build and frontend config validator, seven backend production checks, four launch checks, and a source scan of 469 files. Vite reported a 616.19 kB minified entry chunk (155.05 kB gzip). Full and production-only npm audits each reported zero known vulnerabilities in both packages. All three Chromium fixtures were rerun successfully after the final dependency updates.
+
+## External release blockers and operator checklist
+
+1. **Credential rotation and access review.** Treat the historically exposed classes as potentially active. An authorized operator should rotate the MongoDB user credential, SMTP credential, and both JWT signing keys using separate environment stores, verify the old credentials fail, and review access logs with values redacted. Plan a reauthentication window for invalidated JWTs, coordinate the access and refresh key change, and confirm that suspended accounts and old sessions remain blocked. Do not paste keys or command outputs containing them.
+2. **Hosting and environment isolation.** An authorized reviewer should verify protected release branch and required workflow checks, deployment provenance/trigger, secret scopes, Render start/readiness and proxy hops, Vercel origin/CSP, and Atlas isolation/access lists. Record frontend and backend revision IDs and sanitized configuration evidence.
+3. **Backup and restore.** Obtain backup/PITR policy, retention and a recent successful snapshot from the Atlas operator. Use a separately approved isolated restore target. Verify recovery timestamp, duration, critical relationships and indexes, and paired GridFS metadata/chunks with a sampled content hash. Record measured RPO/RTO against the existing proposed 15 min / 4 h objectives. No hosted restore was performed. See [backup runbook](BACKUP_RESTORE.md).
+4. **Monitoring and operator ownership.** Name a primary, backup and privacy operator. Verify liveness and readiness monitor delivery, 5xx/latency, Atlas capacity/connections, SMTP/GitHub errors and escalation with a safe test alert. Exercise a synthetic privacy request under the approved runbook and document response/retention responsibilities.
+5. **Hosted smoke and rollback rehearsal.** Identify known-good compatible frontend/backend revisions and configuration versions before changes. In separately authorized staging, verify cookies, HTTPS, CSP, SPA refresh, GridFS through a real host restart and the critical cross-role paths. Rehearse restoring both application revisions and compatible configuration, then confirm readiness and repeat smoke. Keep additive indexes during app rollback. Preserve ledger history and native snapshots; any data compensation or backup restore requires its own decision. See [operations runbook](OPERATIONS_RUNBOOK.md).
+
+No deployment, cloud configuration, production indexes, credentials, production email or financial transactions were performed. The earlier test container remains unverified because Docker Desktop was paused; the final audit used a separate loopback replica set.
+
+## Change inventory
+
+- F1: `docs/PHASE_F1_AUDIT.md`.
+- F2 and its follow-up: `backend/package.json`, `backend/package-lock.json`, `frontend/package-lock.json`, `backend/scripts/verifyPhaseF2Integration.js`, `backend/src/controllers/adminController.js`, `authController.js`, `clientController.js`, and `freelancerController.js` in the same directory; `backend/src/data/auditLogData.js`, `notificationData.js`, `paymentData.js`, `projectData.js`, `submissionData.js`, and `userData.js`; `backend/src/services/notificationService.js`, `projectParticipantService.js`, `projectService.js`, and `taskWorkspaceService.js`; `backend/tests/auth.security.test.js`, `clientController.review.test.js`, and `taskWorkspace.realtime.test.js`; `docs/PHASE_F2_REMEDIATION.md`.
+- F3: `backend/scripts/verifyPhaseFDashboard.js`, `backend/src/data/taskData.js`, `backend/src/services/performanceService.js`, `backend/tests/onboarding.dashboard.test.js`, `docs/PHASE_F3_PERFORMANCE.md`; also the F2 client/freelancer controllers, payment and submission adapters listed above.
+- F4: `.github/workflows/verify.yml`, `package.json`, `frontend/package.json`, `backend/scripts/verifyLaunch.js`, `docs/PRODUCT_COHESION.md`, `docs/PHASE_F4_RELEASE_READINESS.md`; compatible dev updates in both lockfiles already listed. The marketplace fixture extension triggered the F2 follow-up listed above.

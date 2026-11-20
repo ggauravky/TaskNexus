@@ -30,6 +30,17 @@ const createTask = (taskData) => runMongo(async () => {
 }, "Unable to create task");
 const findTaskById = (id) => runMongo(async () => toApp(await Task.findById(id).lean()), "Unable to find task");
 const findTasks = (filters) => runMongo(async () => toApps(await Task.find(buildFilter(filters)).lean()), "Unable to find tasks");
+const findDashboardTaskFacts = (filters) => runMongo(async () => toApps(await Task.find(buildFilter(filters))
+  .select("_id status freelancer_id freelancerId updated_at updatedAt task_details.deadline workflow.assignedAt workflow.startedAt workflow.submittedAt workflow.completedAt metrics.revisionsUsed")
+  .lean()), "Unable to load dashboard task facts");
+
+const loadDashboardTaskCards = async (owner, ...selections) => {
+  const ids = [...new Set(selections.flat().map((task) => task.id))];
+  if (!ids.length) return selections.map(() => []);
+  const cards = await findTasks({ ...owner, id: ids });
+  const byId = new Map(cards.map((task) => [task.id, task]));
+  return selections.map((list) => list.map(({ id }) => byId.get(id)).filter(Boolean));
+};
 
 const listTasks = ({ filters = {}, page, limit, sortBy, sortOrder, search }) => runMongo(async () => {
   const query = buildFilter(filters);
@@ -50,4 +61,4 @@ const acceptTaskAtomically = (id, freelancerId) => runMongo(async () => toApp(aw
   { returnDocument: "after", runValidators: true },
 ).lean()), "Unable to accept task");
 
-module.exports = { createTask, findTaskById, findTasks, listTasks, searchMarketplaceTasks, updateTask, updateTaskIfStatus, acceptTaskAtomically };
+module.exports = { createTask, findTaskById, findTasks, findDashboardTaskFacts, loadDashboardTaskCards, listTasks, searchMarketplaceTasks, updateTask, updateTaskIfStatus, acceptTaskAtomically };

@@ -23,6 +23,7 @@
         "verify:opportunities": "node scripts/verifyOpportunityIntegration.js --confirm-tasknexus-v2-staging",
         "verify:organizations": "node scripts/verifyOrganizationIntegration.js --confirm-tasknexus-v2-staging",
         "verify:phase-e": "node scripts/verifyPhaseEIntegration.js --confirm-tasknexus-v2-staging",
+        "verify:phase-f2": "node scripts/verifyPhaseF2Integration.js --confirm-tasknexus-v2-staging",
         "verify:production": "node scripts/verifyProduction.js",
         "verify:email": "node scripts/verifyEmail.js",
         "verify:launch": "node scripts/verifyLaunch.js",
@@ -62,15 +63,15 @@
         "cookie-parser": "^1.4.6",
         "cors": "^2.8.5",
         "dotenv": "^16.3.1",
-        "express": "^4.18.2",
+        "express": "^4.22.3",
         "express-rate-limit": "^7.1.5",
         "express-validator": "^7.0.1",
         "helmet": "^7.1.0",
         "jsonwebtoken": "^9.0.2",
         "mongodb": "~7.5.0",
-        "mongoose": "9.9.4",
+        "mongoose": "9.11.4",
         "multer": "^1.4.5-lts.1",
-        "nodemailer": "^10.0.14",
+        "nodemailer": "^10.1.4",
         "pdfkit": "^0.18.0",
         "winston": "^3.11.0"
     },
@@ -81,6 +82,6 @@
         "supertest": "^6.3.3"
     },
     "overrides": {
-        "qs": "6.16.0"
+        "qs": "6.16.1"
     }
 }

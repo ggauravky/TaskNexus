@@ -44,9 +44,12 @@ exports.getDashboard = async (req, res, next) => {
   try {
     const freelancerId = req.user.id;
 
-    const allTasks = await taskData.findTasks({ freelancer_id: freelancerId });
-    const payments = await paymentData.findPayments({ freelancer_id: freelancerId });
-    const reviews = await reviewData.findReviews({ reviewee_id: freelancerId });
+    const owner = { freelancer_id: freelancerId };
+    const [allTasks, paymentSummary, rating] = await Promise.all([
+      taskData.findDashboardTaskFacts(owner),
+      paymentData.summarizeFreelancerPayments(freelancerId),
+      reviewData.getAverageRating(freelancerId),
+    ]);
     const onboarding = await onboardingService.getFreelancerOnboarding({ user: req.user, tasks: allTasks });
 
     const activeTasks = allTasks.filter((t) =>
@@ -61,28 +64,19 @@ exports.getDashboard = async (req, res, next) => {
       (t) => t.status === "completed",
     ).length;
 
-    const totalEarnings = payments
-      .filter((p) => p.status === "released")
-      .reduce((sum, p) => sum + (p.amounts?.freelancerPayout || 0), 0);
-
-    const pendingEarnings = payments
-      .filter((p) => ["pending", "escrowed"].includes(p.status))
-      .reduce((sum, p) => sum + (p.amounts?.freelancerPayout || 0), 0);
+    const totalEarnings = paymentSummary.released;
+    const pendingEarnings = paymentSummary.pending;
       
-    const avgRating =
-        reviews.length > 0
-            ? Number((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1))
-            : 0;
+    const avgRating = Number(rating.averageRating.toFixed(1));
 
-    const currentWork = await decorateTasks(
-      [...allTasks]
+    const currentFacts = allTasks
         .filter((task) => ![TASK_STATUS.COMPLETED, TASK_STATUS.CANCELLED].includes(task.status))
         .sort((left, right) => new Date(right.updated_at || 0) - new Date(left.updated_at || 0))
-        .slice(0, 5),
-      { includeSubmissions: true },
-    );
+        .slice(0, 5);
+    const [currentCards] = await taskData.loadDashboardTaskCards(owner, currentFacts);
+    const currentWork = await decorateTasks(currentCards, { includeSubmissions: true });
 
-    const perfStats = await performanceService.calculatePerformanceMetrics(freelancerId);
+    const perfStats = await performanceService.calculatePerformanceMetrics({ user: req.user, tasks: allTasks, rating });
     const performanceScore = perfStats.performanceScore;
     const onTimeDeliveryRate = perfStats.onTimeDeliveryRate;
 
@@ -95,7 +89,7 @@ exports.getDashboard = async (req, res, next) => {
         totalEarnings,
         pendingEarnings,
         rating: avgRating,
-        totalReviews: reviews.length,
+        totalReviews: rating.totalReviews,
         totalTasks: allTasks.length,
         performanceScore,
         onTimeDeliveryRate,
@@ -648,73 +642,16 @@ exports.updateSubmission = async (req, res, next) => {
   try {
     const { deliverables, comments } = req.body;
 
-    const submission = await submissionData.findSubmissionById(req.params.id);
-
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        message: "Submission not found",
-      });
-    }
-
-    if (submission.freelancer_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to update this submission",
-      });
-    }
-
-    if (submission.client_review?.status !== "revision_requested") {
-      return res.status(400).json({
-        success: false,
-        message: "This submission cannot be updated - no revision requested",
-      });
-    }
-
-    const content = submission.content;
-    content.deliverables = deliverables || content.deliverables;
-    content.notes = comments || content.notes;
-    
-    const clientReview = submission.client_review;
-    clientReview.status = "pending";
-    
-    const updatedSubmission = await submissionData.updateSubmission(req.params.id, {
-        content,
-        client_review: clientReview,
+    const { task, submission: updatedSubmission, notification } = await submissionData.resubmitReviewedWork({
+      submissionId: req.params.id, freelancerId: req.user.id, deliverables, comments, ip: req.ip,
     });
-
-    const updatedTask = await taskService.transitionTo(
-      submission.task_id,
-      TASK_STATUS.DELIVERED,
-    );
-    
-    const task = await taskData.findTaskById(submission.task_id);
-
-    try {
-      await NotificationService.create({
-        recipient_id: task.client_id,
-        type: "submission_updated",
-        content: {
-          title: "Submission Updated",
-          message:
-            "Freelancer has updated the submission with your requested revisions",
-        },
-        related_task_id: submission.task_id,
-      });
-    } catch (notifError) {
-      logger.error("Failed to send notification:", notifError);
-    }
-
+    NotificationService.publishCreated(notification);
     realtimeHub.publish({
       users: [task.client_id, task.freelancer_id].filter(Boolean),
       event: "task.status_changed",
-      payload: {
-        taskId: task.id,
-        status: updatedTask.status,
-      },
+      payload: { taskId: task.id, status: task.status },
     });
-
-    logger.info(`Submission updated: ${submission.id}`);
+    logger.info(`Submission updated: ${updatedSubmission.id}`);
 
     res.status(200).json({
       success: true,

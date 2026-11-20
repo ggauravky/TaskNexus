@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const {
-  Project, ProjectActivity, ProjectMilestone, ProjectParticipant, ProjectTask, Skill, Team,
+  Project, ProjectActivity, ProjectMilestone, ProjectParticipant, ProjectTask, Skill, Team, User, UserProfile,
 } = require("../models");
 const { toApp, toApps } = require("../models/helpers");
 const { escapeRegex } = require("./mongoDataUtils");
@@ -139,6 +139,27 @@ const skillsByIds = async (skillIds) => {
 
 const listParticipants = async (projectId, filters = {}) => {
   const filter = { project_id: projectId, ...(filters.activeOnly === false ? {} : { status: "active" }) };
+  if (filters.publicOnly) {
+    const [result] = await ProjectParticipant.aggregate([
+      { $match: { ...filter, status: "active", show_on_profile: true } },
+      { $lookup: {
+        from: UserProfile.collection.name, localField: "user_id", foreignField: "_id", as: "visibleProfile",
+        pipeline: [{ $match: { visibility: "public" } }, { $project: { _id: 1 } }],
+      } },
+      { $match: { "visibleProfile.0": { $exists: true } } },
+      { $lookup: {
+        from: User.collection.name, localField: "user_id", foreignField: "_id", as: "activeUser",
+        pipeline: [{ $match: { status: "active" } }, { $project: { _id: 1 } }],
+      } },
+      { $match: { "activeUser.0": { $exists: true } } },
+      { $project: { _id: 1, project_id: 1, team_id: 1, user_id: 1, role: 1, status: 1, joined_at: 1, show_on_profile: 1 } },
+      { $facet: {
+        items: [{ $sort: { role: 1, joined_at: 1, _id: 1 } }, { $skip: (filters.page - 1) * filters.limit }, { $limit: filters.limit }],
+        totals: [{ $count: "count" }],
+      } },
+    ]);
+    return { items: toApps(result.items), total: result.totals[0]?.count || 0, page: filters.page, limit: filters.limit };
+  }
   const [items, total] = await Promise.all([
     ProjectParticipant.find(filter).sort({ role: 1, joined_at: 1, _id: 1 }).skip((filters.page - 1) * filters.limit).limit(filters.limit).lean(),
     ProjectParticipant.countDocuments(filter),

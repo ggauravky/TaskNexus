@@ -12,18 +12,21 @@ const { serializeNotification } = require("../serializers");
  * Handles creation and management of notifications
  */
 class NotificationService {
+  static publishCreated(notification) {
+    if (notification?.recipient_id) {
+      realtimeHub.publishToUser(notification.recipient_id, "notification.created", {
+        notification: serializeNotification(notification),
+        unreadIncrement: notification.status === "unread" ? 1 : 0,
+      });
+    }
+  }
   /**
    * Create a notification
    */
   static async create(data) {
     try {
       const notification = await notificationData.createNotification(data);
-      if (notification?.recipient_id) {
-        realtimeHub.publishToUser(notification.recipient_id, "notification.created", {
-          notification: serializeNotification(notification),
-          unreadIncrement: notification.status === "unread" ? 1 : 0,
-        });
-      }
+      this.publishCreated(notification);
       return notification;
     } catch (error) {
       logger.error("Error creating notification:", error);

@@ -1,7 +1,5 @@
 // backend/src/services/performanceService.js
-const taskData = require("../data/taskData");
 const submissionData = require("../data/submissionData");
-const reviewData = require("../data/reviewData");
 const userData = require("../data/userData");
 const logger = require("../utils/logger");
 
@@ -14,11 +12,10 @@ const logger = require("../utils/logger");
  *   (Client Satisfaction * 20) +
  *   (Admin QA Pass Rate * 10)
  */
-const calculatePerformanceMetrics = async (freelancerId) => {
+const calculatePerformanceMetrics = async ({ user, tasks, rating }) => {
+  const freelancerId = user.id;
   try {
-    const tasks = await taskData.findTasks({ freelancer_id: freelancerId });
-    const submissions = await submissionData.findSubmissions({ freelancer_id: freelancerId });
-    const ratingsObj = await reviewData.getAverageRating(freelancerId);
+    const qa = await submissionData.summarizeQaReviews(freelancerId);
 
     const completedTasks = tasks.filter((t) => t.status === "completed");
     const totalCompleted = completedTasks.length;
@@ -46,13 +43,12 @@ const calculatePerformanceMetrics = async (freelancerId) => {
     }
 
     // 3. Client Satisfaction (Rating converted to percentage, default to 100% / 5 stars)
-    const clientSatisfaction = ratingsObj.averageRating ? (ratingsObj.averageRating / 5) * 100 : 100;
+    const clientSatisfaction = rating.averageRating ? (rating.averageRating / 5) * 100 : 100;
 
     // 4. Admin QA Pass Rate (default to 100%)
     let qaPassRate = 100;
-    if (submissions.length > 0) {
-      const approvedQa = submissions.filter((s) => s.qa_review?.status === "approved").length;
-      qaPassRate = Math.round((approvedQa / submissions.length) * 100);
+    if (qa.total > 0) {
+      qaPassRate = Math.round((qa.approved / qa.total) * 100);
     }
 
     // Performance Score formula
@@ -66,14 +62,12 @@ const calculatePerformanceMetrics = async (freelancerId) => {
     // Bound the score between 0 and 100
     const finalScore = Math.max(0, Math.min(100, performanceScore));
 
-    // Update freelancer profile stats in background for caching/relational checks
-    const freelancer = await userData.findUserById(freelancerId);
-    if (freelancer && freelancer.freelancer_profile) {
-      const freelancerProfile = { ...freelancer.freelancer_profile };
-      freelancerProfile.performanceScore = finalScore;
-      freelancerProfile.onTimeDeliveryRate = onTimeDeliveryRate;
+    // Preserve the stats consumed by assignment without replacing the profile.
+    const profile = user.freelancer_profile;
+    if (profile && (profile.performanceScore !== finalScore || profile.onTimeDeliveryRate !== onTimeDeliveryRate)) {
       await userData.updateUser(freelancerId, {
-        freelancer_profile: freelancerProfile,
+        "freelancer_profile.performanceScore": finalScore,
+        "freelancer_profile.onTimeDeliveryRate": onTimeDeliveryRate,
       });
     }
 

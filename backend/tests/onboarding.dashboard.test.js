@@ -1,6 +1,6 @@
-jest.mock("../src/data/taskData", () => ({ findTasks: jest.fn() }));
-jest.mock("../src/data/paymentData", () => ({ findPayments: jest.fn() }));
-jest.mock("../src/data/reviewData", () => ({ findReviews: jest.fn() }));
+jest.mock("../src/data/taskData", () => ({ findDashboardTaskFacts: jest.fn(), loadDashboardTaskCards: jest.fn() }));
+jest.mock("../src/data/paymentData", () => ({ summarizeClientPayments: jest.fn(), summarizeFreelancerPayments: jest.fn() }));
+jest.mock("../src/data/reviewData", () => ({ getAverageRating: jest.fn() }));
 jest.mock("../src/data/submissionData", () => ({ findSubmissions: jest.fn() }));
 jest.mock("../src/services/performanceService", () => ({
   calculatePerformanceMetrics: jest.fn(),
@@ -29,9 +29,11 @@ const response = () => {
 describe("dashboard onboarding aggregate", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    taskData.findTasks.mockResolvedValue([]);
-    paymentData.findPayments.mockResolvedValue([]);
-    reviewData.findReviews.mockResolvedValue([]);
+    taskData.findDashboardTaskFacts.mockResolvedValue([]);
+    taskData.loadDashboardTaskCards.mockImplementation(async (_owner, ...selections) => selections.map(() => []));
+    paymentData.summarizeClientPayments.mockResolvedValue({ released: 0 });
+    paymentData.summarizeFreelancerPayments.mockResolvedValue({ released: 0, pending: 0 });
+    reviewData.getAverageRating.mockResolvedValue({ averageRating: 0, totalReviews: 0 });
     submissionData.findSubmissions.mockResolvedValue([]);
     performanceService.calculatePerformanceMetrics.mockResolvedValue({
       performanceScore: 0,
@@ -43,7 +45,7 @@ describe("dashboard onboarding aggregate", () => {
     const user = { id: "client-1", role: "client" };
     const onboarding = { role: "client", is_complete: false, items: [] };
     const tasks = [{ id: "task-1", client_id: user.id, status: "open" }];
-    taskData.findTasks.mockResolvedValue(tasks);
+    taskData.findDashboardTaskFacts.mockResolvedValue(tasks);
     onboardingService.getClientOnboarding.mockResolvedValue(onboarding);
     const res = response();
     const next = jest.fn();
@@ -51,6 +53,7 @@ describe("dashboard onboarding aggregate", () => {
     await clientController.getDashboard({ user }, res, next);
 
     expect(next).not.toHaveBeenCalled();
+    expect(taskData.findDashboardTaskFacts).toHaveBeenCalledWith({ client_id: user.id });
     expect(onboardingService.getClientOnboarding).toHaveBeenCalledWith({ user, tasks });
     expect(res.json.mock.calls[0][0].data.onboarding).toBe(onboarding);
   });
@@ -59,7 +62,7 @@ describe("dashboard onboarding aggregate", () => {
     const user = { id: "freelancer-1", role: "freelancer" };
     const onboarding = { role: "freelancer", is_complete: false, items: [] };
     const tasks = [{ id: "task-1", freelancer_id: user.id, status: "assigned" }];
-    taskData.findTasks.mockResolvedValue(tasks);
+    taskData.findDashboardTaskFacts.mockResolvedValue(tasks);
     onboardingService.getFreelancerOnboarding.mockResolvedValue(onboarding);
     const res = response();
     const next = jest.fn();
@@ -67,6 +70,7 @@ describe("dashboard onboarding aggregate", () => {
     await freelancerController.getDashboard({ user }, res, next);
 
     expect(next).not.toHaveBeenCalled();
+    expect(taskData.findDashboardTaskFacts).toHaveBeenCalledWith({ freelancer_id: user.id });
     expect(onboardingService.getFreelancerOnboarding).toHaveBeenCalledWith({ user, tasks });
     expect(res.json.mock.calls[0][0].data.onboarding).toBe(onboarding);
   });

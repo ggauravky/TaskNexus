@@ -192,13 +192,13 @@ const getWorkspace = async (taskId, actor, { section } = {}) => {
     .filter((submission) => submission.is_active)
     .sort(byNewestSubmission)[0] || null;
   const hasRated = reviews.length > 0;
-  const revisionLimit = Number(task.task_details?.revisionLimit || 2);
+  const revisionLimit = Number(task.task_details?.revisionLimit ?? 2);
   const capabilities = deriveCapabilities({
     task,
     relationship,
     currentSubmission,
     hasRated,
-    revisionLimitReached: Number(revisionCount || 0) >= revisionLimit,
+    revisionLimitReached: !Number.isInteger(revisionLimit) || revisionLimit < 0 || Number(revisionCount || 0) >= revisionLimit,
   });
   const workspace = {
     task: serializeWorkspaceTask(task),

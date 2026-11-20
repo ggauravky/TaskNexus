@@ -141,7 +141,7 @@ const getProject = async (projectId, userId, options = {}) => {
   const [counts, skillMap, participantRows, creatorMap, publishedShowcase] = await Promise.all([
     projectData.projectCounts([projectId]),
     projectData.skillsByIds(context.project.skill_ids || []),
-    projectData.listParticipants(projectId, { page: 1, limit: 50 }),
+    projectData.listParticipants(projectId, { page: 1, limit: 50, publicOnly: !context.membership }),
     teamData.profileSummaries([context.project.created_by], { publicOnly: true }),
     effectivePublic && context.project.status === "completed"
       ? ProjectShowcase.exists({ project_id: projectId, status: "published" }) : null,
@@ -155,7 +155,7 @@ const getProject = async (projectId, userId, options = {}) => {
     team: context.team, effectivePublic,
     showcasePath: publishedShowcase ? `/showcase/${context.team.slug}/${context.project.slug}` : null,
     skills: (context.project.skill_ids || []).map((id) => skillMap.get(id)).filter(Boolean),
-    participantCount: counts.participants.get(projectId) || 0,
+    participantCount: context.membership ? counts.participants.get(projectId) || 0 : participantRows.total,
     taskSummary: counts.tasks.get(projectId), milestoneSummary: counts.milestones.get(projectId),
     viewerRelationship: context.participant ? { kind: "participant", role: context.participant.role } : context.membership ? { kind: "team_member", role: context.membership.role } : { kind: "none" },
     permissions: authz.permissions(context), participants, createdBy: creatorMap.get(context.project.created_by) || null,

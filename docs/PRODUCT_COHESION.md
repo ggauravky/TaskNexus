@@ -116,6 +116,6 @@ Opportunity detail gives freelancers their own required-skill proof, with the ow
 
 Local acceptance on 2026-11-21 passed 384 Jest tests across 49 suites and 50 frontend tests. The disposable Mongo replica set passed the database, API, Projects, contribution/showcase, Opportunities, Organization, and Phase E verifiers. Phase E checked indexed queries with private-evidence volume, privacy and IDOR, explicit sharing, and immutable snapshots. Edge browser QA passed at 320, 375, 390, 430, 768, 1024, and 1440 px. Both lint runs, the production build and configuration checks, and the source secret scan passed.
 
-## Later phases
+## Phase F
 
-Profile-to-Proof-to-Opportunity integration remains intentionally unimplemented after Phase D.
+Phase E completed the profile-to-proof-to-opportunity surface. Phase F documents system audit, security and data integrity fixes, measured dashboard improvements, and separate code-side and production release gates.

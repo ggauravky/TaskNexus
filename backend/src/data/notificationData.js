@@ -1,7 +1,9 @@
 const { Notification } = require("../models");
 const { buildFilter, runMongo, toApp, toApps } = require("./mongoDataUtils");
 
-const createNotification = (data) => runMongo(async () => toApp(await Notification.create(data)), "Unable to create notification");
+const createNotification = (data, session = null) => session
+  ? Notification.create([data], { session }).then(([entry]) => toApp(entry))
+  : runMongo(async () => toApp(await Notification.create(data)), "Unable to create notification");
 const findNotifications = (filters) => runMongo(async () => toApps(await Notification.find(buildFilter(filters)).limit(200).lean()), "Unable to find notifications");
 const countNotifications = (filters) => runMongo(() => Notification.countDocuments(buildFilter(filters)), "Unable to count notifications");
 const listNotifications = ({ filters = {}, page, limit }) => runMongo(async () => {

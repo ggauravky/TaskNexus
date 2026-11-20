@@ -1,7 +1,13 @@
 const { AuditLog } = require("../models");
 const { buildFilter, runMongo, toApp, toApps } = require("./mongoDataUtils");
 
-const log = (data) => runMongo(async () => toApp(await AuditLog.create(data)), "Unable to create audit log");
+const insertLog = async (data, session) => {
+  const [entry] = await AuditLog.create([data], { session });
+  return toApp(entry);
+};
+const log = (data, session = null) => session
+  ? insertLog(data, session)
+  : runMongo(() => insertLog(data, null), "Unable to create audit log");
 const listAuditLogs = ({ filters = {}, page, limit }) => runMongo(async () => {
   const query = buildFilter(filters);
   const [items, total] = await Promise.all([

@@ -281,7 +281,13 @@ const refreshToken = async (req, res, next) => {
     );
 
     // Save new refresh token
-    await userData.updateUser(user.id, { refresh_token: hashRefreshToken(newRefreshToken) });
+    const rotated = await userData.replaceRefreshToken(user.id, user.refresh_token, hashRefreshToken(newRefreshToken));
+    if (!rotated) {
+      return res.status(401).json({
+        success: false,
+        error: { code: ERROR_CODES.AUTHENTICATION_ERROR, message: "Invalid refresh token" },
+      });
+    }
 
     // Set new refresh token in cookie
     setRefreshCookie(res, newRefreshToken);
@@ -312,9 +318,9 @@ const logout = async (req, res, next) => {
       try {
         const decoded = verifyRefreshToken(token);
         const user = await userData.findUserById(decoded.userId);
-        if (refreshTokenMatches(user?.refresh_token, token)) {
+        if (refreshTokenMatches(user?.refresh_token, token)
+          && await userData.replaceRefreshToken(user.id, user.refresh_token, null)) {
           userId = user.id;
-          await userData.updateUser(user.id, { refresh_token: null });
         }
       } catch (error) {
         logger.info("Logout received an expired or invalid refresh session");

@@ -10,6 +10,7 @@ const taskService = require("../services/taskService");
 const { sanitizeUser } = require("../utils/helpers");
 const { parseListQuery } = require("../utils/queryOptions");
 const { paginationMeta } = require("../utils/apiResponse");
+const { errors } = require("../utils/appError");
 const { serializeTask } = require("../serializers");
 const { serializeUser } = require("../serializers");
 
@@ -390,44 +391,14 @@ exports.getStatistics = async (req, res, next) => {
 exports.resolveDispute = async (req, res, next) => {
   try {
     const { resolution, refundClient, payFreelancer, notes } = req.body;
+    const refund = resolution === "refund_client" || refundClient === true || refundClient === "true";
+    const release = resolution === "pay_freelancer" || payFreelancer === true || payFreelancer === "true";
+    if (refund === release) throw errors.validation("Choose exactly one dispute resolution");
 
-    // Resolve dispute logic by updating payment status
-    const payments = await paymentData.findPayments({ task_id: req.params.id });
-
-    if (payments && payments.length > 0) {
-      const payment = payments[0];
-      let newStatus = payment.status;
-      const escrow = { ...(payment.escrow || {}) };
-
-      if (resolution === "refund_client" || refundClient === true || refundClient === "true") {
-        newStatus = "refunded";
-        escrow.releasedAt = new Date().toISOString();
-      } else if (resolution === "pay_freelancer" || payFreelancer === true || payFreelancer === "true") {
-        newStatus = "released";
-        escrow.releasedAt = new Date().toISOString();
-      }
-
-      await paymentData.updatePayment(payment.id, {
-        status: newStatus,
-        escrow,
-        refund: {
-          refundedAt: new Date().toISOString(),
-          reason: notes || resolution,
-        },
-      });
-
-      logger.info(`Resolved payment status for dispute on task ${req.params.id} to ${newStatus}`);
-    }
-
-    await auditLogData.log({
-      user_id: req.user.id,
-      action: "dispute_resolved",
-      resource: "task",
-      resource_id: req.params.id,
-      changes: { resolution, refundClient, payFreelancer, notes },
-      ip_address: req.ip,
+    await paymentData.resolveDispute({
+      taskId: req.params.id, decision: refund ? "refund_client" : "pay_freelancer",
+      notes, actorId: req.user.id, ip: req.ip,
     });
-
     logger.info(`Dispute resolved: ${req.params.id}`);
 
     res.status(200).json({

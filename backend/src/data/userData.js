@@ -44,6 +44,12 @@ const listUsers = ({ filters = {}, page, limit, sortBy, sortOrder, search }) => 
 }, "Unable to list users");
 
 const updateUser = (id, updates) => runMongo(async () => toApp(await User.findByIdAndUpdate(id, { $set: updates }, { returnDocument: "after", runValidators: true }).select(sensitive).lean()), "Unable to update user");
+const replaceRefreshToken = (id, expectedDigest, replacement) => runMongo(async () => {
+  const result = await User.updateOne({ _id: id, status: "active", refresh_token: expectedDigest }, {
+    $set: { refresh_token: replacement },
+  });
+  return result.modifiedCount === 1;
+}, "Unable to update refresh session");
 const comparePassword = (candidatePassword, userPassword) => bcrypt.compare(candidatePassword, userPassword);
 
-module.exports = { createUser, findUserByEmail, findUserById, findUsers, listUsers, updateUser, comparePassword };
+module.exports = { createUser, findUserByEmail, findUserById, findUsers, listUsers, updateUser, replaceRefreshToken, comparePassword };

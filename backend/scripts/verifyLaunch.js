@@ -39,7 +39,7 @@ check("external monitoring configuration contract", () => {
   }
 });
 
-check("production-scale evidence", () => {
+check("historical synthetic scale artifact contract", () => {
   const evidence = readJson("artifacts/phase11-scale-results.json");
   assert.equal(evidence.environment, "synthetic non-production");
   assert.equal(evidence.database, "tasknexus_v2_performance");
