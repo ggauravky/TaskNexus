@@ -33,7 +33,7 @@ Payment records are workflow data; TaskNexus does not provide a production payme
 
 ## Local setup
 
-Prerequisites: Node.js 20.19 or newer, npm, and a MongoDB deployment that supports transactions.
+Use Node.js 24 LTS, npm, and a MongoDB deployment that supports transactions. Use the Node 24 patch pinned in the CI workflow to reproduce release verification.
 
 ```bash
 npm run install:all

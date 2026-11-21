@@ -10,13 +10,14 @@ permissions:
 
 jobs:
   verify:
+    name: Release CI
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19.0
+          node-version: 24.22.3
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json

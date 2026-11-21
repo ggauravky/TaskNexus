@@ -1,6 +1,6 @@
 # TaskNexus V2 — G2 deployment preparation
 
-**Plan ready. Production NO-GO.** This playbook is anchored to the audited `main` candidate `0605551d57e4d7178190b684da4fc04331d1de27`. G1 blocks that SHA. The release operator must replace it with a newly verified candidate and complete the external evidence gates before requesting production authorization. [G1 decision and blocker register](PHASE_G1_RELEASE_CANDIDATE.md)
+**Plan ready. Production NO-GO.** This playbook is anchored to verified `main` candidate `1290d725b8f5a66402e3502b2712ec139afe9ac6`, which contains the Multer remediation. The local Node 24 workflow changes need GitHub verification after a separately authorized review. Complete the five external evidence gates before requesting production authorization. If the source SHA changes, freeze it again and bind the gate evidence to that revision. [G1 decision and blocker register](PHASE_G1_RELEASE_CANDIDATE.md)
 
 ## Repository topology and live unknowns
 
@@ -12,7 +12,7 @@
 | Email | Brevo SMTP via Nodemailer when enabled; optional Contacts API is separate from transactional delivery. | Sender authorization, account/secret scope, effective feature state and operational ownership. |
 | Origin boundary | `APP_ORIGIN` is the canonical frontend origin. Additional HTTPS origins require an explicit list. CSP `connect-src` names the backend. | Live CORS, CSP and cross-site cookies. Independently inspect production and preview environments. |
 
-GitHub `main` currently identifies repository source only. Use each host's authorized release metadata and deployment record to identify what serves traffic. Historical host observations remain historical. Capture IDs, SHAs, configuration version references and timestamps without collecting values or connection strings.
+**Hosted configuration NOT VERIFIED — MANUAL REVIEW REQUIRED.** The Vercel read-only lookup returned `403` for the project scope. The connected Render lookup could not target a confirmed TaskNexus workspace. GitHub returned a successful Vercel commit status. The live SHAs, tracked branches, approval rules, and promotion behavior remain unknown. Obtain each host's authoritative production alias/deploy mapping, environment scope, and deployment history from the project owner. Record IDs, SHAs, configuration version references and timestamps with secrets redacted.
 
 ## Environment matrix
 
@@ -39,10 +39,15 @@ For each row, effective live values are **UNKNOWN**. Validation describes reposi
 
 ## CI/CD, freeze and authorization
 
-- `CI` runs on `main` pushes and pull requests. `verify` runs on pushes and pull requests. Both use `npm ci`, the launch suite, source secret scan and high-severity production audits. Neither workflow contains a deployment job. The Render Blueprint declares `autoDeploy: true`, so a future push/merge to its actual watched branch may deploy independently of CI. Vercel Git integration and effective branch behavior remain unknown.
-- Record required status checks, branch protection/ruleset and exceptions, host deploy settings, reviewer and release permissions. Align build gates and runtime on a supported Node LTS line before rollout. Both workflows pin Node 20.19.0, which is past end of life. Verify a supported and repository-compatible line such as Node 24 on CI and both hosts. Review the audit-feed discrepancy identified in G1 before trusting a green badge. [Node.js release schedule](https://github.com/nodejs/Release#end-of-life-releases)
-- Require a reproducible build for the exact SHA, review for both hosts, required checks before merge, and separate production approval. First establish how to hold promotion and prevent a Git trigger from deploying early. This includes deciding how to handle any future push of the security fix. Any protection or auto-deploy change requires separate approval.
-- G3 authorization must name the immutable SHA, production targets and component permissions, any prerequisite migration/config scope, production smoke scope and rollback authority. Credentials, Git mutations, deployment and recovery each require explicit scope. G4 begins after G3 evidence identifies the deployed revisions.
+- `CI` runs on `main` pushes and pull requests. `verify` runs on pushes and pull requests. Both use `npm ci`, the launch suite, source secret scan and high-severity production audits. Neither contains a deployment job. GitHub's branch endpoint reported `main.protected=false`, and the applicable rules endpoint returned no rules. Both jobs currently report `verify` in the Checks API. That duplicate is ambiguous as a required context. The local workflow edits propose unique contexts `Release CI` and `Release verification`. Verify the exact `Release CI` check-run name and `github-actions` source after the first authorized PR run. [Main branch](https://api.github.com/repos/ggauravky/TaskNexus/branches/main) · [Checks for 1290d72](https://api.github.com/repos/ggauravky/TaskNexus/commits/1290d725b8f5a66402e3502b2712ec139afe9ac6/check-runs) · [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
+- Node 20 is past end of life. The local workflows pin Node `24.22.3`. The GitHub runs on `1290d72` still used the committed Node `20.19.0` workflows. The three manifests admit Node 24. Hosting owners separately verify that their supported Node 24 release is used for the Render build/runtime and Vercel build. Confirm native bcrypt startup and the frontend build in isolated staging before changing the live runtimes under separate approval. [Node.js release schedule](https://github.com/nodejs/Release#end-of-life-releases)
+
+### Operator sequence before any push or merge that could deploy
+
+1. Freeze release-related Git changes. Have each host owner identify the current production alias or live deploy, track the Git branch, record the last safe rollback artifacts, and check pending builds, deploy hooks, Blueprint sync, and automation. Credit only settings and events from the specific production project/service.
+2. Under separate hosting approval, hold production promotion while keeping the current versions serving. In the verified Render service, use **Settings → Auto-Deploy → Off**. The checked-in Blueprint declares `autoDeploy: true`, so check whether future Blueprint sync would reapply it before any sync. In the verified Vercel project, use **Settings → Environments → Production → Branch Tracking**, verify the branch and disable **Auto-assign Custom Production Domains** where supported. Confirm that all actual production hostnames keep their current targets until authorized promotion. If the project cannot stage builds safely, agree a controlled trigger and restrict release permissions before Git changes. CI-trigger modes alone cannot record explicit operator approval. [Render deploy settings](https://render.com/docs/deploys) · [Vercel staged production](https://vercel.com/docs/deployments/promoting-a-deployment)
+3. Under separate GitHub approval, require reviewed PRs to `main`, prohibit force pushes and deletion, and restrict bypasses including admins where available. After the host holds are evidenced, verify the unique check names on an authorized non-production PR. Require the observed `Release CI` context from GitHub Actions and an up-to-date PR before merge. Keep `Release verification` supplemental unless the maintainer elects to require both. Test with a failing PR and confirm the current hosted deployments remain unchanged.
+4. Require a reproducible build and independent review for the exact SHA. G3 approval must name the immutable SHA, production targets and component permissions, prerequisite migration/config scope, smoke scope and rollback authority. Reserve deployment/promotion credentials for the named release operators. G4 begins after G3 evidence identifies the deployed revisions.
 
 ## Recovery and rollback prerequisites
 
@@ -56,8 +61,8 @@ Before rollout record both live and known-good deployment IDs/SHAs and configura
 
 ## Controlled rollout and smoke procedure
 
-1. Close G1 and all external blockers. Freeze the replacement SHA and obtain explicit release approval. Confirm the live revision pair and rollback records. Compare each live revision with the candidate, test old frontend/new backend in approved hosted staging, and rehearse recovery. The parent-to-candidate code review supports **backend first** because source routes and frontend application code match relative to the parent, including clients refreshing the active submission. If the actual live pairing fails the contract tests, stop and choose a coordinated cutover or compatibility fix first.
-2. With front-end promotion held, apply only individually approved prerequisites. This candidate's parent diff needs no migration or index addition. Never run seeding, admin provisioning, or destructive verifiers for a routine update. Deploy the approved backend artifact to the verified Render target. Confirm revision, successful start, database readiness, logs, error/latency trend, existing API shapes and the old frontend against the new backend. Stop on failed readiness, new authorization/privacy issues, data-integrity errors, wrong SHA or breached release thresholds.
+1. Close G1 and all external blockers. Confirm the live revision pair and rollback records, compare those SHAs with the final candidate, and get separate release approval. The `0605551 → 1290d72` diff keeps routes, auth contracts, frontend source, application snapshots and attachment references. It tightens the task-comment multipart input contract to one flat text field while keeping the supported frontend form. The repository diff supports **backend first**, conditional on the actual old frontend/new backend passing in approved hosted staging. If that pairing fails, stop and choose a coordinated cutover or compatibility fix first.
+2. With frontend promotion held, apply only individually approved prerequisites. The candidate adds no schema migration or index. Verify the live topology and legacy records on an authorized isolated restore before assuming no additional prerequisites. Routine rollout excludes seeding, admin provisioning, and destructive verifiers. Deploy the approved backend artifact to the verified Render target. Confirm revision, successful start, database readiness, logs, error/latency trend, existing API shapes, and the old frontend including multipart comments. Stop on failed readiness, new authorization/privacy issues, data-integrity errors, wrong SHA or breached release thresholds.
 3. Promote the approved frontend artifact only after backend acceptance and if explicitly covered. Confirm revision, canonical routing and API destination, SPA refresh, HTTPS, CSP, CORS and compatibility. Run the allowed smoke checks and start the staffed observation window. Record start/end times, measured baselines, release IDs, signals, defects and any rollback actions.
 
 | Smoke scope | Procedure after authorization |
@@ -86,16 +91,16 @@ Assign primary, backup, database recovery, email, and privacy owners plus the in
 
 | Category | Decision | Condition |
 | --- | --- | --- |
-| Security and outstanding P0/P1 | **NO-GO** | G-SEC-001 is confirmed P1. Close it on a new immutable SHA and repeat G1. |
+| Security and outstanding P0/P1 | **GO for reviewed code** | G-SEC-001 is resolved in `1290d72`. No confirmed code-side P0/P1 remains. Credentials and hosted security checks are separate gates. |
 | Credentials | **BLOCKED** | Sanitized rotation, old credential rejection, and session evidence required. |
-| Build and tests | **GO for the local gate** | Candidate-specific evidence in G1. Repeat on the fixed candidate and approved hosted runtime. |
-| Authentication | **GO for tested local contracts**, live **NOT VERIFIED** | Resolve whether recovery and mailbox verification are release requirements. Verify live cookie/session transition. |
+| Build and tests | **GO for the local gate** | Candidate-specific Node 24 evidence in G1. Verify new check contexts in a hosted PR and build on the approved host runtimes. |
+| Authentication | **GO for the existing password flow**, live **NOT VERIFIED** | Recovery and mailbox verification are P2 follow-ups for the current scope. Recoverability expectations change if a release depends on verified email. Verify live cookie/session transition. |
 | API compatibility | **BLOCKED** | Actual previous live pair unknown. Test backend-first pairing against known IDs. |
 | Database compatibility | **BLOCKED** | Parent delta needs no migration. Verify actual topology, indexes, snapshots and legacy data on an approved sample. |
 | Backup/restore | **BLOCKED** | Signed recovery evidence and measured RPO/RTO pending. |
 | Monitoring and incident response | **BLOCKED** | Owners, alerts, telemetry baselines and response authority pending. |
 | Rollback | **BLOCKED** | Safe paired artifacts, configuration references and rehearsal pending. |
-| Production configuration | **NOT VERIFIED** | Live host mapping, runtime, effective configuration and branch protection pending. |
+| Production configuration and release process | **BLOCKED** | Live host mapping, runtime, approvals and effective configuration pending. GitHub currently reports an unprotected `main`. Confirm both production holds before the workflow PR. |
 | Golden-path tests | **GO for covered local journeys**, hosted **NOT VERIFIED** | Complete staging and explicitly approved production smoke. |
 
 **G2 PASS for preparation only. G3 NOT AUTHORIZED. G4 NOT STARTED.** G3/G4 records are created after an authorized rollout or actual verification respectively.

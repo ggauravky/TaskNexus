@@ -18,7 +18,7 @@ production secrets.
 
 ## Pre-deployment
 
-1. Use Node 20.19.x and `npm ci` in both packages.
+1. Use the Node 24 LTS patch pinned in the CI workflow and run `npm ci` in both packages. Verify the actual Render and Vercel runtime selections before an approved rollout.
 2. Run `npm run verify:launch` and production dependency audits.
 3. Confirm backup/PITR and isolated restore evidence in `BACKUP_RESTORE.md`.
 4. Enter provider secrets directly into the host secret stores; independently
