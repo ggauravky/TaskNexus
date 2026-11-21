@@ -8,7 +8,9 @@ const taskData = require("../src/data/taskData");
 const userData = require("../src/data/userData");
 const submissionData = require("../src/data/submissionData");
 const reviewData = require("../src/data/reviewData");
+const collaborationData = require("../src/data/collaborationData");
 const taskWorkspaceService = require("../src/services/taskWorkspaceService");
+const storageProvider = require("../src/services/storage/storageProvider");
 const { generateTokens } = require("../src/config/jwt");
 const app = require("../src/app");
 
@@ -297,6 +299,82 @@ describe("marketplace task workspace API", () => {
   });
 
   const tokenFor = (actor) => generateTokens(actor.id, actor.role).accessToken;
+
+  describe("multipart task comments", () => {
+    const pdf = Buffer.from("%PDF-1.4\nTask attachment fixture");
+    const commentsPath = `/api/tasks/${task().id}/comments`;
+    const postComment = (actor) => request(app)
+      .post(commentsPath)
+      .set("Authorization", `Bearer ${tokenFor(actor)}`);
+
+    beforeEach(() => {
+      jest.spyOn(storageProvider, "uploadFiles").mockResolvedValue([]);
+      jest.spyOn(collaborationData, "createComment").mockResolvedValue(null);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    test("accepts a flat comment body and five valid attachments from the assigned freelancer", async () => {
+      const upload = postComment(users.freelancer).field("body", "Delivery notes");
+      for (let index = 0; index < 5; index += 1) {
+        upload.attach("attachments", pdf, `notes-${index}.pdf`);
+      }
+      const response = await upload;
+
+      expect(response.status).toBe(201);
+      expect(response.body.data.comment.body).toBe("Delivery notes");
+      expect(storageProvider.uploadFiles.mock.calls[0][0]).toHaveLength(5);
+      expect(storageProvider.uploadFiles.mock.calls[0][0][0].buffer).toEqual(pdf);
+      expect(collaborationData.createComment).toHaveBeenCalledTimes(1);
+    });
+
+    test("rejects a nested text field before writing a comment", async () => {
+      const response = await postComment(users.client)
+        .field("metadata[label]", "Optional note")
+        .attach("attachments", pdf, "notes.pdf");
+
+      expect(response.status).toBe(400);
+      expect(storageProvider.uploadFiles).not.toHaveBeenCalled();
+      expect(collaborationData.createComment).not.toHaveBeenCalled();
+    });
+
+    test("rejects a second text field before writing a comment", async () => {
+      const response = await postComment(users.client)
+        .field("body", "Delivery notes")
+        .field("label", "Optional note");
+
+      expect(response.status).toBe(400);
+      expect(storageProvider.uploadFiles).not.toHaveBeenCalled();
+    });
+
+    test("rejects a sixth attachment before writing a comment", async () => {
+      const upload = postComment(users.client).field("body", "Delivery notes");
+      for (let index = 0; index < 6; index += 1) {
+        upload.attach("attachments", pdf, `notes-${index}.pdf`);
+      }
+      const response = await upload;
+
+      expect(response.status).toBe(400);
+      expect(storageProvider.uploadFiles).not.toHaveBeenCalled();
+    });
+
+    test("rejects files whose content mismatches their declared type", async () => {
+      const response = await postComment(users.client)
+        .attach("attachments", Buffer.from("Plain text fixture"), "notes.pdf");
+
+      expect(response.status).toBe(400);
+      expect(storageProvider.uploadFiles).not.toHaveBeenCalled();
+    });
+
+    test("checks task authorization before parsing an unrelated actor's attachments", async () => {
+      const response = await postComment(users.unrelatedFreelancer)
+        .attach("attachments", Buffer.from("Plain text fixture"), "notes.txt");
+
+      expect(response.status).toBe(403);
+      expect(storageProvider.uploadFiles).not.toHaveBeenCalled();
+      expect(collaborationData.createComment).not.toHaveBeenCalled();
+    });
+  });
 
   test("returns the canonical workspace envelope for a participant", async () => {
     const response = await request(app)

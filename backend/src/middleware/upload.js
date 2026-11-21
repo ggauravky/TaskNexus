@@ -79,6 +79,10 @@ const commentAttachmentUpload = multer({
   storage,
   fileFilter,
   limits: {
+    // Task comments send one flat text field and an optional attachment list.
+    fields: 1,
+    fieldNestingDepth: 0,
+    fieldArrayIndexLimit: 0,
     fileSize: BUSINESS_RULES.MAX_FILE_SIZE || 10 * 1024 * 1024,
     files: 5,
   },
