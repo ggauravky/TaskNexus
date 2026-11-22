@@ -1,35 +1,36 @@
-# Phase 11 launch blocker matrix
+# TaskNexus release blockers
 
-Assessment date: 2026-09-15. Starting commit: `91c989d`. Branch:
-`codex/phase11-launch-stabilization`.
+Updated 2026-11-22 (Asia/Calcutta). Release candidate `813f88ef2048cbcd211f4a05fed9358b4294c266`. Historical Phase 11 evidence remains available in Git and `PHASE11_COMPLETION_REPORT.md`. Close a blocker after verifying the effective external control or operation. This record contains no deployment authorization.
 
-`PASS` means repository or live evidence exists. A configuration template or a
-written procedure is not evidence that external infrastructure is enabled.
+| Blocker | Status | Verified progress and remaining evidence |
+| --- | --- | --- |
+| Release controls and runtime | **PARTIALLY CLOSED** | GitHub `main` matches the candidate and both release checks passed. GitHub reports `protected=false` and zero applicable rules. Render's live service and deploy are identified. The Render hold is absent. Vercel production access returned `403`. Still need verified holds, an enforced ruleset, hosted runtime/configuration evidence, and representative data compatibility. |
+| Credential security | **BLOCKED** | No sanitized receipt establishes replacement validity, old MongoDB/SMTP credential rejection, JWT access/refresh key rotation, session invalidation, or operator access review. |
+| Backup and restore | **BLOCKED** | The connected Atlas lookup did not establish the production cluster or tier. Need an inventory, backup policy and freshness, PITR and retention evidence, isolated restore integrity, and measured recovery objectives. |
+| Monitoring and incident response | **BLOCKED** | Render HTTP-count and latency queries returned no samples in the reviewed window. Need provider monitor IDs and thresholds, destinations, a delivered test alert, and primary and backup owners. |
+| Hosted staging and rollback | **PARTIALLY CLOSED** | Identified an existing suspended Render staging service and a provisional patched backend fallback. Need verified isolated targets, hosted acceptance and rollback rehearsal, and a safe compatible frontend artifact. |
 
-| Blocker | Current state | Required state | Owner | Evidence required | Status |
-| --- | --- | --- | --- | --- | --- |
-| Atlas backup / PITR | The connected Atlas tool cannot inspect the organization because organization-wide AI client access is disabled. Production cluster/tier is unverified. | Dedicated M10+ production cluster, Cloud Backup and Continuous Cloud Backup enabled, seven-day PIT window, approved retention and alert destination. | MongoDB Atlas Organization/Project Owner — **not assigned** | Atlas cluster, backup-policy and latest-snapshot screenshots/exports with secrets removed. | **BLOCKED** |
-| Restore test | No production backup restore has been run. | Restore a snapshot/PIT into an isolated target, verify relationships/indexes, record RPO/RTO, then remove the target. | Database operator and independent reviewer — **not assigned** | Completed restore record defined in `BACKUP_RESTORE.md`. | **BLOCKED** |
-| Attachment durability | Local disk was the only persistence option before Phase 11. | Private durable storage with validation, rollback and restart-safe retrieval. | Backend owner | GridFS code/tests plus `npm run verify:storage` reconnect/hash/delete evidence. | **PASS** |
-| External monitoring | A provider-ready three-check template exists; no live monitor is evidenced. | External HTTPS checks for frontend, liveness and readiness at 60-second cadence. | Operations primary — **not assigned** | Provider monitor IDs/screenshots and a successful test-alert delivery. | **BLOCKED** |
-| Alerting | Thresholds and response actions are documented; destinations are not configured. | Delivery for uptime, 5xx, Atlas capacity/connections, email and GitHub failures. | Operations primary/backup — **not assigned** | Alert configurations and test-delivery record. | **BLOCKED** |
-| On-call ownership | No named primary or backup has been supplied. | Named primary, backup, channel and acknowledgement expectations accepted. | Product owner | Written acceptance in the release record. | **BLOCKED** |
-| Privacy operations | Inventory, lifecycle, deactivation behavior and manual workflows exist. Contact and operator identities are not verified. | Named privacy operator/reviewer and verified user contact route. | Privacy operator/reviewer — **not assigned** | Test request completed without exposing another subject's data. | **BLOCKED** |
-| Production-scale query checks | Synthetic, isolated performance database was populated and removed. | Representative indexed query/API results with no destructive production access. | Backend owner | `artifacts/phase11-scale-results.json`: 183,602 documents, 10 indexed queries, 6 endpoints, 0 API errors. | **PASS** |
-| Deployed golden paths | Connected Render inspection found `tasknexus-942u.onrender.com` tracking `main`. Phase 10 merge commit `351b711…` built but failed startup because MongoDB/database/origin configuration was missing; Render retained live commit `6a6e77a…`. `/health` is 200 on that old build, `/api/ready` is 404, and the HTTP health-check path is unset. | HTTPS staging on intended frontend/backend/Atlas/GridFS topology; all paths, security, browser, email, storage and restart checks pass. | Release owner and QA owner — **not assigned** | Signed deployed QA record with URLs, build revisions, timestamps and sanitized captures. | **BLOCKED** |
+## Release controls and configuration
 
-## Exact unblock sequence
+- Production Render is `srv-d6a6g5juibrs739rhud0` in `tea-d4jg08f5r7bs73fe1es0`. It watches `main` with **On Commit**, root `backend`, `npm install`, `npm start`, and an empty HTTP health-check path. Live deployment `dep-dc0pbinb9u1s73bpba60` resolves to `1290d725b8f5a66402e3502b2712ec139afe9ac6`. Its verified build used Node `24.22.3`. The running Node version remains unverified. No pending deploy appeared in the inspected recent deployment list. The preceding `0605551` artifact contains the historical Multer finding.
+- The repo declares `npm ci` and `/api/ready`. The reason for the live drift remains unverified. First identify the managing Render Blueprint, its source branch and Auto Sync, or confirm service settings are managed directly. Check pending work and deploy hooks using redacted evidence. If a Blueprint owns this service, reconcile the approved source with `autoDeployTrigger: off` before permitting sync. Keep the repository Blueprint as-is until ownership and sync behavior are known.
+- Hold production before any release push. In the approved Render service use **Settings → Auto-Deploy → Off** and verify the live artifact stays pinned. In the verified Vercel project, use **Settings → Environments → Production → Branch Tracking** to hold automatic domain assignment where supported. Verify the actual production hostname stays on its prior artifact. Vercel inspection needs an authorized member of `gaurav12gs-projects` with access to `task-nexus` deployment, domain and project settings. A write-capable owner must approve and apply any settings change.
+- Once both holds are proven, require PRs on `main`, **Release CI** from GitHub Actions, blocked force pushes and deletion, and restricted bypasses. Require independent approval only after identifying a qualified reviewer. Verify an ineligible PR cannot merge and that an approved non-production test of the promotion controls leaves production aliased to the current artifacts. [Release CI](https://github.com/ggauravky/TaskNexus/actions/runs/44922851764/job/136902435776) · [Release verification](https://github.com/ggauravky/TaskNexus/actions/runs/44922851620/job/136902435429)
+- Prove `npm ci`, `/api/ready`, Node 24 runtime, and environment isolation in authorized staging. Apply approved production changes separately. Settings that trigger a rebuild belong in an authorized release window. Collect the effective configuration and deployment records before and after changes.
+- A point-in-time public HEAD request returned `200` for the frontend. Backend liveness and readiness responses could not be verified from this environment. Keep hosted acceptance and continuous monitoring open.
 
-1. An Atlas Organization Owner enables AI client access for the organization.
-   Then re-run read-only Atlas inspection; do not grant database write or backup
-   mutation rights to the application identity.
-2. Provision or identify the dedicated production cluster and configure the
-   policy in `BACKUP_RESTORE.md`. Execute the isolated restore drill.
-3. Supply the staging frontend and backend HTTPS URLs and the deployed commit.
-   Configure the three external checks from
-   `ops/monitoring-checks.example.json`, test delivery, and record monitor IDs.
-4. Name the operations primary, backup, critical channel, privacy operator and
-   privacy reviewer. Verify the public privacy contact.
-5. Execute and sign the deployed QA checklist in `PRODUCTION_READINESS.md`.
+## Credentials, recovery and monitoring
 
-Until all five steps have evidence, production readiness remains `NO`.
+- **Credential owners.** Identify provider account and principal IDs without values. Validate new scoped MongoDB and SMTP credentials through approved checks before revocation, then record rejection for the old credentials. Coordinate both JWT keys and reauthentication. Verify old tokens fail, new login and refresh work, and suspended accounts remain blocked. Retain replacement secrets during rollback. Record operator, timestamps and sanitized access-review results.
+- **Recovery owner and reviewer.** Identify actual Atlas tier, topology, database and GridFS bucket. Evaluate tier-appropriate backup options against approved RPO/RTO before requesting a paid upgrade. Record policy, retention, snapshot or PIT timestamp and the cost of an isolated target. When separately approved, restore into that target and verify users/profiles, teams/projects, tasks and submissions, ledger integrity, immutable snapshots, indexes, and GridFS metadata/chunks and content hashes. Record elapsed time and recovered timestamp. Retain the isolated target until cleanup is approved. [Restore runbook](BACKUP_RESTORE.md)
+- **Operations primary and backup.** Inventory existing provider coverage for frontend uptime, backend liveness/readiness, 5xx, API latency, Atlas connections/storage and backup freshness, restarts, auth, task mutations, GridFS and SMTP. Approve thresholds using available baselines. Record the monitoring provider, IDs and destination, then run an approved staged test alert and record delivery and acknowledgement. Assign escalation and rollback authority. Record limited coverage if only one operator is available. [Monitoring runbook](MONITORING_RUNBOOK.md)
+
+## Staging and rollback
+
+- Render staging `srv-dakkfkuk1f9s73dkmi50` (`tasknexus-phase11-staging`) is on the free plan, suspended, has auto-deploy off, and tracks `codex/phase11-launch-stabilization`. Its recorded deploy `dep-dakkfl6k1f9s73dkmjh0` failed. Treat it as a reuse candidate pending owner verification of data, secrets, revision and current cost. No approved staging frontend or isolated database was established.
+- Before any staged deployment, identify the exact HTTPS frontend and backend, isolated transaction-capable database, separate GridFS bucket and JWT keys, synthetic account scope, cost ceiling, and cleanup owner. Disable real email and payment side effects. Approve a staging frontend artifact with exact staging API origin, CORS and CSP, then verify it cannot reach the production API. The production build uses the canonical API. The local Vite guard rejects conflicting API overrides during config resolution. It does not provide a hosted staging build.
+- Run HTTPS authentication/refresh and role boundaries, task creation through approval and revision, teams/projects, notifications and SSE reconnect, search and onboarding, showcase and contribution privacy, applications/evidence selection, recruiter isolation, GridFS access and persistence, and error/restart recovery. Exercise 320, 375, 390, 430, 768, 1024, and 1440 px. Rehearse rollback to a compatible patched pair, keep current secrets and persisted data, and record artifacts, outcomes and any forward-repair decision. [G2 deployment plan](PHASE_G2_DEPLOYMENT_PLAN.md)
+
+## Local change verification
+
+On `codex/release-blocker-controls`, the new Vite regression failed on the original config and passed after the build check was added. The full frontend suite passed 51 tests. Frontend lint, the canonical production build, backend production and launch contracts, the source secret scan and whitespace checks passed. A build with a mismatched API override stopped before bundling. The focused test and canonical build also passed on the CI-pinned Node `24.22.3`. The application runtime, hosted configuration and Phase A–F features were left intact.
